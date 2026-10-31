@@ -232,6 +232,64 @@ describe("indexWithDatabase", () => {
       }]);
   });
 
+  it("resolves local package root and subpath exports, preferring the types condition", () => {
+    createProject();
+    const packageRoot = join(location.rootPath, "packages", "utils");
+    mkdirSync(join(packageRoot, "src"), { recursive: true });
+    writeFileSync(join(packageRoot, "package.json"), JSON.stringify({
+      name: "@local/utils",
+      exports: {
+        ".": { types: "./src/index.d.ts", import: "./src/index.ts" },
+        "./format": "./src/format.ts",
+      },
+    }));
+    writeFileSync(join(location.rootPath, "main.ts"), 'import "@local/utils";\nimport "@local/utils/format";');
+    writeFileSync(join(packageRoot, "src", "index.d.ts"), "export declare const utility: string;");
+    writeFileSync(join(packageRoot, "src", "index.ts"), "export const utility = 'runtime';");
+    writeFileSync(join(packageRoot, "src", "format.ts"), "export function format() {}");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT source.path AS source, target.path AS target FROM relations r JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id WHERE r.kind = 'IMPORTS' ORDER BY target.path").all())
+      .toEqual([
+        { source: "main.ts", target: "packages/utils/src/format.ts" },
+        { source: "main.ts", target: "packages/utils/src/index.d.ts" },
+      ]);
+    expect(database!.prepare("SELECT module_specifier FROM unresolved_imports").all()).toEqual([]);
+  });
+
+  it("reports missing, ambiguous, and unsafe local package export targets without guessing", () => {
+    createProject();
+    const packageRoot = join(location.rootPath, "packages", "utils");
+    mkdirSync(join(packageRoot, "src"), { recursive: true });
+    writeFileSync(join(packageRoot, "package.json"), JSON.stringify({
+      name: "local-utils",
+      exports: {
+        ".": "./src/missing.ts",
+        "./shared": "./src/shared",
+        "./outside": "../outside.ts",
+      },
+    }));
+    writeFileSync(join(location.rootPath, "main.ts"),
+      'import "local-utils";\nimport "local-utils/shared";\nimport "local-utils/outside";\nimport "external-package";');
+    writeFileSync(join(packageRoot, "src", "shared.ts"), "export const current = true;");
+    writeFileSync(join(packageRoot, "src", "shared.tsx"), "export const legacy = true;");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT kind FROM relations WHERE kind = 'IMPORTS'").all()).toEqual([]);
+    expect(database!.prepare("SELECT module_specifier, status, candidates_json FROM unresolved_imports ORDER BY module_specifier").all())
+      .toEqual([
+        { module_specifier: "local-utils", status: "unresolved", candidates_json: "[]" },
+        { module_specifier: "local-utils/outside", status: "unresolved", candidates_json: "[]" },
+        {
+          module_specifier: "local-utils/shared",
+          status: "ambiguous",
+          candidates_json: JSON.stringify(["packages/utils/src/shared.ts", "packages/utils/src/shared.tsx"]),
+        },
+      ]);
+  });
+
   it("rebuilds a local import relation between indexed files", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
