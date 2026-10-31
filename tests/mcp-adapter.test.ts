@@ -190,6 +190,14 @@ describe("MCP adapter protocol contract", () => {
       ? JSON.stringify(response.error)
       : (result?.content ?? []).map((item) => item.text ?? "").join("\n");
     expect(errorText.length).toBeGreaterThan(0);
+
+    const coreError = await client.request("tools/call", {
+      name: "dependency_graph",
+      arguments: { path: "missing-from-index.ts" },
+    });
+    const coreResult = coreError.result as { isError?: boolean; content?: Array<{ text?: string }> } | undefined;
+    expect(Boolean(coreError.error) || coreResult?.isError === true).toBe(true);
+    expect((coreResult?.content ?? []).map((item) => item.text ?? "").join("\\n")).toContain("File not found in memory index");
   });
 
   it("does not change repository files, index revision, or durable memory records during read calls", async () => {
