@@ -98,7 +98,7 @@ Common generated/dependency folders and sensitive files such as `.env`, private 
 
 ## Current limitations
 
-- Import resolution is intentionally conservative and initially focuses on relative imports with common JS/TS extensions.
+- Import resolution supports relative imports and explicit `compilerOptions.paths` aliases from the repository-root `tsconfig.json`; multiple indexed targets are reported as ambiguous. Other package imports, `baseUrl`-only resolution, and package `exports` are not inferred yet.
 - Call relationships are resolved locally within a file; cross-file symbol resolution is planned.
 - Dynamic imports, framework-specific dependency injection, reflection, and runtime-generated relationships are not inferred.
 - The index is structural, not a substitute for source code or tests.

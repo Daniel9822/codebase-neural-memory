@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFileSync, readdirSync, statSync, type Dirent } from "node:fs";
-import { extname, join, relative, dirname, posix } from "node:path";
+import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
+import ts from "typescript";
 import ignore from "ignore";
 import type { ProjectLocation } from "./project.js";
 import { isSupportedSourceFile, parseTypeScriptFile } from "./typescript-parser.js";
@@ -146,7 +147,59 @@ function clearFileIndex(db: MemoryDatabase, fileId: number): void {
   db.prepare("DELETE FROM symbol_calls WHERE file_id = ?").run(fileId);
 }
 
-function rebuildRelations(db: MemoryDatabase): number {
+interface PathAliasConfig {
+  configDirectory: string;
+  baseUrl: string;
+  paths: Record<string, readonly string[]>;
+}
+
+function loadPathAliasConfig(root: string): PathAliasConfig | undefined {
+  const configPath = join(root, "tsconfig.json");
+  const read = ts.readConfigFile(configPath, ts.sys.readFile);
+  if (read.error) return undefined;
+  const configDirectory = dirname(configPath);
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, configDirectory, undefined, configPath);
+  const paths = parsed.options.paths;
+  if (!paths) return undefined;
+  return {
+    configDirectory,
+    baseUrl: parsed.options.baseUrl ? resolve(parsed.options.baseUrl) : configDirectory,
+    paths,
+  };
+}
+
+function matchPathAlias(specifier: string, config: PathAliasConfig): string[] | undefined {
+  const matches = Object.entries(config.paths).flatMap(([pattern, targets]) => {
+    const wildcard = pattern.indexOf("*");
+    if (wildcard < 0) return pattern === specifier ? [{ exact: true, prefixLength: pattern.length, substitution: "", targets }] : [];
+    const prefix = pattern.slice(0, wildcard);
+    const suffix = pattern.slice(wildcard + 1);
+    if (!specifier.startsWith(prefix) || !specifier.endsWith(suffix) || specifier.length < prefix.length + suffix.length) return [];
+    return [{ exact: false, prefixLength: prefix.length, substitution: specifier.slice(prefix.length, specifier.length - suffix.length), targets }];
+  });
+  if (matches.length === 0) return undefined;
+  const exact = matches.filter((match) => match.exact);
+  const selected = exact.length > 0
+    ? exact
+    : matches.filter((match) => match.prefixLength === Math.max(...matches.map((match) => match.prefixLength)));
+  return selected.flatMap((match) => match.targets.map((target) =>
+    resolve(config.baseUrl, target.replace("*", match.substitution)),
+  ));
+}
+
+function expandSourceCandidates(base: string): string[] {
+  const extension = posix.extname(base);
+  const aliases = extension === ".js" ? [base.replace(/\.js$/, ".ts"), base.replace(/\.js$/, ".tsx")]
+    : extension === ".jsx" ? [base.replace(/\.jsx$/, ".tsx")]
+    : extension === ".mjs" ? [base.replace(/\.mjs$/, ".mts")]
+    : [];
+  return extension
+    ? [base, ...aliases]
+    : [base, ...[".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"].map((ext) => base + ext),
+      ...["index.ts", "index.tsx", "index.js", "index.jsx"].map((file) => `${base}/${file}`)];
+}
+
+function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
   db.prepare("DELETE FROM relations").run();
   const files = db.prepare("SELECT id, path FROM files").all() as Array<{ id: number; path: string }>;
   const byPath = new Map(files.map((file) => [file.path, file.id]));
@@ -161,19 +214,21 @@ function rebuildRelations(db: MemoryDatabase): number {
     INSERT INTO unresolved_imports(source_file_id, module_specifier, status, candidates_json)
     VALUES (?, ?, ?, ?)
   `);
+  const aliasConfig = loadPathAliasConfig(rootPath);
   const resolveImportCandidates = (sourcePath: string, specifier: string): Array<{ id: number; path: string }> => {
-    if (!specifier.startsWith(".")) return [];
-    const base = posix.normalize(posix.join(posix.dirname(sourcePath), specifier));
-    const extension = posix.extname(base);
-    const aliases = extension === ".js" ? [base.replace(/\.js$/, ".ts"), base.replace(/\.js$/, ".tsx")]
-      : extension === ".jsx" ? [base.replace(/\.jsx$/, ".tsx")]
-      : extension === ".mjs" ? [base.replace(/\.mjs$/, ".mts")]
-      : [];
-    const candidates = extension
-      ? [base, ...aliases]
-      : [base, ...[".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"].map((ext) => base + ext),
-        ...["index.ts", "index.tsx", "index.js", "index.jsx"].map((file) => `${base}/${file}`)];
-    return [...new Set(candidates)].flatMap((candidate) => {
+    let bases: string[];
+    if (specifier.startsWith(".")) {
+      bases = [posix.normalize(posix.join(posix.dirname(sourcePath), specifier))];
+    } else {
+      const targets = aliasConfig ? matchPathAlias(specifier, aliasConfig) : undefined;
+      if (!targets) return [];
+      bases = targets.flatMap((target) => {
+        const candidate = relative(rootPath, target).replaceAll("\\", "/");
+        return candidate === ".." || candidate.startsWith("../") || isAbsolute(candidate) ? [] : [candidate];
+      });
+    }
+    const candidates = [...new Set(bases.flatMap(expandSourceCandidates))];
+    return candidates.flatMap((candidate) => {
       const id = byPath.get(candidate);
       return id === undefined ? [] : [{ id, path: candidate }];
     });
@@ -182,7 +237,10 @@ function rebuildRelations(db: MemoryDatabase): number {
   const imports = db.prepare("SELECT file_id, module_specifier FROM file_imports ORDER BY file_id, module_specifier").all() as Array<{ file_id: number; module_specifier: string }>;
   for (const item of imports) {
     const sourcePath = fileById.get(item.file_id);
-    if (!sourcePath || !item.module_specifier.startsWith(".")) continue;
+    if (!sourcePath) continue;
+    const isRelative = item.module_specifier.startsWith(".");
+    const hasAlias = !isRelative && Boolean(aliasConfig && matchPathAlias(item.module_specifier, aliasConfig));
+    if (!isRelative && !hasAlias) continue;
     const candidates = resolveImportCandidates(sourcePath, item.module_specifier)
       .filter((candidate) => candidate.id !== item.file_id);
     if (candidates.length === 1) {
@@ -302,7 +360,7 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
       }
     }
 
-    summary.relations = rebuildRelations(db);
+    summary.relations = rebuildRelations(db, location.rootPath);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
     const now = new Date().toISOString();
     db.prepare("UPDATE projects SET last_indexed_at = ? WHERE id = ?").run(now, location.id);

@@ -193,6 +193,45 @@ describe("indexWithDatabase", () => {
     expect(database!.prepare("SELECT COUNT(*) AS count FROM unresolved_imports").get()).toEqual({ count: 0 });
   });
 
+  it("resolves explicit tsconfig paths aliases to indexed files", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
+    }));
+    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import { helper } from "@/helper";');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export const helper = true;");
+    writeFileSync(join(location.rootPath, "src", "external.ts"), 'import "some-package";');
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT source.path AS source, target.path AS target FROM relations r JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id WHERE r.kind = 'IMPORTS'").all())
+      .toEqual([{ source: "src/main.ts", target: "src/helper.ts" }]);
+    expect(database!.prepare("SELECT module_specifier FROM unresolved_imports").all()).toEqual([]);
+  });
+
+  it("marks tsconfig aliases with multiple indexed targets as ambiguous", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    mkdirSync(join(location.rootPath, "legacy"), { recursive: true });
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*", "legacy/*"] } },
+    }));
+    writeFileSync(join(location.rootPath, "main.ts"), 'import "@/shared";');
+    writeFileSync(join(location.rootPath, "src", "shared.ts"), "export const current = true;");
+    writeFileSync(join(location.rootPath, "legacy", "shared.ts"), "export const legacy = true;");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT kind FROM relations WHERE kind = 'IMPORTS'").all()).toEqual([]);
+    expect(database!.prepare("SELECT module_specifier, status, candidates_json FROM unresolved_imports").all())
+      .toEqual([{
+        module_specifier: "@/shared",
+        status: "ambiguous",
+        candidates_json: JSON.stringify(["legacy/shared.ts", "src/shared.ts"]),
+      }]);
+  });
+
   it("rebuilds a local import relation between indexed files", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
