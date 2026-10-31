@@ -93,7 +93,7 @@ Do not record repository source contents, personal paths, secrets, or private me
 **Target workspace:** the local `codebase-neural-memory` repository (absolute user-specific path intentionally redacted).  
 **Platform evidence:** Windows PowerShell; VS Code reported x64. The exact Windows edition was not captured.  
 **Observed versions:** VS Code `1.144.0` (commit `2c33b50b16c472efe58357d1d2a8a5414bc23fbf`, x64); OpenCode `1.19.5`; Node.js `v22.12.0`.  
-**GitHub Copilot extension:** `code --list-extensions --show-versions | findstr /i "github.copilot"` returned no matching lines in the supplied terminal output. This does not establish whether Copilot was built-in, installed in another VS Code profile/instance, or exposed under a different extension identifier; exact extension identifier/version remains unverified.
+**GitHub Copilot:** The user confirmed that Copilot is integrated into the validated VS Code installation. Record the client as VS Code 1.144.0 with its integrated Copilot Agent experience; no separate extension identifier/version is required for this environment.
 
 | Client | Configuration / discovery | Real calls observed | Result |
 |---|---|---|---|
@@ -104,7 +104,7 @@ Both clients returned the same indexed workspace metrics: 25 files, 135 symbols,
 
 These are manual end-to-end client calls, not simulated SDK calls. The test used the CNM repository itself as the target workspace; it validates client startup, discovery, workspace binding, and tool invocation, but does not replace the separate automated two-project isolation tests from Block 3.
 
-**Remaining evidence gap:** identify the exact GitHub Copilot extension identifier/version (the filtered CLI command returned no match) and record the Windows edition if required. VS Code, OpenCode, and Node.js versions are now recorded from direct CLI output.
+**Evidence status:** Both real-client integrations are verified. The exact Windows edition was not captured and is an optional environment detail, not a Phase 6 exit criterion. Copilot is recorded as integrated in the validated VS Code 1.144.0 installation.
 
 ## Troubleshooting
 
