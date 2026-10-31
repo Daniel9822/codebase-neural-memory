@@ -80,4 +80,35 @@ describe("indexWithDatabase", () => {
     expect(summary.deleted).toBe(1);
     expect(database!.prepare("SELECT COUNT(*) AS count FROM files").get()).toEqual({ count: 0 });
   });
+
+  it("skips unchanged content and updates changed symbols incrementally", () => {
+    createProject();
+    const filePath = join(location.rootPath, "service.ts");
+    writeFileSync(filePath, "export function firstVersion() { return 1; }");
+
+    const initial = indexWithDatabase(database!, location);
+    const unchanged = indexWithDatabase(database!, location);
+    writeFileSync(filePath, "export function secondVersion() { return 2; }");
+    const updated = indexWithDatabase(database!, location);
+
+    expect(initial.added).toBe(1);
+    expect(unchanged.unchanged).toBe(1);
+    expect(unchanged.updated).toBe(0);
+    expect(updated.updated).toBe(1);
+    expect(database!.prepare("SELECT name FROM symbols").all()).toEqual([{ name: "secondVersion" }]);
+  });
+
+  it("rebuilds a local import relation between indexed files", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import { helper } from "./helper";\\nexport function run() { helper(); }');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+
+    const summary = indexWithDatabase(database!, location);
+    const imports = database!.prepare("SELECT kind FROM relations WHERE kind = 'IMPORTS'").all();
+
+    expect(summary.added).toBe(2);
+    expect(imports).toEqual([{ kind: "IMPORTS" }]);
+  });
+
 });
