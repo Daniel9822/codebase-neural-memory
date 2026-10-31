@@ -135,7 +135,21 @@ export function buildTaskContext(
     });
   }
 
-  const memories = recallMemories(location, normalizedTask, memoryLimit);
+  // A task is a bag of concepts, not a literal phrase. Exact substring lookup misses
+  // memories when relevant terms are separated or appear in a different order.
+  const memories = recallMemories(location, "", 500)
+    .map((memory) => ({
+      memory,
+      matches: anchors.filter((anchor) =>
+        `${memory.title} ${memory.content} ${memory.category}`.toLocaleLowerCase().includes(anchor),
+      ).length,
+    }))
+    .filter((entry) => entry.matches > 0)
+    .sort((a, b) => b.matches - a.matches
+      || b.memory.updatedAt.localeCompare(a.memory.updatedAt)
+      || a.memory.id.localeCompare(b.memory.id))
+    .slice(0, memoryLimit)
+    .map((entry) => entry.memory);
   const freshness = inspectMemoryFreshness(location);
   const freshnessById = new Map(freshness.map((entry) => [entry.id, entry]));
   for (const memory of memories) {
