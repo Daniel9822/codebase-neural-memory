@@ -290,7 +290,6 @@ export function findDependencies(
       const current = queue.shift()!;
       processedFiles += 1;
       if (current.depth >= maxDepth) continue;
-      const remaining = maxResults - dependencies.length;
       const imports = db.prepare(`
         SELECT target.id, target.path, r.provenance, r.confidence, r.index_revision AS indexRevision
         FROM relations r
