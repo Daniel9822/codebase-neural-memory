@@ -184,13 +184,14 @@ memory.command("update <id>")
   .option("--source <path>", "New source file path")
   .option("--commit <sha>", "New source Git commit")
   .action((id: string, options: { category?: string; title?: string; content?: string; source?: string; commit?: string }) => {
-    const changed = updateMemory(ensureInitialized(), id, {
-      category: options.category,
-      title: options.title,
-      content: options.content,
-      sourcePath: options.source,
-      commitSha: options.commit,
-    });
+    const patch = {
+      ...(options.category === undefined ? {} : { category: options.category }),
+      ...(options.title === undefined ? {} : { title: options.title }),
+      ...(options.content === undefined ? {} : { content: options.content }),
+      ...(options.source === undefined ? {} : { sourcePath: options.source }),
+      ...(options.commit === undefined ? {} : { commitSha: options.commit }),
+    };
+    const changed = updateMemory(ensureInitialized(), id, patch);
     if (!changed) throw new Error(`Memory not found: ${id}`);
     console.log(`Updated memory ${id}.`);
   });
