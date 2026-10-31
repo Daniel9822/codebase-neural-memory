@@ -140,7 +140,7 @@ describe("MCP adapter protocol contract", () => {
       file_details: ["limit", "path"],
       change_impact: ["limit", "maxProcessed", "path"],
       task_context: ["maxCharacters", "maxItems", "task"],
-      memory_freshness: [],
+      memory_freshness: ["limit"],
       memory_recall: ["limit", "query"],
     });
   });

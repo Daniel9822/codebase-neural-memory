@@ -1,8 +1,8 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
-import { inspectMemoryFreshness, recallMemories } from "../../core/memories.js";
-import { getProjectMap, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails } from "../../core/retrieval.js";
+import { getMemoryFreshnessReport, recallMemories } from "../../core/memories.js";
+import { getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails } from "../../core/retrieval.js";
 import { getIndexFreshness } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
 import type { ProjectLocation } from "../../core/project.js";
@@ -30,7 +30,7 @@ export function createMcpServer(location: ProjectLocation): McpServer {
       description: "List indexed source files and their locally resolved imports.",
       inputSchema: z.object({ limit: z.number().int().min(1).max(200).optional() }),
     }, async ({ limit }) => ({
-      content: [{ type: "text", text: JSON.stringify(getProjectMap(location, limit ?? 80), null, 2) }],
+      content: [{ type: "text", text: JSON.stringify(getProjectMapReport(location, limit ?? 80), null, 2) }],
     }));
 
     server.registerTool("symbol_lookup", {
@@ -86,9 +86,9 @@ export function createMcpServer(location: ProjectLocation): McpServer {
 
     server.registerTool("memory_freshness", {
       description: "Inspect source files linked to project memories and report changes or missing files without changing memory status.",
-      inputSchema: z.object({}),
-    }, async () => ({
-      content: [{ type: "text", text: JSON.stringify(inspectMemoryFreshness(location), null, 2) }],
+      inputSchema: z.object({ limit: z.number().int().min(1).max(500).optional() }),
+    }, async ({ limit }) => ({
+      content: [{ type: "text", text: JSON.stringify(getMemoryFreshnessReport(location, limit ?? 100), null, 2) }],
     }));
 
     server.registerTool("memory_recall", {

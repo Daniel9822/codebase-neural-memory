@@ -193,6 +193,77 @@ export function getProjectMap(location: ProjectLocation, limit = 80): Array<{ pa
   }
 }
 
+export interface ProjectMapReport {
+  files: Array<{
+    path: string;
+    imports: string[];
+    unresolvedImports: Array<{ specifier: string; status: string; candidates: string[]; candidatesTotal: number; candidatesTruncated: boolean }>;
+    totals: { imports: number; unresolvedImports: number };
+    truncated: { imports: boolean; unresolvedImports: boolean };
+  }>;
+  totalFiles: number;
+  limit: number;
+  truncated: boolean;
+  perFileLimit: number;
+  candidateLimit: number;
+}
+
+const MAX_PROJECT_MAP_PER_FILE = 200;
+const MAX_PROJECT_MAP_CANDIDATES = 200;
+
+/** MCP-facing project map with bounded top-level and nested collections. */
+export function getProjectMapReport(location: ProjectLocation, limit = 80): ProjectMapReport {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 200) {
+    throw new Error("Project map limit must be a positive safe integer no greater than 200");
+  }
+  const db = openDatabase(location);
+  try {
+    const totalFiles = (db.prepare("SELECT COUNT(*) AS count FROM files").get() as { count: number }).count;
+    const rows = db.prepare(`
+      SELECT f.id, f.path,
+        (SELECT COUNT(*) FROM relations r WHERE r.source_kind = 'file' AND r.source_id = f.id AND r.kind = 'IMPORTS') AS importsTotal,
+        (SELECT COUNT(*) FROM unresolved_imports u WHERE u.source_file_id = f.id) AS unresolvedTotal,
+        COALESCE((SELECT json_group_array(path) FROM (
+          SELECT target.path AS path FROM relations r
+          JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
+          WHERE r.source_kind = 'file' AND r.source_id = f.id AND r.kind = 'IMPORTS'
+          ORDER BY target.path LIMIT ?
+        )), '[]') AS imports,
+        COALESCE((SELECT json_group_array(json_object(
+          'specifier', specifier, 'status', status, 'candidates', json(candidatesJson)
+        )) FROM (
+          SELECT module_specifier AS specifier, status, candidates_json AS candidatesJson
+          FROM unresolved_imports WHERE source_file_id = f.id
+          ORDER BY module_specifier LIMIT ?
+        )), '[]') AS unresolvedImports
+      FROM files f ORDER BY f.path LIMIT ?
+    `).all(MAX_PROJECT_MAP_PER_FILE, MAX_PROJECT_MAP_PER_FILE, limit) as Array<{
+      path: string; importsTotal: number; unresolvedTotal: number; imports: string; unresolvedImports: string;
+    }>;
+    const files = rows.map((row) => {
+      const imports = JSON.parse(row.imports) as string[];
+      const rawUnresolvedImports = JSON.parse(row.unresolvedImports) as Array<{ specifier: string; status: string; candidates: string[] }>;
+      const unresolvedImports = rawUnresolvedImports.map((item) => ({
+        ...item,
+        candidates: item.candidates.slice(0, MAX_PROJECT_MAP_CANDIDATES),
+        candidatesTotal: item.candidates.length,
+        candidatesTruncated: item.candidates.length > MAX_PROJECT_MAP_CANDIDATES,
+      }));
+      return {
+        path: row.path, imports, unresolvedImports,
+        totals: { imports: row.importsTotal, unresolvedImports: row.unresolvedTotal },
+        truncated: {
+          imports: row.importsTotal > imports.length,
+          unresolvedImports: row.unresolvedTotal > unresolvedImports.length,
+        },
+      };
+    });
+    return { files, totalFiles, limit, truncated: totalFiles > files.length, perFileLimit: MAX_PROJECT_MAP_PER_FILE, candidateLimit: MAX_PROJECT_MAP_CANDIDATES };
+  } finally {
+    db.close();
+  }
+}
+
 export function explainSymbol(location: ProjectLocation, name: string): SearchHit[] {
   const db = openDatabase(location);
   try {

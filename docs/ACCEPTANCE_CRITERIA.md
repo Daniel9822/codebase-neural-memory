@@ -247,13 +247,15 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 
 ### Block 3 — Limits, paths, and isolation
 
-- [ ] Every response collection is bounded at the MCP boundary and reports totals/truncation where applicable.
-- [ ] `index_freshness.skippedFiles` and `index_freshness.errors` are bounded and expose total counts plus truncation flags.
-- [ ] `memory_freshness` is bounded and exposes the total eligible count plus a truncation flag.
-- [ ] `project_map` exposes the total indexed-file count and a truncation flag when the result limit is reached.
-- [ ] Boundary tests cover exact-limit, over-limit, empty, and incomplete-discovery cases for these three tools.
-- [ ] Two independent MCP processes bound to different repositories cannot read each other's indexed files or memories.
-- [ ] Invalid, missing, unindexed, traversal, and outside-root paths produce controlled errors.
+- [x] Every response collection is bounded at the MCP boundary and reports totals/truncation where applicable.
+- [x] `index_freshness.skippedFiles` and `index_freshness.errors` are bounded and expose total counts plus truncation flags.
+- [x] `memory_freshness` is bounded and exposes the total eligible count plus a truncation flag.
+- [x] `project_map` exposes the total indexed-file count and a truncation flag when the result limit is reached; nested imports and candidate paths are also bounded.
+- [x] Boundary tests cover exact-limit, over-limit, empty, and incomplete-discovery cases for these three tools.
+- [x] Two independent MCP servers bound to different repositories cannot read each other's indexed files or memories.
+- [x] Invalid, missing, unindexed, traversal, and outside-root paths produce controlled errors.
+
+**Evidence:** CI run [41239258583](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41239258583) passed 86 tests across 10 test files, typecheck, build, and smoke.
 
 ### Block 4 — Real clients
 

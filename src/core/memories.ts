@@ -191,11 +191,17 @@ export interface MemorySourceFreshness {
 }
 
 /** Inspect source-backed memories without changing their lifecycle status or content. */
-export function inspectMemoryFreshness(location: ProjectLocation): MemorySourceFreshness[] {
+export function inspectMemoryFreshness(location: ProjectLocation, limit?: number): MemorySourceFreshness[] {
+  if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) {
+    throw new Error("Memory freshness limit must be a positive safe integer no greater than 500");
+  }
   const db = openDatabase(location);
   try {
-    const rows = db.prepare("SELECT id, title, source_path AS sourcePath, source_hash AS sourceHash FROM memories WHERE status != 'rejected' AND source_path IS NOT NULL ORDER BY updated_at DESC, id")
-      .all() as Array<{ id: string; title: string; sourcePath: string; sourceHash: string | null }>;
+    const sql = "SELECT id, title, source_path AS sourcePath, source_hash AS sourceHash FROM memories WHERE status != 'rejected' AND source_path IS NOT NULL ORDER BY updated_at DESC, id" +
+      (limit === undefined ? "" : " LIMIT ?");
+    const rows = (limit === undefined ? db.prepare(sql).all() : db.prepare(sql).all(limit)) as Array<{
+      id: string; title: string; sourcePath: string; sourceHash: string | null;
+    }>;
     return rows.map((row) => {
       let currentHash: string | null;
       try {
@@ -214,6 +220,29 @@ export function inspectMemoryFreshness(location: ProjectLocation): MemorySourceF
   } finally {
     db.close();
   }
+}
+
+export interface MemoryFreshnessReport {
+  records: MemorySourceFreshness[];
+  total: number;
+  limit: number;
+  truncated: boolean;
+}
+
+/** Bounded MCP-facing view; the CLI's legacy inspection remains complete. */
+export function getMemoryFreshnessReport(location: ProjectLocation, limit = 100): MemoryFreshnessReport {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+    throw new Error("Memory freshness limit must be a positive safe integer no greater than 500");
+  }
+  const db = openDatabase(location);
+  let total: number;
+  try {
+    total = (db.prepare("SELECT COUNT(*) AS count FROM memories WHERE status != 'rejected' AND source_path IS NOT NULL").get() as { count: number }).count;
+  } finally {
+    db.close();
+  }
+  const records = inspectMemoryFreshness(location, limit);
+  return { records, total, limit, truncated: total > records.length };
 }
 
 export function recallMemories(location: ProjectLocation, query = "", limit = 20): MemoryRecord[] {
