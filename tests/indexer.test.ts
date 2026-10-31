@@ -111,4 +111,33 @@ describe("indexWithDatabase", () => {
     expect(imports).toEqual([{ kind: "IMPORTS" }]);
   });
 
+
+  it("rolls back the entire indexing run when relation rebuilding fails", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    const mainPath = join(location.rootPath, "src", "main.ts");
+    const helperPath = join(location.rootPath, "src", "helper.ts");
+    writeFileSync(mainPath, 'import { helper } from "./helper";\nexport function run() { helper(); }');
+    writeFileSync(helperPath, "export function helper() { return 1; }");
+    indexWithDatabase(database!, location);
+
+    const oldHash = (database!.prepare("SELECT content_hash FROM files WHERE path = ?").get("src/helper.ts") as { content_hash: string }).content_hash;
+    database!.exec("CREATE TRIGGER fail_relation_insert BEFORE INSERT ON relations BEGIN SELECT RAISE(ABORT, 'forced relation failure'); END;");
+    writeFileSync(helperPath, "export function changedHelper() { return 2; }");
+    writeFileSync(join(location.rootPath, "src", "new.ts"), "export const newFile = true;");
+
+    expect(() => indexWithDatabase(database!, location)).toThrow("forced relation failure");
+
+    const currentHash = (database!.prepare("SELECT content_hash FROM files WHERE path = ?").get("src/helper.ts") as { content_hash: string }).content_hash;
+    const symbols = database!.prepare("SELECT name FROM symbols ORDER BY name").all();
+    const fileCount = (database!.prepare("SELECT COUNT(*) AS count FROM files").get() as { count: number }).count;
+    const relationCount = (database!.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
+
+    expect(currentHash).toBe(oldHash);
+    expect(symbols).toContainEqual({ name: "helper" });
+    expect(symbols).not.toContainEqual({ name: "changedHelper" });
+    expect(fileCount).toBe(2);
+    expect(relationCount).toBe(1);
+  });
+
 });
