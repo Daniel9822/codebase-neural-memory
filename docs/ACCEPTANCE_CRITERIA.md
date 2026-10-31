@@ -243,6 +243,8 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - [x] Repeated calls, EOF/shutdown, and reconnection are tested, including a restarted stdio process.
 - [x] Read calls do not mutate repository source files, index records, or durable memory records.
 
+**Evidence:** CI run [41238294195](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41238294195) passed all 82 tests across 9 test files, `npm run typecheck`, `npm run build`, and `npm run smoke`.
+
 ### Block 3 — Limits, paths, and isolation
 
 - [ ] Every response collection is bounded at the MCP boundary and reports totals/truncation where applicable.
