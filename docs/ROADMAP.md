@@ -69,7 +69,7 @@ Exit condition: graph rebuild is deterministic, stale edges are removed, and gra
 
 ## Phase 3 — Lexical and structural retrieval
 
-**Status:** The Phase 3 implementation scope and all listed retrieval acceptance behaviors are documented as implemented and covered by focused regression fixtures. Formal phase closure is pending a clean-checkout verification run and a recorded result for typecheck, tests, build, and the relevant CLI/MCP smoke checks. Repository-scale relevance, precision/recall, and performance benchmarking are explicitly assigned to Phase 8; they are not additional Phase 3 feature requirements.
+**Status:** Complete and formally closed on 2026-10-31. The clean-checkout CI verification on merge commit `553b3acbe3ef868fd4ef49fadb189ae2b92c1c2e` passed lockfile installation, typecheck, the full test suite, production build, and CLI/MCP retrieval smoke checks. The execution record is in `docs/ACCEPTANCE_CRITERIA.md`. Repository-scale relevance, precision/recall, and performance benchmarking remain Phase 8 work and are not Phase 3 requirements.
 
 Tasks:
 - [x] Improve FTS query handling, multi-term ranking, bounded candidates, and a narrowly scoped FTS5 fallback that does not swallow unrelated SQLite errors.
