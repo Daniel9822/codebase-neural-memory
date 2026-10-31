@@ -234,7 +234,7 @@ Exit condition: controlled Git changes and missed watcher events converge to the
 
 Tasks:
 - [x] Generate deterministic small, medium, and large repository fixtures (26, 101, and 301 source files).
-- [ ] Add end-to-end benchmarks for real repository layouts.
+- [x] Add an end-to-end benchmark case for the checked-out CNM repository; additional independent repositories remain open.
 - [x] Measure initial, unchanged incremental, and changed incremental indexing; record search, graph, and freshness latency.
 - [x] Record SQLite database size and process peak RSS.
 - [x] Evaluate symbol retrieval precision@5, recall@5, MRR, and top-1 accuracy against ten labeled queries.
