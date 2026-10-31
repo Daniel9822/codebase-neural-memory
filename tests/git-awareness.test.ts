@@ -177,6 +177,47 @@ describe("Git-aware indexing and freshness", () => {
     expect(getIndexFreshness(location).status).toBe("current");
   });
 
+  it("converges incremental reconciliation and forced reindex after rename, deletion, and branch changes", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "tracked.ts"), 'import { helper } from "./helper";\nexport const tracked = helper;\n');
+    writeFileSync(join(location.rootPath, "helper.ts"), "export const helper = 1;\n");
+    writeFileSync(join(location.rootPath, "temporary.ts"), "export const temporary = true;\n");
+    execFileSync("git", ["add", "-A"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "add indexed source graph"], { cwd: location.rootPath, stdio: "ignore" });
+    indexWithDatabase(database!, location);
+
+    execFileSync("git", ["mv", "helper.ts", "renamed.ts"], { cwd: location.rootPath });
+    writeFileSync(join(location.rootPath, "tracked.ts"), 'import { helper } from "./renamed";\nexport const tracked = helper + 1;\n');
+    rmSync(join(location.rootPath, "temporary.ts"));
+    execFileSync("git", ["add", "-A"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "rename and delete indexed source"], { cwd: location.rootPath, stdio: "ignore" });
+    indexWithDatabase(database!, location);
+
+    const logicalSnapshot = () => ({
+      files: database!.prepare("SELECT path, stable_id, content_hash FROM files ORDER BY path").all(),
+      symbols: database!.prepare("SELECT f.path, s.stable_id, s.name, s.kind, s.signature, s.start_line, s.end_line, s.exported FROM symbols s JOIN files f ON f.id = s.file_id ORDER BY f.path, s.name").all(),
+      imports: database!.prepare("SELECT f.path, i.module_specifier FROM file_imports i JOIN files f ON f.id = i.file_id ORDER BY f.path, i.module_specifier").all(),
+      relations: database!.prepare("SELECT r.source_kind, CASE r.source_kind WHEN 'file' THEN (SELECT stable_id FROM files WHERE id = r.source_id) ELSE (SELECT stable_id FROM symbols WHERE id = r.source_id) END AS source_stable_id, r.target_kind, CASE r.target_kind WHEN 'file' THEN (SELECT stable_id FROM files WHERE id = r.target_id) ELSE (SELECT stable_id FROM symbols WHERE id = r.target_id) END AS target_stable_id, r.kind, r.confidence, r.provenance FROM relations r ORDER BY r.kind, source_stable_id, target_stable_id").all(),
+      unresolved: database!.prepare("SELECT f.path, u.module_specifier, u.status, u.candidates_json FROM unresolved_imports u JOIN files f ON f.id = u.source_file_id ORDER BY f.path, u.module_specifier").all(),
+    });
+    const afterIncremental = logicalSnapshot();
+    indexWithDatabase(database!, location, true);
+    expect(logicalSnapshot()).toEqual(afterIncremental);
+
+    const originalBranch = getGitSnapshot(location.rootPath).branch;
+    expect(originalBranch).toBeTruthy();
+    execFileSync("git", ["switch", "-c", "phase7-alternate"], { cwd: location.rootPath, stdio: "ignore" });
+    writeFileSync(join(location.rootPath, "alternate.ts"), "export const alternate = true;\n");
+    execFileSync("git", ["add", "-A"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "alternate branch source"], { cwd: location.rootPath, stdio: "ignore" });
+    execFileSync("git", ["switch", originalBranch!], { cwd: location.rootPath, stdio: "ignore" });
+    indexWithDatabase(database!, location);
+    const afterBranchReconciliation = logicalSnapshot();
+    indexWithDatabase(database!, location, true);
+    expect(logicalSnapshot()).toEqual(afterBranchReconciliation);
+    expect(getIndexFreshness(location).status).toBe("current");
+  });
+
   it("keeps non-Git folders usable and reports Git metadata as unavailable", () => {
     createProject(false);
     writeFileSync(join(location.rootPath, "plain.ts"), "export const plain = true;\n");
