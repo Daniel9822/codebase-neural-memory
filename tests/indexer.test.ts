@@ -373,6 +373,47 @@ describe("indexWithDatabase", () => {
     expect(database!.prepare("SELECT kind FROM relations WHERE kind = 'CALLS'").all()).toEqual([]);
   });
 
+  it("resolves same-file and imported class heritage relationships", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "contracts.ts"), "export interface Contract {}");
+    writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}");
+    writeFileSync(join(location.rootPath, "worker.ts"),
+      'import { Base as Parent } from "./base";\nimport { Contract } from "./contracts";\nclass LocalBase {}\nexport class Worker extends Parent implements Contract {}\nexport class LocalWorker extends LocalBase {}');
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT owner_name, relation_kind, target_name, module_specifier, imported_name FROM symbol_heritage ORDER BY owner_name, relation_kind").all()).toEqual([
+      { owner_name: "LocalWorker", relation_kind: "EXTENDS", target_name: "LocalBase", module_specifier: null, imported_name: null },
+      { owner_name: "Worker", relation_kind: "EXTENDS", target_name: "Parent", module_specifier: "./base", imported_name: "Base" },
+      { owner_name: "Worker", relation_kind: "IMPLEMENTS", target_name: "Contract", module_specifier: "./contracts", imported_name: "Contract" },
+    ]);
+
+    expect(database!.prepare(`
+      SELECT source.name AS source, target.name AS target, r.kind, r.provenance
+      FROM relations r
+      JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
+      JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
+      WHERE r.kind IN ('EXTENDS', 'IMPLEMENTS')
+      ORDER BY r.kind, source.name
+    `).all()).toEqual([
+      { source: "LocalWorker", target: "LocalBase", kind: "EXTENDS", provenance: "typescript-ast-heritage" },
+      { source: "Worker", target: "Base", kind: "EXTENDS", provenance: "typescript-ast-heritage" },
+      { source: "Worker", target: "Contract", kind: "IMPLEMENTS", provenance: "typescript-ast-heritage" },
+    ]);
+  });
+
+  it("does not guess heritage targets for ambiguous or non-exported imported symbols", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "worker.ts"),
+      'import { Base } from "./base";\nexport class Worker extends Base {}');
+    writeFileSync(join(location.rootPath, "base.ts"), "class Base {}");
+    writeFileSync(join(location.rootPath, "base.tsx"), "export class Base {}");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT kind FROM relations WHERE kind IN ('EXTENDS', 'IMPLEMENTS')").all()).toEqual([]);
+  });
+
   it("rolls back the entire indexing run when relation rebuilding fails", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
