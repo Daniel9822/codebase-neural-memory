@@ -78,7 +78,7 @@ The ten handlers call overview, freshness, map, search, graph, file-detail, cont
 | Repeat calls, EOF, and reconnection | In-memory protocol test plus real CLI stdio process EOF/restart test | Verified in tests |
 | Two-project process isolation | Two concurrent MCP servers tested with distinct indexed files and memories; no cross-project reads observed | Verified in CI run 41239370942 |
 | OpenCode end-to-end | Installed OpenCode client connected to the workspace-scoped stdio server and successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; OpenCode 1.19.5, Node.js v22.12.0 |
-| VS Code end-to-end | VS Code MCP server showed Running; GitHub Copilot Agent successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; OpenCode 1.19.5, Node.js v22.12.0 |
+| VS Code end-to-end | VS Code MCP server showed Running; GitHub Copilot Agent successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; VS Code 1.144.0 (x64), Node.js v22.12.0; Copilot extension version not identified |
 
 ## Maintenance rule
 
