@@ -100,17 +100,25 @@ describe("indexWithDatabase", () => {
     expect(indexedPaths).toEqual(["normal.ts"]);
   });
 
-  it("removes a file that was actually deleted from disk", () => {
+  it("removes stale symbols, FTS entries, and graph relations when a file is deleted", () => {
     createProject();
-    const filePath = join(location.rootPath, "gone.ts");
-    writeFileSync(filePath, "export const gone = true;");
+    const gonePath = join(location.rootPath, "gone.ts");
+    const mainPath = join(location.rootPath, "main.ts");
+    writeFileSync(gonePath, "export function gone() { return true; }");
+    writeFileSync(mainPath, 'import { gone } from "./gone";\nexport function run() { gone(); }');
     indexWithDatabase(database!, location);
-    rmSync(filePath);
 
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get()).toEqual({ count: 1 });
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM symbols_fts WHERE name = 'gone'").get()).toEqual({ count: 1 });
+
+    rmSync(gonePath);
     const summary = indexWithDatabase(database!, location);
 
     expect(summary.deleted).toBe(1);
-    expect(database!.prepare("SELECT COUNT(*) AS count FROM files").get()).toEqual({ count: 0 });
+    expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([{ path: "main.ts" }]);
+    expect(database!.prepare("SELECT name FROM symbols ORDER BY name").all()).toEqual([{ name: "run" }]);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM symbols_fts WHERE name = 'gone'").get()).toEqual({ count: 0 });
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations").get()).toEqual({ count: 0 });
   });
 
   it("skips unchanged content and updates changed symbols incrementally", () => {
