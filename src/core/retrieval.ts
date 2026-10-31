@@ -165,3 +165,81 @@ export function findDependencies(location: ProjectLocation, targetPath: string, 
     db.close();
   }
 }
+
+
+export interface SymbolRelationHit {
+  direction: "outgoing" | "incoming";
+  relation: string;
+  symbolName: string;
+  symbolKind: string;
+  symbolFilePath: string;
+  symbolStartLine: number;
+  symbolEndLine: number;
+  relatedSymbolName: string;
+  relatedSymbolKind: string;
+  relatedFilePath: string;
+  relatedStartLine: number;
+  relatedEndLine: number;
+  confidence: number;
+  provenance: string;
+}
+
+export function getSymbolRelations(location: ProjectLocation, name: string, limit = 50): SymbolRelationHit[] {
+  if (!Number.isSafeInteger(limit) || limit < 1) {
+    throw new Error("Relation limit must be a positive safe integer.");
+  }
+  const db = openDatabase(location);
+  try {
+    return db.prepare(`
+      SELECT * FROM (
+        SELECT
+          'outgoing' AS direction,
+          r.kind AS relation,
+          source.name AS symbolName,
+          source.kind AS symbolKind,
+          source_file.path AS symbolFilePath,
+          source.start_line AS symbolStartLine,
+          source.end_line AS symbolEndLine,
+          target.name AS relatedSymbolName,
+          target.kind AS relatedSymbolKind,
+          target_file.path AS relatedFilePath,
+          target.start_line AS relatedStartLine,
+          target.end_line AS relatedEndLine,
+          r.confidence AS confidence,
+          r.provenance AS provenance
+        FROM symbols source
+        JOIN files source_file ON source_file.id = source.file_id
+        JOIN relations r ON r.source_kind = 'symbol' AND r.source_id = source.id
+        JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
+        JOIN files target_file ON target_file.id = target.file_id
+        WHERE source.name = ?
+        UNION ALL
+        SELECT
+          'incoming' AS direction,
+          r.kind AS relation,
+          target.name AS symbolName,
+          target.kind AS symbolKind,
+          target_file.path AS symbolFilePath,
+          target.start_line AS symbolStartLine,
+          target.end_line AS symbolEndLine,
+          source.name AS relatedSymbolName,
+          source.kind AS relatedSymbolKind,
+          source_file.path AS relatedFilePath,
+          source.start_line AS relatedStartLine,
+          source.end_line AS relatedEndLine,
+          r.confidence AS confidence,
+          r.provenance AS provenance
+        FROM symbols target
+        JOIN files target_file ON target_file.id = target.file_id
+        JOIN relations r ON r.target_kind = 'symbol' AND r.target_id = target.id
+        JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
+        JOIN files source_file ON source_file.id = source.file_id
+        WHERE target.name = ?
+      )
+      ORDER BY symbolFilePath, direction, relation, relatedFilePath, relatedSymbolName
+      LIMIT ?
+    `).all(name, name, limit) as SymbolRelationHit[];
+  } finally {
+    db.close();
+  }
+}
