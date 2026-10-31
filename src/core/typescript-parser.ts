@@ -42,6 +42,8 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
   const symbols: ParsedSymbol[] = [];
   const imports = new Set<string>();
   const calls: ParsedCall[] = [];
+  const importedBindings = new Map<string, { moduleSpecifier: string; importedName: string }>();
+  const shadowedImportedNames = new Set<string>();
 
   const addSymbol = (node: ts.Node, name: string, kind: SymbolKind, exported: boolean, owner?: string) => {
     const start = node.getStart(sourceFile);
@@ -63,6 +65,14 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
   const visit = (node: ts.Node, owner: string | null = null): void => {
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) {
       imports.add(node.moduleSpecifier.text);
+      if (node.importClause && node.importClause.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
+        for (const element of node.importClause.namedBindings.elements) {
+          importedBindings.set(element.name.text, {
+            moduleSpecifier: node.moduleSpecifier.text,
+            importedName: element.propertyName?.text ?? element.name.text,
+          });
+        }
+      }
     }
     if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) {
       imports.add(node.moduleSpecifier.text);
@@ -104,11 +114,31 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
     }
 
     if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
-      calls.push({ callerName: nextOwner, calleeName: node.expression.text });
+      const calleeName = node.expression.text;
+      const importedBinding = importedBindings.get(calleeName);
+      calls.push({
+        callerName: nextOwner,
+        calleeName,
+        ...(importedBinding && !shadowedImportedNames.has(calleeName)
+          ? { moduleSpecifier: importedBinding.moduleSpecifier, importedSymbolName: importedBinding.importedName }
+          : {}),
+      });
     }
     node.forEachChild((child) => visit(child, nextOwner));
   };
 
+  const collectShadowedNames = (node: ts.Node): void => {
+    if ((ts.isFunctionDeclaration(node) || ts.isClassDeclaration(node)) && node.name) {
+      if (importedBindings.has(node.name.text)) shadowedImportedNames.add(node.name.text);
+    } else if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      if (importedBindings.has(node.name.text)) shadowedImportedNames.add(node.name.text);
+    } else if (ts.isParameter(node) && ts.isIdentifier(node.name)) {
+      if (importedBindings.has(node.name.text)) shadowedImportedNames.add(node.name.text);
+    }
+    node.forEachChild(collectShadowedNames);
+  };
+
   visit(sourceFile);
+  collectShadowedNames(sourceFile);
   return { symbols, imports: [...imports], calls };
 }
