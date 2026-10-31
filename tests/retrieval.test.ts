@@ -37,7 +37,7 @@ describe("symbol retrieval contracts", () => {
   it("supports exact symbol lookup and partial lexical prefix search with source locations", () => {
     createProject();
     writeFileSync(join(location.rootPath, "totals.ts"),
-      "export function calculateTotal(items: number[]): number {\\n  return items.reduce((sum, item) => sum + item, 0);\\n}\\nexport function calculateAverage(items: number[]): number {\\n  return calculateTotal(items) / items.length;\\n}");
+      "export function calculateTotal(items: number[]): number {\n  return items.reduce((sum, item) => sum + item, 0);\n}\nexport function calculateAverage(items: number[]): number {\n  return calculateTotal(items) / items.length;\n}");
     indexWithDatabase(database!, location);
 
     expect(explainSymbol(location, "calculateTotal")).toMatchObject([
