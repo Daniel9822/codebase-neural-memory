@@ -19,7 +19,7 @@ CLI ──> Application/Core ──> SQLite
 
 Each repository is assigned an ID derived from its canonical local path. Its SQLite database is written under the operating system's per-user application data directory. Nothing is written into the target repository by default.
 
-This path-derived identity is intentionally simple for the first milestone. A future migration can add explicit project identity files or Git common-directory identity to handle moves and worktrees more elegantly.
+Project identity remains derived from the canonical worktree path. Each Git worktree therefore receives a separate CNM project ID and local database; moving a repository changes its ID. Opening a submodule directly resolves that submodule as its own project, but the parent indexer does not yet enforce nested-submodule isolation. These boundaries are documented behavior, not shared Git-common-directory identity.
 
 ## Indexing pipeline
 
@@ -53,7 +53,7 @@ The task-context builder accepts a natural-language task and returns determinist
 MCP exposes ten read-only tools through the TypeScript SDK v2 and stdio transport:
 
 - `project_overview` — local repository/index summary.
-- `index_freshness` — read-only working-tree versus index freshness report.
+- `index_freshness` — read-only source-file and Git commit/branch/working-tree versus index freshness report.
 - `project_map` — indexed files and locally resolved imports.
 - `symbol_lookup` — bounded lexical symbol search with ranking signals.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
