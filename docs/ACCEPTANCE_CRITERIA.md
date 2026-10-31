@@ -180,6 +180,18 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - [x] Memory operations from one project cannot expose or delete another project's content (`tests/memories.test.ts`).
 - [ ] Git commit/branch changes are compared against source provenance; storing an optional commit identifier is implemented, but commit freshness is deferred to Phase 7.
 - [x] Optional author identity is retained separately from the identity of the latest updater; attribution is explicit and never inferred from external accounts (`tests/memories.test.ts`, migration v9).
+
+### Phase 4 close-out verification (required before declaring the phase closed)
+
+- **Result:** PASS
+- **Status:** Phase 4 is formally closed on 2026-10-31.
+- **Verified merge commit:** `921be0d219e9ccbd151fa49008a691cee4287bcb` (PR #31; author provenance).
+- **Post-merge CI run:** [GitHub Actions #41188733503](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41188733503) — `success`.
+- **Environment:** GitHub-hosted `ubuntu-latest`, Node.js 22, npm; clean checkout of `main`.
+- **Commands passed, in workflow order:** `npm ci --no-audit --no-fund`; `npm run typecheck`; `npm test`; `npm run build`; `npm run smoke`.
+- **Coverage represented by the verification:** database migration and memory tests, plus CLI/MCP smoke coverage for memory lifecycle, freshness inspection, explicit author attribution, and updater attribution.
+- **Deferred scope:** comparing referenced Git commits/branches with the current repository state is explicitly deferred to Phase 7. The Phase 4 deliverable includes optional Git commit metadata and file-content SHA-256 freshness; Git-aware commit/branch freshness is not required for Phase 4 closure.
+- **Limitations:** This records the Linux/Node 22 CI environment. Other operating systems are not claimed as verified by this run.
 ## 8. Phase 5 — Task context builder
 
 - [ ] A task description can be passed to the context builder without requiring an LLM.
