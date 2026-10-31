@@ -125,6 +125,22 @@ Phase 0 is complete only after results are recorded, including exact environment
 - [x] Schema migration v6 → v7 adds persisted index exclusions with a `[]` default and is covered for existing data and repeat execution (`tests/migrations.test.ts`).
 - [x] Relevance tests use labeled expected results rather than subjective spot checks alone (`tests/fixtures/retrieval-relevance.ts` and `tests/retrieval.test.ts`).
 
+
+### Phase 3 close-out verification (required before declaring the phase closed)
+
+The retrieval feature checklist above records implemented behavior and its focused test evidence. The phase is not formally closed until this execution record is completed from a clean checkout.
+
+- [ ] Install dependencies from the committed lockfile with the documented Node.js version (npm ci --no-audit --no-fund).
+- [ ] Run npm run typecheck and record the actual result.
+- [ ] Run npm test and record the actual result, including the retrieval and migration suites.
+- [ ] Run npm run build and record the actual result.
+- [ ] Run the documented retrieval CLI smoke checks, including exact/lexical lookup, dependencies, file details, and freshness.
+- [ ] Verify the corresponding read-only MCP retrieval tools and their input/result bounds.
+- [ ] Review the final diff and confirm retrieval/freshness operations did not modify repository source files.
+- [ ] Record commit, environment, commands, pass/fail/not-run outcomes, and any platform limitations in the phase close-out report.
+
+Repository-scale benchmarks, larger precision/recall studies, and performance baselines are Phase 8 work. They must not be used to expand Phase 3 scope or to block its closure once the Phase 3 exit condition above is satisfied.
+
 ## 7. Phase 4 — Memory lifecycle
 
 - [ ] A memory has a stable ID, category, title, content, status, and timestamps.
