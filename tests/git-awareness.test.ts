@@ -4,6 +4,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { getGitSnapshot } from "../src/core/git.js";
+import { inspectMemoryFreshness, remember } from "../src/core/memories.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
@@ -117,6 +118,49 @@ describe("Git-aware indexing and freshness", () => {
     expect(indexed.commit).not.toBeNull();
   });
 
+  it("compares memory commit references with HEAD ancestry without changing memory lifecycle", () => {
+    createProject();
+    const initial = getGitSnapshot(location.rootPath);
+    const initialBranch = initial.branch;
+    expect(initial.commit).not.toBeNull();
+    expect(initialBranch).toBeTruthy();
+    const originalMemory = remember(location, "Original source decision", "Review when its source revision advances.", "decision", "tracked.ts", initial.commit ?? undefined);
+    expect(inspectMemoryFreshness(location)).toMatchObject([{
+      id: originalMemory, commitStatus: "current", commitRequiresReview: false, requiresReview: false,
+    }]);
+
+    execFileSync("git", ["commit", "--allow-empty", "-m", "advance main"], { cwd: location.rootPath, stdio: "ignore" });
+    expect(inspectMemoryFreshness(location)).toMatchObject([{
+      id: originalMemory, status: "current", commitStatus: "ancestor", commitRequiresReview: true, requiresReview: true,
+    }]);
+
+    execFileSync("git", ["switch", "-c", "memory-provenance-side"], { cwd: location.rootPath, stdio: "ignore" });
+    execFileSync("git", ["commit", "--allow-empty", "-m", "side revision"], { cwd: location.rootPath, stdio: "ignore" });
+    const sideCommit = getGitSnapshot(location.rootPath).commit;
+    expect(sideCommit).not.toBeNull();
+    const sideMemory = remember(location, "Side branch decision", "This note references a side-branch commit.", "decision", undefined, sideCommit ?? undefined);
+    execFileSync("git", ["switch", initialBranch!], { cwd: location.rootPath, stdio: "ignore" });
+    expect(inspectMemoryFreshness(location).find((item) => item.id === sideMemory)).toMatchObject({
+      status: "not-linked", commitStatus: "ahead", commitRequiresReview: true, requiresReview: true,
+    });
+
+    execFileSync("git", ["commit", "--allow-empty", "-m", "diverge main"], { cwd: location.rootPath, stdio: "ignore" });
+    expect(inspectMemoryFreshness(location).find((item) => item.id === sideMemory)).toMatchObject({
+      status: "not-linked", commitStatus: "diverged", commitRequiresReview: true, requiresReview: true,
+    });
+    expect(inspectMemoryFreshness(location).find((item) => item.id === originalMemory)).toMatchObject({
+      commitStatus: "ancestor", requiresReview: true,
+    });
+  });
+
+  it("marks an unavailable or invalid memory commit reference for review", () => {
+    createProject(false);
+    writeFileSync(join(location.rootPath, "plain.ts"), "export const plain = true;");
+    const id = remember(location, "Unresolvable source revision", "Review this commit reference.", "decision", "plain.ts", "not-a-commit");
+    expect(inspectMemoryFreshness(location)).toMatchObject([{
+      id, status: "current", commitStatus: "unavailable", commitRequiresReview: true, requiresReview: true,
+    }]);
+  });
   it("reconciles a Git rename as one added path and one deleted path", () => {
     createProject();
     indexWithDatabase(database!, location);
