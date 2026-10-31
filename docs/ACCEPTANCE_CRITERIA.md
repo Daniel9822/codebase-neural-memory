@@ -262,7 +262,8 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - [x] OpenCode discovers the local stdio server and successfully executes real `project_overview` and `symbol_lookup` calls with the repository `cwd`.
 - [x] VS Code discovers the workspace stdio server and GitHub Copilot Agent successfully executes real `project_overview` and `symbol_lookup` calls with `${workspaceFolder}` binding.
 - [x] Record both real-client results, configuration paths, execution date, shared index metrics, and the located symbol in `docs/CLIENT_INTEGRATION.md`; SDK-only protocol tests are not counted as client integration.
-- [ ] Record exact VS Code, GitHub Copilot extension, OpenCode, and Node.js versions; these values were not captured during the manual runs.
+- [x] Record VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0.
+- [ ] Identify and record the GitHub Copilot extension identifier/version; the filtered extension listing returned no matching lines.
 
 ### Block 5 — Regression and close-out
 
