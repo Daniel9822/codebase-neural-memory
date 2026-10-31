@@ -176,68 +176,70 @@ export function indexProject(location: ProjectLocation, force = false): IndexSum
 
 export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation, force = false): IndexSummary {
   const { files: discovered, presentPaths } = discoverFiles(location.rootPath);
-  const existing = db.prepare("SELECT id, path, content_hash FROM files").all() as Array<{
-    id: number; path: string; content_hash: string;
-  }>;
-  const existingByPath = new Map(existing.map((file) => [file.path, file]));
-  const summary: IndexSummary = { scanned: discovered.length, added: 0, updated: 0, unchanged: 0, deleted: 0, symbols: 0, relations: 0 };
+  return db.transaction(() => {
+    const existing = db.prepare("SELECT id, path, content_hash FROM files").all() as Array<{
+      id: number; path: string; content_hash: string;
+    }>;
+    const existingByPath = new Map(existing.map((file) => [file.path, file]));
+    const summary: IndexSummary = { scanned: discovered.length, added: 0, updated: 0, unchanged: 0, deleted: 0, symbols: 0, relations: 0 };
 
-  const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; path: string; content_hash: string }) => {
-    const extension = extname(file.relativePath).toLowerCase();
-    let fileId: number;
-    if (oldFile) {
-      fileId = oldFile.id;
+    const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; path: string; content_hash: string }) => {
+      const extension = extname(file.relativePath).toLowerCase();
+      let fileId: number;
+      if (oldFile) {
+        fileId = oldFile.id;
+        clearFileIndex(db, fileId);
+        db.prepare(`UPDATE files SET extension = ?, language = ?, content_hash = ?, size_bytes = ?, modified_at = ?, indexed_at = ? WHERE id = ?`)
+          .run(extension, languageForExtension(extension), file.hash, file.size, file.mtime.toISOString(), new Date().toISOString(), fileId);
+      } else {
+        const result = db.prepare(`INSERT INTO files(path, extension, language, content_hash, size_bytes, modified_at, indexed_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?)`)
+          .run(file.relativePath, extension, languageForExtension(extension), file.hash, file.size, file.mtime.toISOString(), new Date().toISOString());
+        fileId = Number(result.lastInsertRowid);
+      }
+
+      const parsed = parseTypeScriptFile(file.relativePath, file.source);
+      const insertSymbol = db.prepare(`INSERT INTO symbols(file_id, name, kind, signature, start_line, end_line, exported)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`);
+      const insertFts = db.prepare(`INSERT INTO symbols_fts(rowid, name, signature, file_path, kind) VALUES (?, ?, ?, ?, ?)`);
+      for (const symbol of parsed.symbols) {
+        const result = insertSymbol.run(fileId, symbol.name, symbol.kind, symbol.signature, symbol.startLine, symbol.endLine, symbol.exported ? 1 : 0);
+        insertFts.run(Number(result.lastInsertRowid), symbol.name, symbol.signature, file.relativePath, symbol.kind);
+      }
+      const insertImport = db.prepare("INSERT OR IGNORE INTO file_imports(file_id, module_specifier) VALUES (?, ?)");
+      for (const specifier of parsed.imports) insertImport.run(fileId, specifier);
+      const insertCall = db.prepare("INSERT OR IGNORE INTO symbol_calls(file_id, caller_name, callee_name) VALUES (?, ?, ?)");
+      for (const call of parsed.calls) {
+        if (call.callerName) insertCall.run(fileId, call.callerName, call.calleeName);
+      }
+    });
+
+    for (const file of discovered) {
+      const oldFile = existingByPath.get(file.relativePath);
+      if (!force && oldFile?.content_hash === file.hash) {
+        summary.unchanged += 1;
+        continue;
+      }
+      updateFile(file, oldFile);
+      if (oldFile) summary.updated += 1;
+      else summary.added += 1;
+    }
+
+    const removeFile = db.transaction((fileId: number) => {
       clearFileIndex(db, fileId);
-      db.prepare(`UPDATE files SET extension = ?, language = ?, content_hash = ?, size_bytes = ?, modified_at = ?, indexed_at = ? WHERE id = ?`)
-        .run(extension, languageForExtension(extension), file.hash, file.size, file.mtime.toISOString(), new Date().toISOString(), fileId);
-    } else {
-      const result = db.prepare(`INSERT INTO files(path, extension, language, content_hash, size_bytes, modified_at, indexed_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`)
-        .run(file.relativePath, extension, languageForExtension(extension), file.hash, file.size, file.mtime.toISOString(), new Date().toISOString());
-      fileId = Number(result.lastInsertRowid);
+      db.prepare("DELETE FROM files WHERE id = ?").run(fileId);
+    });
+    for (const file of existing) {
+      if (!presentPaths.has(file.path)) {
+        removeFile(file.id);
+        summary.deleted += 1;
+      }
     }
 
-    const parsed = parseTypeScriptFile(file.relativePath, file.source);
-    const insertSymbol = db.prepare(`INSERT INTO symbols(file_id, name, kind, signature, start_line, end_line, exported)
-      VALUES (?, ?, ?, ?, ?, ?, ?)`);
-    const insertFts = db.prepare(`INSERT INTO symbols_fts(rowid, name, signature, file_path, kind) VALUES (?, ?, ?, ?, ?)`);
-    for (const symbol of parsed.symbols) {
-      const result = insertSymbol.run(fileId, symbol.name, symbol.kind, symbol.signature, symbol.startLine, symbol.endLine, symbol.exported ? 1 : 0);
-      insertFts.run(Number(result.lastInsertRowid), symbol.name, symbol.signature, file.relativePath, symbol.kind);
-    }
-    const insertImport = db.prepare("INSERT OR IGNORE INTO file_imports(file_id, module_specifier) VALUES (?, ?)");
-    for (const specifier of parsed.imports) insertImport.run(fileId, specifier);
-    const insertCall = db.prepare("INSERT OR IGNORE INTO symbol_calls(file_id, caller_name, callee_name) VALUES (?, ?, ?)");
-    for (const call of parsed.calls) {
-      if (call.callerName) insertCall.run(fileId, call.callerName, call.calleeName);
-    }
-  });
-
-  for (const file of discovered) {
-    const oldFile = existingByPath.get(file.relativePath);
-    if (!force && oldFile?.content_hash === file.hash) {
-      summary.unchanged += 1;
-      continue;
-    }
-    updateFile(file, oldFile);
-    if (oldFile) summary.updated += 1;
-    else summary.added += 1;
-  }
-
-  const removeFile = db.transaction((fileId: number) => {
-    clearFileIndex(db, fileId);
-    db.prepare("DELETE FROM files WHERE id = ?").run(fileId);
-  });
-  for (const file of existing) {
-    if (!presentPaths.has(file.path)) {
-      removeFile(file.id);
-      summary.deleted += 1;
-    }
-  }
-
-  summary.relations = rebuildRelations(db);
-  summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
-  const now = new Date().toISOString();
-  db.prepare("UPDATE projects SET last_indexed_at = ? WHERE id = ?").run(now, location.id);
-  return summary;
+    summary.relations = rebuildRelations(db);
+    summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
+    const now = new Date().toISOString();
+    db.prepare("UPDATE projects SET last_indexed_at = ? WHERE id = ?").run(now, location.id);
+    return summary;
+  })();
 }
