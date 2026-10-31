@@ -99,7 +99,7 @@ Phase 0 is complete only after results are recorded, including exact environment
 - [x] Every relation is directed and has a documented relation type (verified for IMPORTS, CALLS, EXTENDS, and IMPLEMENTS in indexer and retrieval fixtures).
 - [x] Every inferred relation records its provenance and confidence (asserted for imports, imported calls, extends, and implements).
 - [x] Human-confirmed knowledge is distinguishable from parser-derived facts (explicit `remember` records are stored in `memories` with `confirmed` status, separately from parser-created `relations` carrying parser provenance; covered by `tests/memories.test.ts`).
-- [ ] Graph relations are associated with the index revision that produced them, so consumers can identify the source snapshot for each derived edge.
+- [x] Graph relations are associated with the index revision that produced them (migration v6 adds project and relation revision fields; indexing increments the project revision and stamps every rebuilt edge in the same transaction; `getSymbolRelations` exposes `indexRevision`; revision advancement and rollback are covered by `tests/retrieval.test.ts`).
 - [x] Rebuilding relations twice from unchanged source produces no duplicate edges (forced-reindex fixture compares stable node identities and relation metadata).
 - [x] Changing or deleting a source removes or invalidates affected old edges (covered by source-change and file-deletion regression tests).
 - [x] Forward and reverse traversal return expected neighbors on graph fixtures (dependency and symbol-relation retrieval tests).

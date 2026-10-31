@@ -41,13 +41,14 @@ export interface ProjectOverview {
   files: number;
   symbols: number;
   relations: number;
+  indexRevision: number;
 }
 
 export function getProjectOverview(location: ProjectLocation): ProjectOverview {
   const db = openDatabase(location);
   try {
-    const project = db.prepare("SELECT name, root_path, last_indexed_at FROM projects WHERE id = ?").get(location.id) as {
-      name: string; root_path: string; last_indexed_at: string | null;
+    const project = db.prepare("SELECT name, root_path, last_indexed_at, index_revision FROM projects WHERE id = ?").get(location.id) as {
+      name: string; root_path: string; last_indexed_at: string | null; index_revision: number;
     } | undefined;
     if (!project) throw new Error("This repository has not been initialized. Run `cnm init` first.");
     const count = (sql: string) => (db.prepare(sql).get() as { count: number }).count;
@@ -58,6 +59,7 @@ export function getProjectOverview(location: ProjectLocation): ProjectOverview {
       files: count("SELECT COUNT(*) AS count FROM files"),
       symbols: count("SELECT COUNT(*) AS count FROM symbols"),
       relations: count("SELECT COUNT(*) AS count FROM relations"),
+      indexRevision: project.index_revision,
     };
   } finally {
     db.close();
@@ -182,6 +184,7 @@ export interface SymbolRelationHit {
   relatedEndLine: number;
   confidence: number;
   provenance: string;
+  indexRevision: number;
 }
 
 export function getSymbolRelations(location: ProjectLocation, name: string, limit = 50): SymbolRelationHit[] {
@@ -206,7 +209,8 @@ export function getSymbolRelations(location: ProjectLocation, name: string, limi
           target.start_line AS relatedStartLine,
           target.end_line AS relatedEndLine,
           r.confidence AS confidence,
-          r.provenance AS provenance
+          r.provenance AS provenance,
+          r.index_revision AS indexRevision
         FROM symbols source
         JOIN files source_file ON source_file.id = source.file_id
         JOIN relations r ON r.source_kind = 'symbol' AND r.source_id = source.id
@@ -228,7 +232,8 @@ export function getSymbolRelations(location: ProjectLocation, name: string, limi
           source.start_line AS relatedStartLine,
           source.end_line AS relatedEndLine,
           r.confidence AS confidence,
-          r.provenance AS provenance
+          r.provenance AS provenance,
+          r.index_revision AS indexRevision
         FROM symbols target
         JOIN files target_file ON target_file.id = target.file_id
         JOIN relations r ON r.target_kind = 'symbol' AND r.target_id = target.id
