@@ -296,14 +296,14 @@ function expandSourceCandidates(base: string): string[] {
       ...["index.ts", "index.tsx", "index.js", "index.jsx"].map((file) => `${base}/${file}`)];
 }
 
-function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
+function rebuildRelations(db: MemoryDatabase, rootPath: string, indexRevision: number): number {
   db.prepare("DELETE FROM relations").run();
   const files = db.prepare("SELECT id, path FROM files").all() as Array<{ id: number; path: string }>;
   const byPath = new Map(files.map((file) => [file.path, file.id]));
   const fileById = new Map(files.map((file) => [file.id, file.path]));
   const insertRelation = db.prepare(`
-    INSERT OR IGNORE INTO relations(source_kind, source_id, target_kind, target_id, kind, confidence, provenance)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
+    INSERT OR IGNORE INTO relations(source_kind, source_id, target_kind, target_id, kind, confidence, provenance, index_revision)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
   `);
 
   db.prepare("DELETE FROM unresolved_imports").run();
@@ -350,7 +350,7 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     const candidates = resolution.candidates.filter((candidate) => candidate.id !== item.file_id);
     if (candidates.length === 1) {
       resolvedImportTargets.set(`${item.file_id}:${item.module_specifier}`, [candidates[0]!.id]);
-      insertRelation.run("file", item.file_id, "file", candidates[0]!.id, "IMPORTS", 1, "typescript-ast");
+      insertRelation.run("file", item.file_id, "file", candidates[0]!.id, "IMPORTS", 1, "typescript-ast", indexRevision);
     } else {
       insertUnresolved.run(
         item.file_id,
@@ -400,7 +400,7 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
       targetId = shortNames.get(`${heritage.file_id}:${heritage.target_name}`);
     }
     if (targetId !== undefined && targetId !== null && targetId !== sourceId) {
-      insertRelation.run("symbol", sourceId, "symbol", targetId, heritage.relation_kind, 1, "typescript-ast-heritage");
+      insertRelation.run("symbol", sourceId, "symbol", targetId, heritage.relation_kind, 1, "typescript-ast-heritage", indexRevision);
     }
   }
 
@@ -413,14 +413,14 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
       if (targetFiles.length !== 1) continue;
       const targetId = exportedNames.get(`${targetFiles[0]}:${call.imported_symbol_name}`);
       if (targetId !== undefined && targetId !== null && targetId !== sourceId) {
-        insertRelation.run("symbol", sourceId, "symbol", targetId, "CALLS", 0.95, "typescript-ast-import-binding");
+        insertRelation.run("symbol", sourceId, "symbol", targetId, "CALLS", 0.95, "typescript-ast-import-binding", indexRevision);
       }
       continue;
     }
 
     const targetId = shortNames.get(`${call.file_id}:${call.callee_name}`) ?? undefined;
     if (targetId !== undefined && targetId !== sourceId) {
-      insertRelation.run("symbol", sourceId, "symbol", targetId, "CALLS", 0.95, "typescript-ast");
+      insertRelation.run("symbol", sourceId, "symbol", targetId, "CALLS", 0.95, "typescript-ast", indexRevision);
     }
   }
   return (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
@@ -522,7 +522,10 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
       }
     }
 
-    summary.relations = rebuildRelations(db, location.rootPath);
+    db.prepare("UPDATE projects SET index_revision = index_revision + 1 WHERE id = ?").run(location.id);
+    const revisionRow = db.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number } | undefined;
+    if (!revisionRow) throw new Error("Project record is missing; run cnm init first.");
+    summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
     const now = new Date().toISOString();
     db.prepare("UPDATE projects SET last_indexed_at = ? WHERE id = ?").run(now, location.id);
