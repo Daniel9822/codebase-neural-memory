@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
@@ -38,7 +38,12 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
     throw new Error("Memory source path must stay inside the project root");
   }
   if (!existsSync(absolutePath)) return null;
-  return createHash("sha256").update(readFileSync(absolutePath)).digest("hex");
+  const canonicalPath = realpathSync(absolutePath);
+  const canonicalRelative = relative(location.rootPath, canonicalPath);
+  if (canonicalRelative === ".." || canonicalRelative.startsWith(".." + sep) || isAbsolute(canonicalRelative)) {
+    throw new Error("Memory source path must resolve inside the project root");
+  }
+  return createHash("sha256").update(readFileSync(canonicalPath)).digest("hex");
 }
 
 function requireText(value: string, field: string): string {
