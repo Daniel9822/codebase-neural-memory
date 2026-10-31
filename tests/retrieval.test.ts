@@ -6,6 +6,7 @@ import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage
 import type { ProjectLocation } from "../src/core/project.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
 import { explainSymbol, findDependencies, getFileDetails, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
+import { retrievalRelevanceCases } from "./fixtures/retrieval-relevance.js";
 
 let temporaryDirectory = "";
 let database: MemoryDatabase | undefined;
@@ -288,5 +289,32 @@ describe("bounded dependency traversal and file details", () => {
         sourceFilePath: "worker.ts", targetFilePath: "base.ts", provenance: "typescript-ast-heritage",
       }],
     });
+  });
+});
+
+describe("labeled retrieval relevance corpus", () => {
+  it("places each labeled relevant symbol first for its fixture query", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "participants.ts"), `
+export function registerParticipant(participantId: string): boolean {
+  return participantId.length > 0;
+}
+export function unregisterParticipant(participantId: string): boolean {
+  return participantId.length === 0;
+}
+export function calculateTotal(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0);
+}
+export function calculateAverage(values: number[]): number {
+  return calculateTotal(values) / values.length;
+}
+`);
+    indexWithDatabase(database!, location);
+
+    for (const fixture of retrievalRelevanceCases) {
+      const results = searchSymbols(location, fixture.query, 10);
+      expect(results[0]?.name, fixture.query).toBe(fixture.expectedTop);
+      expect(results.some((result) => (fixture.relevant as readonly string[]).includes(result.name))).toBe(true);
+    }
   });
 });
