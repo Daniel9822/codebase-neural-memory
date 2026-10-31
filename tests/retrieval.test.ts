@@ -73,7 +73,7 @@ describe("getSymbolRelations", () => {
     writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}");
     writeFileSync(join(location.rootPath, "contract.ts"), "export interface Contract {}");
     writeFileSync(join(location.rootPath, "worker.ts"),
-      'import { Base } from "./base";\\nimport { Contract } from "./contract";\\nexport class Worker extends Base implements Contract {}');
+      'import { Base } from "./base";\nimport { Contract } from "./contract";\nexport class Worker extends Base implements Contract {}');
     indexWithDatabase(database!, location);
 
     expect(getSymbolRelations(location, "Worker")).toEqual([
@@ -113,7 +113,7 @@ describe("getSymbolRelations", () => {
     mkdirSync(join(location.rootPath, "one"), { recursive: true });
     mkdirSync(join(location.rootPath, "two"), { recursive: true });
     writeFileSync(join(location.rootPath, "one", "base.ts"), "export class Base {}");
-    writeFileSync(join(location.rootPath, "one", "child.ts"), 'import { Base } from "./base";\\nexport class Child extends Base {}');
+    writeFileSync(join(location.rootPath, "one", "child.ts"), 'import { Base } from "./base";\nexport class Child extends Base {}');
     writeFileSync(join(location.rootPath, "two", "base.ts"), "export class Base {}");
     indexWithDatabase(database!, location);
 
