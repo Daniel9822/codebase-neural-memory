@@ -89,14 +89,14 @@ Exit condition: expected symbols, files, dependencies, and dependents are return
 
 ## Phase 4 — Explicit project memory lifecycle
 
-**Status:** Core lifecycle and file-content freshness are implemented in `main`; full phase closure remains pending Git commit freshness, richer author provenance, and the final end-to-end acceptance audit.
+**Status:** Core lifecycle and file-content freshness are implemented in `main`; full phase closure remains pending Git commit/branch freshness (deferred to Phase 7) and the final end-to-end acceptance audit.
 
 Tasks:
 - [x] Define memory categories and metadata.
 - [x] Add safe partial update and project-scoped delete operations.
 - [x] Add source-path references, optional Git commit metadata, and file-content SHA-256 fingerprints.
 - [x] Implement proposed, confirmed, obsolete, and rejected states with validated explicit transitions.
-- [ ] Preserve author identity and richer provenance where available.
+- [x] Preserve explicitly supplied author identity separately from the latest updater; attribution is optional and never inferred.
 - [x] Identify changed, missing, untracked, and unsafe source-file references that require review without mutating the memory.
 - [ ] Compare referenced Git commits/branches with current repository state (deferred to Phase 7).
 - [x] Require explicit user approval before confirming agent-proposed knowledge.

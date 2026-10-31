@@ -52,16 +52,16 @@ Run `cnm index` again after changing the code. Unchanged files are skipped by co
 CNM stores project decisions and notes in the local project database. Use `remember` for knowledge explicitly confirmed by the person invoking the command, or `propose` for suggestions that must remain unconfirmed until an explicit transition:
 
 ```bash
-cnm propose "Potential API rule" "Review this rule before adopting it."
+cnm propose "Potential API rule" "Review this rule before adopting it." --author "Project Maintainer"
 cnm memories
 cnm memory transition <memory-id> confirmed
-cnm memory update <memory-id> --content "Updated decision text"
+cnm memory update <memory-id> --content "Updated decision text" --author "Project Maintainer"
 cnm memory freshness
 cnm memory transition <memory-id> obsolete
 cnm memory delete <memory-id>
 ```
 
-The lifecycle permits `proposed → confirmed` or `proposed → rejected`, `confirmed → obsolete`, and `obsolete → confirmed`. Rejected memories are terminal and excluded from recall by default. Updates and deletion are explicit and scoped to the current project. Optional source paths and Git commit identifiers can be stored with a memory.
+The lifecycle permits `proposed → confirmed` or `proposed → rejected`, `confirmed → obsolete`, and `obsolete → confirmed`. Rejected memories are terminal and excluded from recall by default. Updates and deletion are explicit and scoped to the current project. Optional source paths, Git commit identifiers, and explicit author identities can be stored with a memory. The original author is retained separately from the identity supplied for the latest update; CNM does not infer or transmit personal identity automatically.
 
 When a source path is supplied, CNM records a SHA-256 fingerprint of the referenced file. `cnm memory freshness` reports `current`, `changed`, `missing`, `untracked`, or `unsafe` references and indicates when review is required. This inspection does not rewrite the memory or change its lifecycle status. An untracked reference has no stored baseline (for example, a legacy memory); it requires review. Unsafe references include paths that resolve outside the project root. This is file-content freshness only: commit/branch comparison and automatic lifecycle transitions are not implemented.
 

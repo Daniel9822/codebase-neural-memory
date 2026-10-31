@@ -179,7 +179,7 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - [x] Search excludes rejected memories by default (`tests/memories.test.ts`).
 - [x] Memory operations from one project cannot expose or delete another project's content (`tests/memories.test.ts`).
 - [ ] Git commit/branch changes are compared against source provenance; storing an optional commit identifier is implemented, but commit freshness is deferred to Phase 7.
-- [ ] Author identity and richer provenance are retained where available.
+- [x] Optional author identity is retained separately from the identity of the latest updater; attribution is explicit and never inferred from external accounts (`tests/memories.test.ts`, migration v9).
 ## 8. Phase 5 — Task context builder
 
 - [ ] A task description can be passed to the context builder without requiring an LLM.

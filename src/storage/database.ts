@@ -123,6 +123,8 @@ export function migrate(db: MemoryDatabase): void {
       source_path TEXT,
       commit_sha TEXT,
       source_hash TEXT,
+      author TEXT,
+      updated_by TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -197,6 +199,15 @@ export function migrate(db: MemoryDatabase): void {
     db.exec("ALTER TABLE memories ADD COLUMN source_hash TEXT");
   }
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (8, ?)`).run(now);
+
+  const latestMemoryColumns = db.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
+  if (!latestMemoryColumns.some((column) => column.name === "author")) {
+    db.exec("ALTER TABLE memories ADD COLUMN author TEXT");
+  }
+  if (!latestMemoryColumns.some((column) => column.name === "updated_by")) {
+    db.exec("ALTER TABLE memories ADD COLUMN updated_by TEXT");
+  }
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (9, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {

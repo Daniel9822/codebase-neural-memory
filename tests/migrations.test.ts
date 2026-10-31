@@ -41,18 +41,18 @@ describe("database migrations", () => {
       id: "legacy-project", index_revision: 6, index_excludes_json: "[]",
     });
     expect(database.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
-      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 },
+      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 },
     ]);
   });
 
-  it("keeps the v8 migration idempotent and adds memory source fingerprints", () => {
+  it("keeps the v9 migration idempotent and adds memory author provenance", () => {
     database = new Database(":memory:") as MemoryDatabase;
     migrate(database);
     migrate(database);
-    expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = 8").get()).toEqual({ count: 1 });
+    for (const version of [8, 9]) expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = ?").get(version)).toEqual({ count: 1 });
     expect(database.prepare("PRAGMA table_info(projects)").all()
       .filter((column: any) => column.name === "index_excludes_json")).toHaveLength(1);
-    expect(database.prepare("PRAGMA table_info(memories)").all()
-      .filter((column: any) => column.name === "source_hash")).toHaveLength(1);
+    const memoryColumns = database.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
+    for (const name of ["source_hash", "author", "updated_by"]) expect(memoryColumns.some((column) => column.name === name)).toBe(true);
   });
 });

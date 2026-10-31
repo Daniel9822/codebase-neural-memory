@@ -160,8 +160,9 @@ program.command("remember <title> <content>")
   .option("--category <category>", "Memory category", "decision")
   .option("--source <path>", "Optional source file path")
   .option("--commit <sha>", "Optional source Git commit")
-  .action((title: string, content: string, options: { category: string; source?: string; commit?: string }) => {
-    const id = remember(ensureInitialized(), title, content, options.category, options.source, options.commit);
+  .option("--author <identity>", "Optional memory author identity")
+  .action((title: string, content: string, options: { category: string; source?: string; commit?: string; author?: string }) => {
+    const id = remember(ensureInitialized(), title, content, options.category, options.source, options.commit, options.author);
     console.log(`Saved memory ${id}.`);
   });
 
@@ -170,8 +171,9 @@ program.command("propose <title> <content>")
   .option("--category <category>", "Memory category", "decision")
   .option("--source <path>", "Optional source file path")
   .option("--commit <sha>", "Optional source Git commit")
-  .action((title: string, content: string, options: { category: string; source?: string; commit?: string }) => {
-    const id = proposeMemory(ensureInitialized(), title, content, options.category, options.source, options.commit);
+  .option("--author <identity>", "Optional memory author identity")
+  .action((title: string, content: string, options: { category: string; source?: string; commit?: string; author?: string }) => {
+    const id = proposeMemory(ensureInitialized(), title, content, options.category, options.source, options.commit, options.author);
     console.log(`Saved proposed memory ${id}; it requires explicit confirmation.`);
   });
 
@@ -184,13 +186,15 @@ memory.command("update <id>")
   .option("--content <content>", "New content")
   .option("--source <path>", "New source file path")
   .option("--commit <sha>", "New source Git commit")
-  .action((id: string, options: { category?: string; title?: string; content?: string; source?: string; commit?: string }) => {
+  .option("--author <identity>", "Identity of the person making this update")
+  .action((id: string, options: { category?: string; title?: string; content?: string; source?: string; commit?: string; author?: string }) => {
     const patch = {
       ...(options.category === undefined ? {} : { category: options.category }),
       ...(options.title === undefined ? {} : { title: options.title }),
       ...(options.content === undefined ? {} : { content: options.content }),
       ...(options.source === undefined ? {} : { sourcePath: options.source }),
       ...(options.commit === undefined ? {} : { commitSha: options.commit }),
+      ...(options.author === undefined ? {} : { author: options.author }),
     };
     const changed = updateMemory(ensureInitialized(), id, patch);
     if (!changed) throw new Error(`Memory not found: ${id}`);
