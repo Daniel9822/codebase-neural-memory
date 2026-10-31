@@ -32,6 +32,22 @@ try {
   assert.match(runCli(["dependencies", "a.ts", "--depth", "2"]), /b\.ts/);
   assert.match(runCli(["file", "a.ts", "--limit", "1"]), /"path": "a\.ts"/);
   assert.match(runCli(["freshness"]), /"status": "current"/);
+  const saved = runCli(["remember", "Smoke decision", "Keep the adapter boundary.", "--source", "a.ts", "--commit", "smoke-commit", "--author", "CI Author"]);
+  const memoryId = saved.match(/Saved memory ([a-f0-9-]+)/)?.[1];
+  assert.ok(memoryId, "CLI remember did not return a memory ID");
+  const recalled = JSON.parse(runCli(["memories", "--limit", "10"]));
+  assert.ok(recalled.some((memory) => memory.id === memoryId && memory.author === "CI Author"));
+  runCli(["memory", "update", memoryId, "--content", "Keep the adapter boundary stable.", "--author", "CI Updater"]);
+  const updated = JSON.parse(runCli(["memories", "--limit", "10"]));
+  assert.ok(updated.some((memory) => memory.id === memoryId && memory.author === "CI Author" && memory.updatedBy === "CI Updater"));
+  assert.match(runCli(["memory", "freshness"]), /"status": "current"/);
+  const proposal = runCli(["propose", "Potential smoke rule", "Require explicit confirmation.", "--author", "CI Author"]);
+  const proposalId = proposal.match(/Saved proposed memory ([a-f0-9-]+)/)?.[1];
+  assert.ok(proposalId, "CLI propose did not return a memory ID");
+  runCli(["memory", "transition", proposalId, "confirmed"]);
+  runCli(["memory", "transition", proposalId, "obsolete"]);
+  runCli(["memory", "transition", proposalId, "confirmed"]);
+  runCli(["memory", "delete", proposalId]);
   const cliImpact = JSON.parse(runCli(["impact", "b.ts", "--limit", "10", "--max-processed", "20"]));
   assert.deepEqual(cliImpact.affectedFiles, ["a.ts"]);
   assert.equal(cliImpact.truncated, false);
@@ -77,7 +93,7 @@ try {
   mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
   const listed = await request("tools/list");
   const names = listed.tools.map((tool) => tool.name);
-  for (const name of ["symbol_lookup", "dependency_graph", "file_details", "index_freshness", "change_impact"]) {
+  for (const name of ["symbol_lookup", "dependency_graph", "file_details", "index_freshness", "change_impact", "memory_recall", "memory_freshness"]) {
     assert.ok(names.includes(name), `MCP tool missing: ${name}`);
   }
   const lookup = await request("tools/call", { name: "symbol_lookup", arguments: { query: "alpha", limit: 10 } });
@@ -93,6 +109,12 @@ try {
   assert.match(details.content.map((item) => item.text ?? "").join("\n"), /a\.ts/);
   const freshness = await request("tools/call", { name: "index_freshness", arguments: {} });
   assert.match(freshness.content.map((item) => item.text ?? "").join("\n"), /"status": "current"/);
+  const memoryRecall = await request("tools/call", { name: "memory_recall", arguments: { query: "adapter boundary", limit: 10 } });
+  const memoryText = memoryRecall.content.map((item) => item.text ?? "").join("\n");
+  assert.match(memoryText, /CI Author/);
+  assert.match(memoryText, /CI Updater/);
+  const memoryFreshness = await request("tools/call", { name: "memory_freshness", arguments: {} });
+  assert.match(memoryFreshness.content.map((item) => item.text ?? "").join("\n"), /"status": "current"/);
   assert.deepEqual([digest(aPath), digest(bPath)], originalHashes, "CLI/MCP read operations modified repository source files");
   console.log("Phase 3 CLI/MCP smoke checks passed; source files remained unchanged.");
 } finally {
