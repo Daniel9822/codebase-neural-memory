@@ -34,6 +34,10 @@ export interface IndexSummary {
   deleted: number;
   symbols: number;
   relations: number;
+  skipped: number;
+  failed: number;
+  errors: string[];
+  skippedFiles: string[];
 }
 
 export interface SearchHit {
