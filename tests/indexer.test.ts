@@ -281,4 +281,24 @@ describe("indexWithDatabase", () => {
       "large.ts: exceeds 1000000 bytes",
     ]));
   });
+
+  it("reports discovery diagnostics in deterministic path order", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "z-broken.ts"), "export function broken( {");
+    writeFileSync(join(location.rootPath, "a-broken.ts"), "export function broken( {");
+    writeFileSync(join(location.rootPath, "z-binary.ts"), Buffer.from([0, 1, 2]));
+    writeFileSync(join(location.rootPath, "a-binary.ts"), Buffer.from([0, 1, 2]));
+
+    const summary = indexWithDatabase(database!, location);
+
+    expect(summary.errors.map((error) => error.split(":")[0])).toEqual([
+      "a-broken.ts",
+      "z-broken.ts",
+    ]);
+    expect(summary.skippedFiles).toEqual([
+      "a-binary.ts: binary content",
+      "z-binary.ts: binary content",
+    ]);
+  });
+
 });
