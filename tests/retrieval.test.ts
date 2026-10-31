@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
-import { indexWithDatabase } from "../src/core/indexer.js";
+import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
 import { explainSymbol, findDependencies, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
 
 let temporaryDirectory = "";
@@ -181,5 +181,42 @@ describe("getSymbolRelations", () => {
     expect(getSymbolRelations(location, "Base")[0]).toMatchObject({
       direction: "incoming", symbolFilePath: "one/base.ts", relatedFilePath: "one/child.ts",
     });
+  });
+});
+
+describe("getIndexFreshness", () => {
+  it("detects added, changed, and deleted source files without changing the index revision", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "changed.ts"), "export const before = true;");
+    writeFileSync(join(location.rootPath, "deleted.ts"), "export const removed = true;");
+    indexWithDatabase(database!, location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+
+    writeFileSync(join(location.rootPath, "changed.ts"), "export const after = true;");
+    writeFileSync(join(location.rootPath, "added.ts"), "export const added = true;");
+    rmSync(join(location.rootPath, "deleted.ts"));
+
+    expect(getIndexFreshness(location)).toMatchObject({
+      status: "stale", indexRevision: beforeRevision, addedFiles: 1, changedFiles: 1, deletedFiles: 1,
+    });
+    expect(database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id)).toEqual({ index_revision: beforeRevision });
+    expect(database!.prepare("SELECT name FROM symbols WHERE name = 'before'").all()).toHaveLength(1);
+  });
+
+  it("honors persisted custom exclusions and reports a current index", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "included.ts"), "export const included = true;");
+    writeFileSync(join(location.rootPath, "generated.ts"), "export const generated = true;");
+    indexWithDatabase(database!, location, false, ["generated.ts"]);
+
+    expect(getIndexFreshness(location)).toMatchObject({
+      status: "current", addedFiles: 0, changedFiles: 0, deletedFiles: 0, skippedFiles: [], errors: [],
+    });
+  });
+
+  it("reports an unindexed project without treating every source file as a delta", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"), "export const main = true;");
+    expect(getIndexFreshness(location)).toMatchObject({ status: "not-indexed", checkedFiles: 0 });
   });
 });
