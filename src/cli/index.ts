@@ -9,6 +9,7 @@ import { explainSymbol, findDependencies, findImpact, getFileDetails, getProject
 import { deleteMemory, inspectMemoryFreshness, proposeMemory, recallMemories, remember, transitionMemory, updateMemory, type MemoryStatus } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
+import { buildTaskContext } from "../core/context.js";
 
 const program = new Command();
 
@@ -227,6 +228,14 @@ program.command("memories [query]")
   .option("--limit <number>", "Maximum results", parsePositiveInteger, 20)
   .action((query: string | undefined, options: { limit: number }) => {
     console.log(JSON.stringify(recallMemories(ensureInitialized(), query ?? "", options.limit), null, 2));
+  });
+
+program.command("context <task>")
+  .description("Build bounded, explainable local context for a natural-language task.")
+  .option("--max-items <number>", "Maximum context items (1-100)", parsePositiveInteger, 20)
+  .option("--max-characters <number>", "Maximum serialized item characters (100-50000)", parsePositiveInteger, 12000)
+  .action((task: string, options: { maxItems: number; maxCharacters: number }) => {
+    console.log(JSON.stringify(buildTaskContext(ensureInitialized(), task, { maxItems: options.maxItems, maxCharacters: options.maxCharacters }), null, 2));
   });
 
 program.command("mcp")

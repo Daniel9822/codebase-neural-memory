@@ -108,10 +108,17 @@ Exit condition: memory CRUD, lifecycle transitions, source traceability, and sta
 
 ## Phase 5 — Task-oriented context builder
 
-**Status:** Planned; not part of the current baseline.
+**Status:** In progress. Initial deterministic context API, CLI command, and MCP tool are implemented; acceptance tests and budget/relevance review are pending.
 
 Tasks:
-- Accept a natural-language task description as input.
+- [x] Accept a natural-language task description as input.
+- [x] Extract lexical anchors deterministically without requiring an LLM.
+- [x] Retrieve matching symbols, indexed file details/relations, local memories, and test-path candidates.
+- [x] Rank candidates using explainable signals.
+- [x] Apply configurable item and serialized-character budgets.
+- [x] Deduplicate repeated source-file candidates.
+- [x] Return structured output with source references, lifecycle statuses, and freshness warnings.
+- [x] Provide follow-up retrieval prompts for deeper details.
 - Extract useful lexical anchors without requiring an LLM.
 - Retrieve matching symbols, files, graph neighbors, memories, and tests.
 - Rank candidates using explainable signals.
