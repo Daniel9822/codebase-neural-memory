@@ -277,7 +277,7 @@ Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code ins
 
 ## 10. Phase 7 — Git awareness and freshness
 
-**Implementation status:** All listed acceptance behaviors pass on PR #48. Formal phase closure awaits merge and a successful default-branch clean-checkout CI run.
+**Status:** PASS — PR #48 merged as `c6e2d742be3df8b1e697d354a81463ae92ef7590`; default-branch CI run [41253963500](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253963500) passed.
 
 - [x] The index records the source commit, branch, dirty flag, working-tree status hash, and changed-path count when Git metadata is available (migration v10; `tests/git-awareness.test.ts`).
 - [x] Dirty working-tree changes are detected by the Git porcelain snapshot and supported-file content hashes.
@@ -291,15 +291,15 @@ Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code ins
 
 ## 11. Phase 8 — Evaluation and performance
 
-- [ ] A reproducible fixture corpus is checked into the repository or generated deterministically.
-- [ ] At least small, medium, and large repository cases are measured.
-- [ ] Initial and incremental index timings are recorded.
-- [ ] Search and graph traversal latency are recorded.
-- [ ] Database size and peak memory are recorded.
-- [ ] Retrieval precision/recall is measured against labeled queries.
-- [ ] Agent task comparisons use the same repository, task, model, and comparable conditions.
-- [ ] Performance optimizations include regression tests.
-- [ ] No numeric improvement claim is made without reproducible measurements.
+- [x] A reproducible synthetic fixture corpus is generated deterministically by `scripts/benchmark.ts`.
+- [x] Small, medium, and large cases (26, 101, and 301 source files) are measured in CI.
+- [x] Initial, unchanged incremental, and one-file changed incremental index timings are recorded.
+- [x] Search, dependency-graph, and freshness latency are recorded as median and p95.
+- [x] SQLite size and process peak RSS are recorded, with cumulative RSS methodology documented.
+- [x] Retrieval top-1 accuracy, precision@5, recall@5, and MRR are measured against ten labeled queries.
+- [ ] Agent task comparisons use the same repository, task, model, prompt, and comparable conditions.
+- [ ] Performance optimizations include regression tests; no performance optimization has been introduced in this phase slice.
+- [x] No numeric improvement claim is made; the baseline is explicitly descriptive and machine-dependent.
 
 ## 12. Phase 9 — Optional semantic retrieval
 
