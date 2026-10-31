@@ -69,7 +69,7 @@ Exit condition: graph rebuild is deterministic, stale edges are removed, and gra
 
 ## Phase 3 — Lexical and structural retrieval
 
-**Status:** Evidence-rich bounded dependency traversal, explainable lexical ranking, bounded file-detail retrieval, literal-safe LIKE fallback, and read-only source freshness are implemented. The labeled corpus now covers ten retrieval queries, including exact, multi-term, and domain-style queries. Repository-scale relevance and performance evaluation remain open.
+**Status:** The Phase 3 implementation scope and all listed retrieval acceptance behaviors are documented as implemented and covered by focused regression fixtures. Formal phase closure is pending a clean-checkout verification run and a recorded result for typecheck, tests, build, and the relevant CLI/MCP smoke checks. Repository-scale relevance, precision/recall, and performance benchmarking are explicitly assigned to Phase 8; they are not additional Phase 3 feature requirements.
 
 Tasks:
 - [x] Improve FTS query handling, multi-term ranking, bounded candidates, and a narrowly scoped FTS5 fallback that does not swallow unrelated SQLite errors.
@@ -85,7 +85,7 @@ Tasks:
 
 Deliverable: fast, explainable lexical and graph-based retrieval without embeddings.
 
-Exit condition: expected symbols, files, dependencies, and dependents are returned accurately for retrieval fixtures with source locations, per-edge evidence, deterministic ranking, and explicit result bounds. Conceptual components are not an exit criterion: CNM does not yet extract or retrieve component entities; that requirement is deferred to a future context/semantic capability and must not be represented as delivered by Phase 3.
+Exit condition: expected symbols, files, dependencies, and dependents are returned accurately for retrieval fixtures with source locations, per-edge evidence, deterministic ranking, and explicit result bounds; the clean-checkout verification record is complete; and no unresolved Phase 3-blocking defect remains. Repository-scale benchmarks and broader precision/recall evaluation belong to Phase 8. Conceptual components are not an exit criterion: CNM does not yet extract or retrieve component entities; that requirement is deferred to a future context/semantic capability and must not be represented as delivered by Phase 3.
 
 ## Phase 4 — Explicit project memory lifecycle
 
