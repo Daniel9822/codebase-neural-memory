@@ -558,4 +558,64 @@ describe("indexWithDatabase", () => {
     ]);
   });
 
+
+  it("rebuilds typed directed graph relations idempotently and removes stale edges after source changes", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}");
+    writeFileSync(join(location.rootPath, "contract.ts"), "export interface Contract {}");
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function helper() { return true; }");
+    const workerPath = join(location.rootPath, "worker.ts");
+    writeFileSync(workerPath, [
+      'import { Base } from "./base";',
+      'import { Contract } from "./contract";',
+      'import { helper } from "./helper";',
+      "export function run() { helper(); }",
+      "export class Worker extends Base implements Contract {}",
+    ].join("\\n"));
+
+    indexWithDatabase(database!, location);
+
+    const relationSnapshot = () => database!.prepare(`
+      SELECT source.stable_id AS source_id, r.source_kind, r.kind,
+        target.stable_id AS target_id, r.target_kind, r.confidence, r.provenance
+      FROM relations r
+      JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id
+        OR r.source_kind = 'symbol' AND source.id = (
+          SELECT file_id FROM symbols WHERE id = r.source_id
+        )
+      JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
+        OR r.target_kind = 'symbol' AND target.id = (
+          SELECT file_id FROM symbols WHERE id = r.target_id
+        )
+      ORDER BY r.kind, source_id, target_id
+    `).all();
+
+    const rows = database!.prepare(`
+      SELECT r.source_kind, r.target_kind, r.kind, r.confidence, r.provenance,
+        source.name AS source_name, target.name AS target_name
+      FROM relations r
+      LEFT JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
+      LEFT JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
+      ORDER BY r.kind, source_name, target_name
+    `).all();
+
+    expect(rows).toEqual([
+      { source_kind: "symbol", target_kind: "symbol", kind: "CALLS", confidence: 0.95, provenance: "typescript-ast-import-binding", source_name: "run", target_name: "helper" },
+      { source_kind: "symbol", target_kind: "symbol", kind: "EXTENDS", confidence: 1, provenance: "typescript-ast-heritage", source_name: "Worker", target_name: "Base" },
+      { source_kind: "symbol", target_kind: "symbol", kind: "IMPLEMENTS", confidence: 1, provenance: "typescript-ast-heritage", source_name: "Worker", target_name: "Contract" },
+      { source_kind: "file", target_kind: "file", kind: "IMPORTS", confidence: 1, provenance: "typescript-ast", source_name: null, target_name: null },
+      { source_kind: "file", target_kind: "file", kind: "IMPORTS", confidence: 1, provenance: "typescript-ast", source_name: null, target_name: null },
+      { source_kind: "file", target_kind: "file", kind: "IMPORTS", confidence: 1, provenance: "typescript-ast", source_name: null, target_name: null },
+    ]);
+
+    const before = relationSnapshot();
+    indexWithDatabase(database!, location, true);
+    expect(relationSnapshot()).toEqual(before);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations").get()).toEqual({ count: 6 });
+
+    writeFileSync(workerPath, "export function run() { return true; }");
+    indexWithDatabase(database!, location);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations").get()).toEqual({ count: 0 });
+  });
+
 });
