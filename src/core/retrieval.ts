@@ -208,31 +208,67 @@ export function explainSymbol(location: ProjectLocation, name: string): SearchHi
   }
 }
 
-export function findImpact(location: ProjectLocation, targetPath: string): string[] {
+export interface ImpactResult {
+  file: string;
+  affectedFiles: string[];
+  truncated: boolean;
+  processedFiles: number;
+  processedRelations: number;
+  limits: { maxResults: number; maxProcessed: number };
+}
+
+const DEFAULT_IMPACT_RESULTS = 100;
+const DEFAULT_IMPACT_PROCESSED = 1_000;
+const MAX_IMPACT_RESULTS = 5_000;
+const MAX_IMPACT_PROCESSED = 10_000;
+
+export function findImpact(
+  location: ProjectLocation,
+  targetPath: string,
+  maxResults = DEFAULT_IMPACT_RESULTS,
+  maxProcessed = DEFAULT_IMPACT_PROCESSED,
+): ImpactResult {
+  if (!Number.isSafeInteger(maxResults) || maxResults < 1 || maxResults > MAX_IMPACT_RESULTS) {
+    throw new Error("Impact result limit must be a positive safe integer no greater than 5000.");
+  }
+  if (!Number.isSafeInteger(maxProcessed) || maxProcessed < 1 || maxProcessed > MAX_IMPACT_PROCESSED) {
+    throw new Error("Impact processing limit must be a positive safe integer no greater than 10000.");
+  }
   const db = openDatabase(location);
   try {
-    const normalized = targetPath.replaceAll("\\", "/").replace(/^\.\//, "");
+    const normalized = targetPath.replaceAll("\\\\", "/").replace(/^\\.\\//, "");
     const target = db.prepare("SELECT id FROM files WHERE path = ?").get(normalized) as { id: number } | undefined;
     if (!target) throw new Error(`File not found in memory index: ${normalized}. Run cnm index.`);
     const queue = [target.id];
     const visited = new Set<number>(queue);
-    const affected: string[] = [];
+    const affectedFiles: string[] = [];
+    let processedFiles = 0;
+    let processedRelations = 0;
+    let truncated = false;
     while (queue.length > 0) {
       const current = queue.shift()!;
+      processedFiles += 1;
+      const remaining = maxProcessed - processedRelations;
       const dependents = db.prepare(`
         SELECT source.id, source.path FROM relations r
         JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id
         WHERE r.target_kind = 'file' AND r.target_id = ? AND r.kind = 'IMPORTS'
         ORDER BY source.path
-      `).all(current) as Array<{ id: number; path: string }>;
+        LIMIT ?
+      `).all(current, Math.max(1, remaining + 1)) as Array<{ id: number; path: string }>;
       for (const item of dependents) {
+        if (processedRelations >= maxProcessed) { truncated = true; break; }
+        processedRelations += 1;
         if (visited.has(item.id)) continue;
+        if (affectedFiles.length >= maxResults) { truncated = true; break; }
         visited.add(item.id);
-        affected.push(item.path);
+        affectedFiles.push(item.path);
         queue.push(item.id);
       }
+      if (truncated) break;
     }
-    return affected;
+    if (queue.length > 0) truncated = true;
+    return { file: normalized, affectedFiles, truncated, processedFiles, processedRelations, limits: { maxResults, maxProcessed } };
   } finally {
     db.close();
   }
