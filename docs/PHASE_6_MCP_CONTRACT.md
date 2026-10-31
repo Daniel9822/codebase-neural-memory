@@ -28,19 +28,21 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 | Tool | Input schema | Adapter default / hard maximum | Core operation |
 |---|---|---|---|
 | `project_overview` | No arguments | — | `getProjectOverview(location)` |
-| `index_freshness` | No arguments | — | `getIndexFreshness(location)` |
-| `project_map` | `limit`: optional integer, 1–200 | 80 | `getProjectMap(location, limit)` |
+| `index_freshness` | No arguments | —; output detail arrays are currently unbounded | `getIndexFreshness(location)` |
+| `project_map` | `limit`: optional integer, 1–200 | 80; no total/truncated fields in current result | `getProjectMap(location, limit)` |
 | `symbol_lookup` | `query`: non-empty string; `limit`: optional integer, 1–50 | `limit`: 20 | `searchSymbols(location, query, limit)` |
 | `dependency_graph` | `path`: non-empty string; `depth`: optional integer, 1–20; `limit`: optional integer, 1–100; `maxProcessed`: optional integer, 1–10,000 | `depth`: 1; `limit`: 100; `maxProcessed`: 1,000 | `findDependencies(location, path, depth, limit, maxProcessed)` |
 | `file_details` | `path`: non-empty string; `limit`: optional integer, 1–500 | 100 per collection | `getFileDetails(location, path, limit)` |
 | `change_impact` | `path`: non-empty string; `limit`: optional integer, 1–5,000; `maxProcessed`: optional integer, 1–10,000 | `limit`: 100; `maxProcessed`: 1,000 | `findImpact(location, path, limit, maxProcessed)` |
 | `task_context` | `task`: non-empty string; `maxItems`: optional integer, 1–100; `maxCharacters`: optional integer, 100–50,000 | `maxItems`: 20; `maxCharacters`: 12,000 | `buildTaskContext(location, task, options)` |
-| `memory_freshness` | No arguments | — | `inspectMemoryFreshness(location)` |
+| `memory_freshness` | No arguments | —; returns all eligible records | `inspectMemoryFreshness(location)` |
 | `memory_recall` | `query`: optional string; `limit`: optional integer, 1–50 | `query`: empty string; `limit`: 20 | `recallMemories(location, query, limit)` |
 
 ### Result and truncation behavior
 
-- `project_map` is capped at 200 files by the MCP schema.
+- `project_map` is capped at 200 files by the MCP schema, but the current core return type is only an array: it does not include a total count or a truncation flag. A caller cannot distinguish a complete map from a map cut off by the limit.
+- `index_freshness` has no input limit. Its summary counters are finite, but `skippedFiles` and `errors` contain discovery details without an adapter-level cap or truncation metadata.
+- `memory_freshness` has no input limit and returns every eligible memory-source record; the current response has no total count or truncation metadata.
 - `symbol_lookup` is capped at 50 results by the MCP schema.
 - `dependency_graph` has independent depth, unique-result, and processed-edge budgets. The core traversal also protects against cycles and reports its traversal/truncation metadata.
 - `file_details` applies the supplied limit independently to its returned collections; the core response includes collection totals and truncation indicators.
