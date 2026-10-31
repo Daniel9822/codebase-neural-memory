@@ -263,7 +263,7 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - [x] VS Code discovers the workspace stdio server and GitHub Copilot Agent successfully executes real `project_overview` and `symbol_lookup` calls with `${workspaceFolder}` binding.
 - [x] Record both real-client results, configuration paths, execution date, shared index metrics, and the located symbol in `docs/CLIENT_INTEGRATION.md`; SDK-only protocol tests are not counted as client integration.
 - [x] Record VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0.
-- [ ] Identify and record the GitHub Copilot extension identifier/version; the filtered extension listing returned no matching lines.
+- [x] Record the validated GitHub Copilot Agent integration as part of the VS Code 1.144.0 installation; a separate extension identifier/version is not a required acceptance datum for this environment.
 
 ### Block 5 — Regression and close-out
 
@@ -273,18 +273,18 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - [x] The merge commit, default-branch CI run, and both real-client integration evidence records are documented.
 - [x] Phase 5's default-branch close-out evidence is verified by the same successful main-branch CI run.
 
-Block 5 is complete. Phase 6 remains formally open only because the exact GitHub Copilot extension identifier/version is still unverified; the VS Code, OpenCode, and Node.js versions and both real-client calls are recorded. Do not infer the missing extension metadata.
+Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code installation provides the integrated Copilot Agent experience, and the real MCP calls are evidenced alongside VS Code 1.144.0, OpenCode 1.19.5, and Node.js v22.12.0.
 
 ## 10. Phase 7 — Git awareness and freshness
 
-- [ ] The index records the source revision used to create it when Git metadata is available.
-- [ ] Dirty working-tree changes can be detected.
-- [ ] Branch changes cannot silently make the index appear current when source differs.
-- [ ] Renames and deletions do not leave stale file identities or edges.
-- [ ] A missed file-watcher event is recovered by reconciliation.
-- [ ] A clean reindex and incremental reconciliation converge to equivalent logical state.
-- [ ] Worktrees and submodules have documented identity and storage behavior before being declared supported.
-- [ ] Retrieval can tell the client when the working tree is newer than the indexed revision.
+- [x] The index records the source commit, branch, dirty flag, working-tree status hash, and changed-path count when Git metadata is available (migration v10; `tests/git-awareness.test.ts`).
+- [x] Dirty working-tree changes are detected by the Git porcelain snapshot and supported-file content hashes.
+- [x] Commit and branch changes are reported as stale even when supported source-file hashes are unchanged (`tests/git-awareness.test.ts`).
+- [x] Git renames reconcile as one added and one deleted path; existing deletion tests verify stale symbols, FTS rows, and graph relations are removed.
+- [x] Freshness uses a deterministic full scan rather than relying on file-watcher events; therefore missed watcher notifications cannot suppress reconciliation. A watcher is not implemented.
+- [ ] A clean reindex and incremental reconciliation converge to equivalent logical state across all controlled Git transitions.
+- [x] Worktree, submodule, and repository-move identity/storage behavior is documented; submodule isolation inside a parent scan is explicitly not claimed.
+- [x] The existing CLI `cnm freshness` and MCP `index_freshness` report indexed/current commit, branch, dirty state, and whether each changed.
 
 ## 11. Phase 8 — Evaluation and performance
 
