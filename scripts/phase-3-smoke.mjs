@@ -82,9 +82,10 @@ try {
   const dependencies = await request("tools/call", { name: "dependency_graph", arguments: { path: "a.ts", depth: 2 } });
   assert.match(dependencies.content.map((item) => item.text ?? "").join("\n"), /b\.ts/);
   const impact = await request("tools/call", { name: "change_impact", arguments: { path: "b.ts", limit: 10, maxProcessed: 20 } });
-  const impactText = impact.content.map((item) => item.text ?? "").join("\\n");
-  assert.match(impactText, /"affectedFiles": \\[\\s*"a\\.ts"\\s*\\]/);
-  assert.match(impactText, /"truncated": false/);
+  const impactText = impact.content.map((item) => item.text ?? "").join("\n");
+  const impactResult = JSON.parse(impactText);
+  assert.deepEqual(impactResult.affectedFiles, ["a.ts"]);
+  assert.equal(impactResult.truncated, false);
   const details = await request("tools/call", { name: "file_details", arguments: { path: "a.ts", limit: 1 } });
   assert.match(details.content.map((item) => item.text ?? "").join("\n"), /a\.ts/);
   const freshness = await request("tools/call", { name: "index_freshness", arguments: {} });
