@@ -66,6 +66,14 @@ describe("task-oriented context builder", () => {
     expect(() => lookupTaskContextDetails(location, context, ["src/not-in-context.ts"])).toThrow("not referenced");
   });
 
+  it("marks context as stale when indexed source files have changed", () => {
+    setup();
+    writeFileSync(join(location.rootPath, "src", "auth.ts"), "export function refreshAuthToken() { return false; }\\n");
+    const result = buildTaskContext(location, "refresh auth token");
+    expect(result.warnings.some((warning) => warning.includes("Indexed source is stale"))).toBe(true);
+    expect(result.warnings.some((warning) => warning.includes("changed: 1"))).toBe(true);
+  });
+
   it("enforces item and character budgets and rejects invalid input", () => {
     setup();
     const result = buildTaskContext(location, "refresh auth token", { maxItems: 1, maxCharacters: 500 });
