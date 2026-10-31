@@ -50,7 +50,7 @@ Exit condition: acceptance criteria for initial, incremental, deletion, failure 
 
 ## Phase 2 — Structural model and knowledge graph
 
-**Status:** Basic relational structures exist; complete graph behavior is future work.
+**Status:** Core graph behavior is implemented and revision attribution is covered by integration tests; formal phase closure still depends on the complete acceptance audit.
 
 Tasks:
 - Finalize common node and edge model.
@@ -59,7 +59,7 @@ Tasks:
 - Evaluate tsconfig path aliases and package exports.
 - Resolve same-file and cross-file symbol references where static evidence is sufficient.
 - Add reverse and forward graph traversal.
-- Record provenance, confidence, and index revision.
+- [x] Record provenance, confidence, and index revision (schema migration v6, atomic revision stamping, and retrieval exposure are covered by integration tests).
 - Make relation rebuilding idempotent.
 - Keep unresolved/ambiguous references explicit rather than guessing.
 
