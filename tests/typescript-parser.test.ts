@@ -15,6 +15,6 @@ describe("parseTypeScriptFile", () => {
   });
   it("rejects malformed source and includes a source location", () => {
     expect(() => parseTypeScriptFile("broken.ts", "export function broken( {"))
-      .toThrow(/broken\\.ts:1:/);
+      .toThrow(/broken\.ts:1:/);
   });
 });
