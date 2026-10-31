@@ -29,8 +29,9 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
       ? ts.ScriptKind.JS
       : ts.ScriptKind.TS;
   const sourceFile = ts.createSourceFile(filePath, source, ts.ScriptTarget.Latest, true, scriptKind);
-  if (sourceFile.parseDiagnostics.length > 0) {
-    const details = sourceFile.parseDiagnostics.map((diagnostic) => {
+  const parseDiagnostics = (sourceFile as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] }).parseDiagnostics;
+  if (parseDiagnostics.length > 0) {
+    const details = parseDiagnostics.map((diagnostic) => {
       const position = diagnostic.start ?? 0;
       const location = sourceFile.getLineAndCharacterOfPosition(position);
       const message = ts.flattenDiagnosticMessageText(diagnostic.messageText, " ");
