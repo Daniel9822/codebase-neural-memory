@@ -54,6 +54,10 @@ program.command("index")
     const result = indexProject(location, Boolean(options.force));
     console.log("Index completed:");
     console.table(result);
+    if (result.errors.length > 0) {
+      console.log("Files requiring attention:");
+      for (const error of result.errors) console.log("  - " + error);
+    }
   });
 
 program.command("status")
