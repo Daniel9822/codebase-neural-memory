@@ -98,7 +98,8 @@ Phase 0 is complete only after results are recorded, including exact environment
 - [x] Every node has a stable identifier within the project and a documented node type (file and symbol IDs are deterministic SHA-256 hashes; node types are `file` and `symbol`).
 - [x] Every relation is directed and has a documented relation type (verified for IMPORTS, CALLS, EXTENDS, and IMPLEMENTS in indexer and retrieval fixtures).
 - [x] Every inferred relation records its provenance and confidence (asserted for imports, imported calls, extends, and implements).
-- [ ] Human-confirmed knowledge is distinguishable from parser-derived facts.
+- [x] Human-confirmed knowledge is distinguishable from parser-derived facts (explicit `remember` records are stored in `memories` with `confirmed` status, separately from parser-created `relations` carrying parser provenance; covered by `tests/memories.test.ts`).
+- [ ] Graph relations are associated with the index revision that produced them, so consumers can identify the source snapshot for each derived edge.
 - [x] Rebuilding relations twice from unchanged source produces no duplicate edges (forced-reindex fixture compares stable node identities and relation metadata).
 - [x] Changing or deleting a source removes or invalidates affected old edges (covered by source-change and file-deletion regression tests).
 - [x] Forward and reverse traversal return expected neighbors on graph fixtures (dependency and symbol-relation retrieval tests).
