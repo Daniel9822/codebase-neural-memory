@@ -246,7 +246,10 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 ### Block 3 — Limits, paths, and isolation
 
 - [ ] Every response collection is bounded at the MCP boundary and reports totals/truncation where applicable.
-- [ ] `index_freshness`, `memory_freshness`, and `project_map` have verified limits and truncation behavior.
+- [ ] `index_freshness.skippedFiles` and `index_freshness.errors` are bounded and expose total counts plus truncation flags.
+- [ ] `memory_freshness` is bounded and exposes the total eligible count plus a truncation flag.
+- [ ] `project_map` exposes the total indexed-file count and a truncation flag when the result limit is reached.
+- [ ] Boundary tests cover exact-limit, over-limit, empty, and incomplete-discovery cases for these three tools.
 - [ ] Two independent MCP processes bound to different repositories cannot read each other's indexed files or memories.
 - [ ] Invalid, missing, unindexed, traversal, and outside-root paths produce controlled errors.
 
