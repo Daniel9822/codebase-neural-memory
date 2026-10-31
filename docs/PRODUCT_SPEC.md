@@ -128,9 +128,11 @@ The model should distinguish:
 
 - **Source artifacts:** repositories, files, commits, and tests.
 - **Code symbols:** functions, classes, methods, interfaces, types, and other language-specific declarations.
-- **Conceptual entities:** components, features, business rules, and architecture decisions.
+- **Conceptual entities:** components, features, business rules, and architecture decisions are part of the intended knowledge vocabulary. The current parser/indexer does not extract component entities or provide component retrieval; these concepts must not be presented as implemented.
 - **Relations:** directed, typed links such as IMPORTS, CALLS, DEPENDS_ON, IMPLEMENTS, DEFINED_IN, and TESTED_BY.
 - **Memories:** explicit project knowledge with category, status, source, timestamps, and optional commit reference.
+
+Phase 3 retrieval acceptance covers indexed source files, symbols, imports, dependencies, and parser-derived symbol relations. Component extraction and retrieval remain a separate future capability and are not implied by the conceptual entity vocabulary above.
 
 Relations and memories need provenance. A syntax-derived import should be distinguishable from a semantic association or a developer-confirmed decision. Confidence values must not imply certainty where the parser cannot resolve a relationship.
 
