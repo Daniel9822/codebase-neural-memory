@@ -91,8 +91,9 @@ Do not record repository source contents, personal paths, secrets, or private me
 
 **Execution date:** 2026-10-31  
 **Target workspace:** the local `codebase-neural-memory` repository (absolute user-specific path intentionally redacted).  
-**Platform evidence:** Windows PowerShell was used for setup; the exact Windows edition and Node.js version were not captured.  
-**Version metadata:** exact VS Code, GitHub Copilot extension, OpenCode, and Node.js versions were not included in the execution report and remain to be recorded. Do not infer them from the successful calls.
+**Platform evidence:** Windows PowerShell; VS Code reported x64. The exact Windows edition was not captured.  
+**Observed versions:** VS Code `1.144.0` (commit `2c33b50b16c472efe58357d1d2a8a5414bc23fbf`, x64); OpenCode `1.19.5`; Node.js `v22.12.0`.  
+**GitHub Copilot extension:** `code --list-extensions --show-versions | findstr /i "github.copilot"` returned no matching lines in the supplied terminal output. This does not establish whether Copilot was built-in, installed in another VS Code profile/instance, or exposed under a different extension identifier; exact extension identifier/version remains unverified.
 
 | Client | Configuration / discovery | Real calls observed | Result |
 |---|---|---|---|
@@ -103,7 +104,7 @@ Both clients returned the same indexed workspace metrics: 25 files, 135 symbols,
 
 These are manual end-to-end client calls, not simulated SDK calls. The test used the CNM repository itself as the target workspace; it validates client startup, discovery, workspace binding, and tool invocation, but does not replace the separate automated two-project isolation tests from Block 3.
 
-**Remaining evidence gap:** capture the exact client and Node.js versions, then append them here. No client version is claimed without that observation.
+**Remaining evidence gap:** identify the exact GitHub Copilot extension identifier/version (the filtered CLI command returned no match) and record the Windows edition if required. VS Code, OpenCode, and Node.js versions are now recorded from direct CLI output.
 
 ## Troubleshooting
 
