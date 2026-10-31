@@ -162,9 +162,9 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 ### Block 3 — Limits, paths, and project isolation
 
 - [ ] Audit every response collection for a finite adapter-level limit and explicit truncation/total metadata where applicable.
-- [ ] Bound `index_freshness.skippedFiles` and `index_freshness.errors`, preserving total counts and explicit truncation metadata.
-- [ ] Bound `memory_freshness` records, preserving the total eligible count and explicit truncation metadata.
-- [ ] Make `project_map` report total indexed files and whether its limited result is truncated.
+- [ ] Bound `index_freshness.skippedFiles` and `index_freshness.errors`, preserving total counts and explicit truncation metadata. (Implementation added; protocol boundary tests pending.)
+- [ ] Bound `memory_freshness` records, preserving the total eligible count and explicit truncation metadata. (Implementation added; protocol boundary tests pending.)
+- [ ] Make `project_map` report total indexed files and whether its limited result is truncated. (Implementation added, including nested per-file caps; protocol boundary tests pending.)
 - [ ] Add boundary tests for all three tools; do not silently drop records or totals.
 - [ ] Run two independent MCP processes against two repositories with different indexed files and memories.
 - [ ] Prove that each process remains bound to its configured project across repeated calls.
