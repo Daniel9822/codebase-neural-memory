@@ -28,7 +28,6 @@ function isFtsUnavailable(error: unknown): boolean {
 function rankSearchCandidates(
   rows: Array<SearchHit & { ftsRank?: number }>,
   tokens: string[],
-  method: RankedSearchHit["searchMethod"],
   limit: number,
 ): RankedSearchHit[] {
   const normalizedTokens = tokens.map((token) => token.toLocaleLowerCase());
@@ -115,7 +114,7 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
         const key = `${row.filePath}:${row.startLine}:${row.name}:${row.kind}`;
         if (!combined.has(key)) combined.set(key, row);
       }
-      return rankSearchCandidates([...combined.values()], tokens, rows.length > 0 ? "fts5" : "like-fallback", limit);
+      return rankSearchCandidates([...combined.values()], tokens, limit);
     } catch (error) {
       if (!isFtsUnavailable(error)) throw error;
       const parameters = tokens.flatMap((token) => [`%${token}%`, `%${token}%`]);
@@ -127,7 +126,7 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
         ORDER BY f.path, s.start_line, s.name
         LIMIT ?
       `).all(...parameters, candidateLimit) as SearchHit[];
-      return rankSearchCandidates(rows, tokens, "like-fallback", limit);
+      return rankSearchCandidates(rows.map((row) => ({ ...row })), tokens, limit);
     }
   } finally {
     db.close();
