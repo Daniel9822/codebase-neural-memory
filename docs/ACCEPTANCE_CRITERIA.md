@@ -259,9 +259,10 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 
 ### Block 4 — Real clients
 
-- [ ] OpenCode discovers the server and completes real tool calls with an explicit repository `cwd`.
-- [ ] VS Code discovers the server and completes real tool calls with workspace-root binding.
-- [ ] Client versions, configurations, and observed evidence are recorded; simulated protocol tests are not counted as real-client integration.
+- [x] OpenCode discovers the local stdio server and successfully executes real `project_overview` and `symbol_lookup` calls with the repository `cwd`.
+- [x] VS Code discovers the workspace stdio server and GitHub Copilot Agent successfully executes real `project_overview` and `symbol_lookup` calls with `${workspaceFolder}` binding.
+- [x] Record both real-client results, configuration paths, execution date, shared index metrics, and the located symbol in `docs/CLIENT_INTEGRATION.md`; SDK-only protocol tests are not counted as client integration.
+- [ ] Record exact VS Code, GitHub Copilot extension, OpenCode, and Node.js versions; these values were not captured during the manual runs.
 
 ### Block 5 — Regression and close-out
 
@@ -271,7 +272,7 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - [ ] The merge commit, CI run, and both client-integration evidence records are documented.
 - [ ] Phase 5's pending default-branch close-out evidence is verified before the overall sequence is declared closed.
 
-Phase 6 is complete only when all five blocks pass. Documentation of a contract is not proof that protocol behavior or real-client integration has been tested.
+Phase 6 is complete only when all five blocks pass. The Block 4 manual client calls are now evidenced; exact client-version metadata and all Block 5 regression/close-out checks remain outstanding. Documentation of a contract alone is not proof that protocol behavior or real-client integration has been tested.
 
 ## 10. Phase 7 — Git awareness and freshness
 
