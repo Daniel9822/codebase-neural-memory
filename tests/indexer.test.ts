@@ -329,6 +329,26 @@ describe("indexWithDatabase", () => {
     }]);
   });
 
+  it("resolves each imported binding against its own module when names overlap", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"),
+      'import { shared as callFirst } from "./first";\\nimport { shared as callSecond } from "./second";\\nexport function caller() { callFirst(); callSecond(); }');
+    writeFileSync(join(location.rootPath, "first.ts"), "export function shared() { return 1; }");
+    writeFileSync(join(location.rootPath, "second.ts"), "export function shared() { return 2; }");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare(`
+      SELECT targetFile.path AS target
+      FROM relations r
+      JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
+      JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
+      JOIN files targetFile ON targetFile.id = target.file_id
+      WHERE r.kind = 'CALLS' AND source.name = 'caller'
+      ORDER BY targetFile.path
+    `).all()).toEqual([{ target: "first.ts" }, { target: "second.ts" }]);
+  });
+
   it("does not resolve imported calls when a local parameter shadows the import", () => {
     createProject();
     writeFileSync(join(location.rootPath, "main.ts"),
