@@ -95,7 +95,7 @@ Phase 0 is complete only after results are recorded, including exact environment
 
 ## 5. Phase 2 — Knowledge graph
 
-- [ ] Every node has a stable identifier within the project and a documented node type.
+- [x] Every node has a stable identifier within the project and a documented node type (file and symbol IDs are deterministic SHA-256 hashes; node types are `file` and `symbol`).
 - [ ] Every relation is directed and has a documented relation type.
 - [ ] Every inferred relation records its provenance and confidence.
 - [ ] Human-confirmed knowledge is distinguishable from parser-derived facts.

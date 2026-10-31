@@ -1,4 +1,5 @@
 import Database from "better-sqlite3";
+import { createHash } from "node:crypto";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 import type { ProjectLocation } from "../core/project.js";
@@ -33,6 +34,7 @@ export function migrate(db: MemoryDatabase): void {
 
     CREATE TABLE IF NOT EXISTS files (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      stable_id TEXT,
       path TEXT NOT NULL UNIQUE,
       extension TEXT NOT NULL,
       language TEXT NOT NULL,
@@ -44,6 +46,7 @@ export function migrate(db: MemoryDatabase): void {
 
     CREATE TABLE IF NOT EXISTS symbols (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
+      stable_id TEXT,
       file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
       name TEXT NOT NULL,
       kind TEXT NOT NULL,
@@ -137,6 +140,38 @@ export function migrate(db: MemoryDatabase): void {
   }
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (3, ?)`).run(now);
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (4, ?)`).run(now);
+
+  const fileColumns = db.prepare("PRAGMA table_info(files)").all() as Array<{ name: string }>;
+  const fileColumnNames = new Set(fileColumns.map((column) => column.name));
+  if (!fileColumnNames.has("stable_id")) db.exec("ALTER TABLE files ADD COLUMN stable_id TEXT");
+
+  const symbolColumns = db.prepare("PRAGMA table_info(symbols)").all() as Array<{ name: string }>;
+  const symbolColumnNames = new Set(symbolColumns.map((column) => column.name));
+  if (!symbolColumnNames.has("stable_id")) db.exec("ALTER TABLE symbols ADD COLUMN stable_id TEXT");
+
+  const stableId = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
+  const legacyFiles = db.prepare("SELECT id, path FROM files WHERE stable_id IS NULL ORDER BY path").all() as Array<{ id: number; path: string }>;
+  const updateFileId = db.prepare("UPDATE files SET stable_id = ? WHERE id = ?");
+  for (const file of legacyFiles) updateFileId.run(stableId(["file", file.path.replaceAll("\\", "/")]), file.id);
+
+  const legacySymbols = db.prepare(`
+    SELECT s.id, s.file_id, s.name, s.kind, s.signature
+    FROM symbols s WHERE s.stable_id IS NULL ORDER BY s.file_id, s.name, s.kind, s.signature, s.id
+  `).all() as Array<{ id: number; file_id: number; name: string; kind: string; signature: string }>;
+  const fileStableIds = new Map((db.prepare("SELECT id, stable_id FROM files").all() as Array<{ id: number; stable_id: string }>).map((file) => [file.id, file.stable_id]));
+  const occurrences = new Map<string, number>();
+  const updateSymbolId = db.prepare("UPDATE symbols SET stable_id = ? WHERE id = ?");
+  for (const symbol of legacySymbols) {
+    const fileStableId = fileStableIds.get(symbol.file_id);
+    if (!fileStableId) continue;
+    const identity = JSON.stringify([fileStableId, symbol.name, symbol.kind, symbol.signature]);
+    const occurrence = occurrences.get(identity) ?? 0;
+    occurrences.set(identity, occurrence + 1);
+    updateSymbolId.run(stableId(["symbol", fileStableId, symbol.name, symbol.kind, symbol.signature, occurrence]), symbol.id);
+  }
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_files_stable_id ON files(stable_id) WHERE stable_id IS NOT NULL");
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_symbols_stable_id ON symbols(stable_id) WHERE stable_id IS NOT NULL");
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (5, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {

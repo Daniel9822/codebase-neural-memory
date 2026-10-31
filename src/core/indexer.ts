@@ -134,6 +134,10 @@ function discoverFiles(root: string, extraExcludes: string[] = []): DiscoveryRes
     presentPaths, protectedDirectories, scanned, skipped, failed, errors, skippedFiles,
   };
 }
+function stableIdentifier(value: unknown): string {
+  return createHash("sha256").update(JSON.stringify(value)).digest("hex");
+}
+
 function languageForExtension(extension: string): string {
   return [".js", ".jsx", ".mjs", ".cjs"].includes(extension) ? "javascript" : "typescript";
 }
@@ -435,8 +439,8 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
   const discovery = discoverFiles(location.rootPath, extraExcludes);
   const { files: discovered, presentPaths } = discovery;
   return db.transaction(() => {
-    const existing = db.prepare("SELECT id, path, content_hash FROM files").all() as Array<{
-      id: number; path: string; content_hash: string;
+    const existing = db.prepare("SELECT id, stable_id, path, content_hash FROM files").all() as Array<{
+      id: number; stable_id: string; path: string; content_hash: string;
     }>;
     const existingByPath = new Map(existing.map((file) => [file.path, file]));
     const summary: IndexSummary = {
@@ -445,7 +449,7 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
       errors: [...discovery.errors], skippedFiles: [...discovery.skippedFiles],
     };
 
-    const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; path: string; content_hash: string }) => {
+    const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; stable_id: string; path: string; content_hash: string }) => {
       const extension = extname(file.relativePath).toLowerCase();
       let fileId: number;
       if (oldFile) {
@@ -454,18 +458,24 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
         db.prepare(`UPDATE files SET extension = ?, language = ?, content_hash = ?, size_bytes = ?, modified_at = ?, indexed_at = ? WHERE id = ?`)
           .run(extension, languageForExtension(extension), file.hash, file.size, file.mtime.toISOString(), new Date().toISOString(), fileId);
       } else {
-        const result = db.prepare(`INSERT INTO files(path, extension, language, content_hash, size_bytes, modified_at, indexed_at)
-          VALUES (?, ?, ?, ?, ?, ?, ?)`)
-          .run(file.relativePath, extension, languageForExtension(extension), file.hash, file.size, file.mtime.toISOString(), new Date().toISOString());
+        const result = db.prepare(`INSERT INTO files(stable_id, path, extension, language, content_hash, size_bytes, modified_at, indexed_at)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(stableIdentifier(["file", file.relativePath]), file.relativePath, extension, languageForExtension(extension), file.hash, file.size, file.mtime.toISOString(), new Date().toISOString());
         fileId = Number(result.lastInsertRowid);
       }
 
       const parsed = parseTypeScriptFile(file.relativePath, file.source);
-      const insertSymbol = db.prepare(`INSERT INTO symbols(file_id, name, kind, signature, start_line, end_line, exported)
-        VALUES (?, ?, ?, ?, ?, ?, ?)`);
+      const insertSymbol = db.prepare(`INSERT INTO symbols(stable_id, file_id, name, kind, signature, start_line, end_line, exported)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`);
       const insertFts = db.prepare(`INSERT INTO symbols_fts(rowid, name, signature, file_path, kind) VALUES (?, ?, ?, ?, ?)`);
+      const symbolOccurrences = new Map<string, number>();
+      const fileStableId = oldFile?.stable_id ?? stableIdentifier(["file", file.relativePath]);
       for (const symbol of parsed.symbols) {
-        const result = insertSymbol.run(fileId, symbol.name, symbol.kind, symbol.signature, symbol.startLine, symbol.endLine, symbol.exported ? 1 : 0);
+        const identity = JSON.stringify([fileStableId, symbol.name, symbol.kind, symbol.signature]);
+        const occurrence = symbolOccurrences.get(identity) ?? 0;
+        symbolOccurrences.set(identity, occurrence + 1);
+        const symbolStableId = stableIdentifier(["symbol", fileStableId, symbol.name, symbol.kind, symbol.signature, occurrence]);
+        const result = insertSymbol.run(symbolStableId, fileId, symbol.name, symbol.kind, symbol.signature, symbol.startLine, symbol.endLine, symbol.exported ? 1 : 0);
         insertFts.run(Number(result.lastInsertRowid), symbol.name, symbol.signature, file.relativePath, symbol.kind);
       }
       const insertImport = db.prepare("INSERT OR IGNORE INTO file_imports(file_id, module_specifier) VALUES (?, ?)");

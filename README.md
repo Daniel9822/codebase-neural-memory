@@ -94,7 +94,7 @@ Use `cnm relations <symbol>` to inspect incoming and outgoing symbol relationshi
 
 Use `cnm dependencies <file> --depth <number>` to list direct imports (depth 1) or transitive dependencies up to the requested depth. Cycles are handled without repeating files.
 
-The project map lists resolved relative imports and explicitly labels relative imports that are unresolved or ambiguous; ambiguous imports are not assigned a guessed target. The initial parser supports `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, and `.cjs` files. It extracts functions, classes, methods, interfaces, type aliases, enums, import declarations, simple local function-call relationships, and statically resolvable class/interface heritage relationships.
+File and symbol nodes receive deterministic SHA-256 identifiers derived from their project-relative identity; these identifiers survive forced reindexing and line-only shifts. Internal SQLite row IDs remain implementation details.\n\nThe project map lists resolved relative imports and explicitly labels relative imports that are unresolved or ambiguous; ambiguous imports are not assigned a guessed target. The initial parser supports `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, and `.cjs` files. It extracts functions, classes, methods, interfaces, type aliases, enums, import declarations, simple local function-call relationships, and statically resolvable class/interface heritage relationships.
 
 Common generated/dependency folders and sensitive files such as `.env`, private keys, and certificate files are excluded. The `.gitignore` file is respected, and additional patterns can be supplied to `cnm index` with `--exclude`. Symlinks are skipped by default. Files larger than 1 MB are skipped by default.
 
