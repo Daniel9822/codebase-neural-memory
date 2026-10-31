@@ -23,7 +23,10 @@ function tokenizeQuery(query: string): string[] {
 }
 
 function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, "\\\\function isFtsUnavailable(error: unknown): boolean {");
+  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+}
+
+function isFtsUnavailable(error: unknown): boolean {");
 }
 
 function isFtsUnavailable(error: unknown): boolean {
@@ -408,13 +411,13 @@ export function getFileDetails(
       SELECT s.stable_id AS stableId, s.name, s.kind, s.signature, f.path AS filePath,
         s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
       FROM symbols s JOIN files f ON f.id = s.file_id
-      WHERE s.file_id = ? ORDER BY s.start_line, s.name, s.kind
+      WHERE s.file_id = ? ORDER BY s.start_line, s.name, s.kind LIMIT ?
     `).all(file.id, limit) as FileDetailSymbol[];
     const imports = db.prepare(`
       SELECT target.path, r.provenance, r.confidence, r.index_revision AS indexRevision
       FROM relations r JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
       WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
-      ORDER BY target.path
+      ORDER BY target.path LIMIT ?
     `).all(file.id, limit) as FileDetails["imports"];
     const unresolvedImports = db.prepare(`
       SELECT module_specifier AS specifier, status, candidates_json AS candidatesJson
