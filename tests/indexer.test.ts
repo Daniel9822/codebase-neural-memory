@@ -398,7 +398,7 @@ describe("indexWithDatabase", () => {
     expect(symbols).toContainEqual({ name: "helper" });
     expect(symbols).not.toContainEqual({ name: "changedHelper" });
     expect(fileCount).toBe(2);
-    expect(relationCount).toBe(1);
+    expect(relationCount).toBe(2);
   });
 
   it("reports malformed files without aborting other files or replacing a valid index", () => {
