@@ -382,6 +382,12 @@ describe("indexWithDatabase", () => {
 
     indexWithDatabase(database!, location);
 
+    expect(database!.prepare("SELECT owner_name, relation_kind, target_name, module_specifier, imported_name FROM symbol_heritage ORDER BY owner_name, relation_kind").all()).toEqual([
+      { owner_name: "LocalWorker", relation_kind: "EXTENDS", target_name: "LocalBase", module_specifier: null, imported_name: null },
+      { owner_name: "Worker", relation_kind: "EXTENDS", target_name: "Parent", module_specifier: "./base", imported_name: "Base" },
+      { owner_name: "Worker", relation_kind: "IMPLEMENTS", target_name: "Contract", module_specifier: "./contracts", imported_name: "Contract" },
+    ]);
+
     expect(database!.prepare(`
       SELECT source.name AS source, target.name AS target, r.kind, r.provenance
       FROM relations r
