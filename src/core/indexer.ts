@@ -55,7 +55,7 @@ function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: strin
   } catch {
     // A missing .gitignore is normal.
   }
-  return { directory, rules, mandatoryRules };
+  return mandatoryRules === undefined ? { directory, rules } : { directory, rules, mandatoryRules };
 }
 
 function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
