@@ -30,7 +30,8 @@ export function migrate(db: MemoryDatabase): void {
       created_at TEXT NOT NULL,
       last_indexed_at TEXT,
       indexed_commit TEXT,
-      index_revision INTEGER NOT NULL DEFAULT 0
+      index_revision INTEGER NOT NULL DEFAULT 0,
+      index_excludes_json TEXT NOT NULL DEFAULT '[]'
     );
 
     CREATE TABLE IF NOT EXISTS files (
@@ -184,6 +185,11 @@ export function migrate(db: MemoryDatabase): void {
     db.exec("ALTER TABLE relations ADD COLUMN index_revision INTEGER NOT NULL DEFAULT 0");
   }
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (6, ?)`).run(now);
+  const latestProjectColumns = db.prepare("PRAGMA table_info(projects)").all() as Array<{ name: string }>;
+  if (!latestProjectColumns.some((column) => column.name === "index_excludes_json")) {
+    db.exec("ALTER TABLE projects ADD COLUMN index_excludes_json TEXT NOT NULL DEFAULT '[]'");
+  }
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (7, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {

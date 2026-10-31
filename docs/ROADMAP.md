@@ -69,7 +69,7 @@ Exit condition: graph rebuild is deterministic, stale edges are removed, and gra
 
 ## Phase 3 — Lexical and structural retrieval
 
-**Status:** Basic symbol search, map, reverse-import impact, and tested exact/prefix lookup contracts exist; retrieval quality, freshness reporting, and a labeled relevance corpus remain open.
+**Status:** Basic symbol search, map, reverse-import impact, tested exact/prefix lookup contracts, and a read-only source freshness report exist; retrieval quality and a labeled relevance corpus remain open.
 
 Tasks:
 - Improve FTS query handling, ranking, limits, and empty-result guidance.
@@ -77,7 +77,7 @@ Tasks:
 - Support direct and transitive dependency queries.
 - Explain why a result was selected.
 - Include source path, symbol kind, and line ranges.
-- Detect stale index state and communicate it.
+- [x] Detect stale or incomplete source state and communicate added, changed, deleted, skipped, and failed paths through `cnm freshness` and MCP `index_freshness`.
 - Build a test corpus with known expected retrieval results.
 
 Deliverable: fast, explainable lexical and graph-based retrieval without embeddings.

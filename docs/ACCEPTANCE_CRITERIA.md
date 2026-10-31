@@ -116,7 +116,7 @@ Phase 0 is complete only after results are recorded, including exact environment
 - [ ] Direct dependency lookup returns expected edges.
 - [ ] Transitive dependency lookup respects depth/size limits and cycles.
 - [ ] Retrieval explains the evidence or relation that caused a result to be included.
-- [ ] Retrieval identifies stale or incomplete index state.
+- [x] Retrieval identifies stale or incomplete index state (the freshness report compares source hashes and additions/deletions without mutating the index; incomplete discovery is surfaced separately).
 - [ ] Relevance tests use labeled expected results rather than subjective spot checks alone.
 
 ## 7. Phase 4 — Memory lifecycle
