@@ -130,14 +130,29 @@ Phase 0 is complete only after results are recorded, including exact environment
 
 The retrieval feature checklist above records implemented behavior and its focused test evidence. The phase is not formally closed until this execution record is completed from a clean checkout.
 
-- [ ] Install dependencies from the committed lockfile with the documented Node.js version (npm ci --no-audit --no-fund).
-- [ ] Run npm run typecheck and record the actual result.
-- [ ] Run npm test and record the actual result, including the retrieval and migration suites.
-- [ ] Run npm run build and record the actual result.
-- [ ] Run the documented retrieval CLI smoke checks, including exact/lexical lookup, dependencies, file details, and freshness.
-- [ ] Verify the corresponding read-only MCP retrieval tools and their input/result bounds.
-- [ ] Review the final diff and confirm retrieval/freshness operations did not modify repository source files.
-- [ ] Record commit, environment, commands, pass/fail/not-run outcomes, and any platform limitations in the phase close-out report.
+- [x] Install dependencies from the committed lockfile with the documented Node.js version (npm ci --no-audit --no-fund).
+- [x] Run npm run typecheck and record the actual result.
+- [x] Run npm test and record the actual result, including the retrieval and migration suites.
+- [x] Run npm run build and record the actual result.
+- [x] Run the documented retrieval CLI smoke checks, including exact/lexical lookup, dependencies, file details, and freshness.
+- [x] Verify the corresponding read-only MCP retrieval tools and their input/result bounds.
+- [x] Review the final diff and confirm retrieval/freshness operations did not modify repository source files.
+- [x] Record commit, environment, commands, pass/fail/not-run outcomes, and any platform limitations in the phase close-out report.
+
+### Phase 3 clean-checkout verification record
+
+- **Result:** PASS
+- **Verified merge commit:** `553b3acbe3ef868fd4ef49fadb189ae2b92c1c2e` (PR #26)
+- **CI run:** [GitHub Actions #41185088116](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41185088116)
+- **Environment:** GitHub-hosted `ubuntu-latest`, Node.js 22, npm; clean `actions/checkout` followed by lockfile install.
+- **Commands passed, in workflow order:** `npm ci --no-audit --no-fund`; `npm run typecheck`; `npm test`; `npm run build`; `npm run smoke`.
+- **CLI smoke coverage:** help, init, index, lexical symbol search, bounded dependency traversal, bounded file details, and current freshness.
+- **MCP smoke coverage:** stdio initialization and tool discovery; `symbol_lookup`, `dependency_graph`, `file_details`, and `index_freshness` calls with explicit limits; freshness reports current.
+- **No-mutation check:** SHA-256 hashes of fixture source files before and after CLI/MCP read operations matched. The smoke fixture is created in a temporary directory and removed afterward.
+- **Diff review:** PR #26 changes only the smoke script, npm script declaration, and CI workflow; no application source files were changed.
+- **Limitations:** This records the Linux/Node 22 CI environment. Other operating systems and repository-scale performance/relevance benchmarks remain outside this Phase 3 verification; benchmark work belongs to Phase 8.
+
+Phase 3 is formally closed on the verified commit above.
 
 Repository-scale benchmarks, larger precision/recall studies, and performance baselines are Phase 8 work. They must not be used to expand Phase 3 scope or to block its closure once the Phase 3 exit condition above is satisfied.
 
