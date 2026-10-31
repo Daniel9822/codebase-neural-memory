@@ -175,4 +175,19 @@ describe("indexWithDatabase", () => {
     expect(summary.added).toBe(1);
     expect(database!.prepare("SELECT path FROM files").all()).toEqual([{ path: "plain.ts" }]);
   });
+  it("preserves the previous file index when an updated file becomes malformed", () => {
+    createProject();
+    const filePath = join(location.rootPath, "stable.ts");
+    writeFileSync(filePath, "export function stable() { return true; }");
+    indexWithDatabase(database!, location);
+    const previous = database!.prepare("SELECT content_hash FROM files WHERE path = ?").get("stable.ts");
+
+    writeFileSync(filePath, "export function stable( {");
+    const summary = indexWithDatabase(database!, location);
+
+    expect(summary.failed).toBe(1);
+    expect(database!.prepare("SELECT content_hash FROM files WHERE path = ?").get("stable.ts")).toEqual(previous);
+    expect(database!.prepare("SELECT name FROM symbols").all()).toEqual([{ name: "stable" }]);
+  });
+
 });
