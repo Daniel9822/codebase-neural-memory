@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { buildTaskContext } from "../src/core/context.js";
+import { buildTaskContext, lookupTaskContextDetails } from "../src/core/context.js";
 import { remember, proposeMemory } from "../src/core/memories.js";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
@@ -20,7 +20,8 @@ function setup(): void {
   location = { id: "task-context-test", rootPath, dataDirectory: join(temp, "data"), databasePath: join(temp, "data", "memory.sqlite") };
   db = openDatabase(location);
   ensureProject(db, location);
-  writeFileSync(join(rootPath, "src", "auth.ts"), "export function refreshAuthToken() { return true; }\n");
+  writeFileSync(join(rootPath, "src", "auth.ts"), "import { normalizeToken } from './token';\nimport './missing-module';\nexport function refreshAuthToken() { return normalizeToken(); }\n");
+  writeFileSync(join(rootPath, "src", "token.ts"), "export function normalizeToken() { return true; }\n");
   writeFileSync(join(rootPath, "tests", "auth.test.ts"), "import { refreshAuthToken } from '../src/auth';\n");
   indexWithDatabase(db, location);
 }
@@ -33,20 +34,36 @@ afterEach(() => {
 });
 
 describe("task-oriented context builder", () => {
-  it("returns ranked source-backed symbols, test paths, and lifecycle-labeled memories", () => {
+  it("returns ranked source-backed symbols, dependencies, test paths, and lifecycle-labeled memories", () => {
     setup();
     remember(location, "Refresh auth token", "The refresh token must be rotated.", "decision", "src/auth.ts");
     proposeMemory(location, "Auth follow-up", "Review expiry edge cases.", "note");
-    const result = buildTaskContext(location, "refresh auth token tests", { maxItems: 20, maxCharacters: 8000 });
+    const result = buildTaskContext(location, "refresh auth token tests", { maxItems: 30, maxCharacters: 12000 });
 
     expect(result.anchors).toContain("refresh");
     expect(result.items.some((item) => item.kind === "symbol" && item.title.includes("refreshAuthToken"))).toBe(true);
+    expect(result.items.some((item) => item.kind === "dependency" && item.source === "src/token.ts")).toBe(true);
     expect(result.items.some((item) => item.kind === "test" && item.source.includes("auth.test.ts"))).toBe(true);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "confirmed")).toBe(true);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "proposed")).toBe(true);
     expect(result.warnings.some((warning) => warning.includes("Proposed memories"))).toBe(true);
-    expect(result.budget.usedItems).toBeLessThanOrEqual(20);
-    expect(result.budget.usedCharacters).toBeLessThanOrEqual(8000);
+    expect(result.warnings.some((warning) => warning.includes("missing-module") && warning.includes("unresolved"))).toBe(true);
+    expect(result.items.filter((item) => item.kind === "dependency" && item.source === "src/token.ts")).toHaveLength(1);
+    expect(result.items.filter((item) => item.kind === "dependency").every((item) => item.detail !== undefined)).toBe(true);
+    expect(result.budget.usedItems).toBeLessThanOrEqual(30);
+    expect(result.budget.usedCharacters).toBeLessThanOrEqual(12000);
+  });
+
+  it("retrieves requested details incrementally from a source already present in context", () => {
+    setup();
+    const context = buildTaskContext(location, "refresh auth token", { maxItems: 20, maxCharacters: 8000 });
+    const followUp = lookupTaskContextDetails(location, context, ["src/auth.ts", "src/auth.ts"], { limit: 3 });
+
+    expect(followUp).toHaveLength(1);
+    expect(followUp[0].source).toBe("src/auth.ts");
+    expect(followUp[0].signals).toContain("explicit-follow-up-lookup");
+    expect((followUp[0].detail as { imports: unknown[] }).imports.length).toBeGreaterThan(0);
+    expect(() => lookupTaskContextDetails(location, context, ["src/not-in-context.ts"])).toThrow("not referenced");
   });
 
   it("enforces item and character budgets and rejects invalid input", () => {
@@ -58,5 +75,6 @@ describe("task-oriented context builder", () => {
     expect(result.budget.truncated).toBe(true);
     expect(() => buildTaskContext(location, "   ")).toThrow("Task description must not be empty");
     expect(() => buildTaskContext(location, "auth", { maxCharacters: 10 })).toThrow("maxCharacters");
+    expect(() => lookupTaskContextDetails(location, result, ["src/auth.ts"], { limit: 0 })).toThrow("limit");
   });
 });

@@ -1,4 +1,4 @@
-import { getFileDetails, searchSymbols } from "./retrieval.js";
+import { findDependencies, getFileDetails, searchSymbols } from "./retrieval.js";
 import { inspectMemoryFreshness, recallMemories } from "./memories.js";
 import type { ProjectLocation } from "./project.js";
 import { openDatabase } from "../storage/database.js";
@@ -11,18 +11,20 @@ export interface TaskContextOptions {
   fileLimit?: number;
 }
 
+export interface TaskContextItem {
+  kind: "symbol" | "file" | "dependency" | "memory" | "test";
+  title: string;
+  source: string;
+  score: number;
+  signals: string[];
+  status?: string;
+  detail?: unknown;
+}
+
 export interface TaskContextResult {
   task: string;
   anchors: string[];
-  items: Array<{
-    kind: "symbol" | "file" | "memory" | "test";
-    title: string;
-    source: string;
-    score: number;
-    signals: string[];
-    status?: string;
-    detail?: unknown;
-  }>;
+  items: TaskContextItem[];
   warnings: string[];
   followUp: string[];
   budget: { maxItems: number; maxCharacters: number; usedItems: number; usedCharacters: number; truncated: boolean };
@@ -37,6 +39,36 @@ function anchorsFor(task: string): string[] {
     .map((word) => word.replace(/^-+|-+$/g, ""))
     .filter(Boolean)
     .map((word) => word.toLocaleLowerCase()))].slice(0, 20);
+}
+
+function itemIdentity(item: TaskContextItem): string {
+  if (item.kind === "symbol") return `${item.kind}:${item.source}:${item.title}`;
+  if (item.kind === "memory" && item.detail && typeof item.detail === "object" && "id" in item.detail) {
+    return `memory:${String((item.detail as { id: unknown }).id)}`;
+  }
+  return `${item.kind}:${item.source}`;
+}
+
+function boundedItems(candidates: TaskContextItem[], maxItems: number, maxCharacters: number) {
+  const unique = new Map<string, TaskContextItem>();
+  for (const item of candidates) {
+    const key = itemIdentity(item);
+    const previous = unique.get(key);
+    if (!previous || item.score > previous.score) unique.set(key, item);
+  }
+  const ranked = [...unique.values()].sort((a, b) =>
+    b.score - a.score || a.source.localeCompare(b.source) || a.title.localeCompare(b.title));
+  const items: TaskContextItem[] = [];
+  let usedCharacters = 0;
+  let truncated = false;
+  for (const item of ranked) {
+    if (items.length >= maxItems) { truncated = true; break; }
+    const size = JSON.stringify(item).length;
+    if (usedCharacters + size > maxCharacters) { truncated = true; continue; }
+    items.push(item);
+    usedCharacters += size;
+  }
+  return { items, usedCharacters, truncated };
 }
 
 /** Build deterministic, bounded task context from the local index and project memories. */
@@ -59,7 +91,7 @@ export function buildTaskContext(
   }
 
   const anchors = anchorsFor(normalizedTask);
-  const candidates: TaskContextResult["items"] = [];
+  const candidates: TaskContextItem[] = [];
   const warnings: string[] = [];
   const symbols = searchSymbols(location, normalizedTask, symbolLimit);
   for (const symbol of symbols) {
@@ -80,26 +112,36 @@ export function buildTaskContext(
     try {
       const detail = getFileDetails(location, symbol.filePath, 20);
       candidates.push({
-        kind: "file",
-        title: symbol.filePath,
-        source: symbol.filePath,
+        kind: "file", title: symbol.filePath, source: symbol.filePath,
         score: Math.max(1, symbol.score - 5),
         signals: ["contains-matching-symbol", "indexed-file"],
         detail: {
           indexRevision: detail.indexRevision,
+          contentHash: detail.contentHash,
           symbols: detail.symbols.slice(0, 10).map((entry) => ({ name: entry.name, kind: entry.kind, startLine: entry.startLine, endLine: entry.endLine })),
           imports: detail.imports.slice(0, 10),
           unresolvedImports: detail.unresolvedImports.slice(0, 5),
           relations: detail.relations.slice(0, 10),
         },
       });
+      for (const unresolved of detail.unresolvedImports) {
+        const ambiguous = /ambiguous/i.test(unresolved.status) || unresolved.candidates.length > 1;
+        warnings.push(`Import "${unresolved.specifier}" in ${symbol.filePath} is ${ambiguous ? "ambiguous" : "unresolved"}; candidates: ${unresolved.candidates.length ? unresolved.candidates.join(", ") : "none"}.`);
+      }
+      const dependencies = findDependencies(location, symbol.filePath, 1, 20, 100);
+      for (const dependency of dependencies.dependencies) {
+        candidates.push({
+          kind: "dependency", title: dependency.path, source: dependency.path,
+          score: Math.max(1, symbol.score - 10 - dependency.depth),
+          signals: ["direct-import", "dependency-of-matching-file"],
+          detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
+        });
+      }
+      if (dependencies.truncated) warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
       if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
         candidates.push({
-          kind: "test",
-          title: `Test source: ${symbol.filePath}`,
-          source: symbol.filePath,
-          score: symbol.score + 2,
-          signals: ["test-path", "lexical-match"],
+          kind: "test", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
+          score: symbol.score + 2, signals: ["test-path", "lexical-match"],
           detail: { startLine: symbol.startLine, endLine: symbol.endLine },
         });
       }
@@ -108,7 +150,6 @@ export function buildTaskContext(
     }
   }
 
-  // Test files often contain imports but no declarations, so symbol search alone cannot discover them.
   const testDb = openDatabase(location);
   let testPaths: string[];
   try {
@@ -118,38 +159,24 @@ export function buildTaskContext(
       ORDER BY path LIMIT 500
     `).all() as Array<{ path: string }>).map((row) => row.path)
       .filter((path) => /(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path));
-  } finally {
-    testDb.close();
-  }
+  } finally { testDb.close(); }
   for (const path of testPaths) {
-    const pathText = path.toLocaleLowerCase();
-    const matchingAnchors = anchors.filter((anchor) => pathText.includes(anchor));
-    const score = 12 + matchingAnchors.length * 8;
+    const matchingAnchors = anchors.filter((anchor) => path.toLocaleLowerCase().includes(anchor));
     candidates.push({
-      kind: "test",
-      title: `Test source: ${path}`,
-      source: path,
-      score,
+      kind: "test", title: `Test source: ${path}`, source: path,
+      score: 12 + matchingAnchors.length * 8,
       signals: ["test-path", ...(matchingAnchors.length ? ["task-anchor-in-path"] : [])],
       detail: { matchingAnchors },
     });
   }
 
-  // A task is a bag of concepts, not a literal phrase. Exact substring lookup misses
-  // memories when relevant terms are separated or appear in a different order.
   const memories = recallMemories(location, "", 500)
-    .map((memory) => ({
-      memory,
-      matches: anchors.filter((anchor) =>
-        `${memory.title} ${memory.content} ${memory.category}`.toLocaleLowerCase().includes(anchor),
-      ).length,
-    }))
+    .map((memory) => ({ memory, matches: anchors.filter((anchor) =>
+      `${memory.title} ${memory.content} ${memory.category}`.toLocaleLowerCase().includes(anchor)).length }))
     .filter((entry) => entry.matches > 0)
-    .sort((a, b) => b.matches - a.matches
-      || b.memory.updatedAt.localeCompare(a.memory.updatedAt)
+    .sort((a, b) => b.matches - a.matches || b.memory.updatedAt.localeCompare(a.memory.updatedAt)
       || a.memory.id.localeCompare(b.memory.id))
-    .slice(0, memoryLimit)
-    .map((entry) => entry.memory);
+    .slice(0, memoryLimit).map((entry) => entry.memory);
   const freshness = inspectMemoryFreshness(location);
   const freshnessById = new Map(freshness.map((entry) => [entry.id, entry]));
   for (const memory of memories) {
@@ -158,12 +185,8 @@ export function buildTaskContext(
     if (sourceFreshness?.requiresReview) signals.push(`source:${sourceFreshness.status}`);
     const statusPenalty = memory.status === "confirmed" ? 0 : memory.status === "proposed" ? -8 : -15;
     candidates.push({
-      kind: "memory",
-      title: memory.title,
-      source: memory.sourcePath ?? `memory:${memory.id}`,
-      score: 30 + statusPenalty,
-      signals,
-      status: memory.status,
+      kind: "memory", title: memory.title, source: memory.sourcePath ?? `memory:${memory.id}`,
+      score: 30 + statusPenalty, signals, status: memory.status,
       detail: { id: memory.id, category: memory.category, content: memory.content, author: memory.author, updatedBy: memory.updatedBy },
     });
     if (sourceFreshness?.requiresReview) warnings.push(`Memory "${memory.title}" requires review: source is ${sourceFreshness.status}.`);
@@ -172,24 +195,57 @@ export function buildTaskContext(
   if (memories.some((memory) => memory.status === "proposed")) warnings.push("Proposed memories are suggestions, not confirmed project knowledge.");
   if (memories.some((memory) => memory.status === "obsolete")) warnings.push("Obsolete memories are included for traceability and must not be treated as current guidance.");
 
-  candidates.sort((a, b) => b.score - a.score || a.source.localeCompare(b.source) || a.title.localeCompare(b.title));
-  const items: TaskContextResult["items"] = [];
-  let usedCharacters = 0;
-  let truncated = false;
-  for (const item of candidates) {
-    if (items.length >= maxItems) { truncated = true; break; }
-    const size = JSON.stringify(item).length;
-    if (usedCharacters + size > maxCharacters) { truncated = true; continue; }
-    items.push(item);
-    usedCharacters += size;
-  }
-  if (truncated) warnings.push("Context was truncated to respect the configured item or character budget.");
+  const bounded = boundedItems(candidates, maxItems, maxCharacters);
+  if (bounded.truncated) warnings.push("Context was truncated to respect the configured item or character budget.");
   return {
-    task: normalizedTask,
-    anchors,
-    items,
-    warnings: [...new Set(warnings)],
+    task: normalizedTask, anchors, items: bounded.items, warnings: [...new Set(warnings)],
     followUp: anchors.slice(0, 5).map((anchor) => `Inspect deeper details related to "${anchor}".`),
-    budget: { maxItems, maxCharacters, usedItems: items.length, usedCharacters, truncated },
+    budget: { maxItems, maxCharacters, usedItems: bounded.items.length, usedCharacters: bounded.usedCharacters, truncated: bounded.truncated },
   };
+}
+
+/**
+ * Retrieve additional details for a previously built context. This reads only the
+ * requested indexed files and does not rerun task ranking, symbol search, or memory recall.
+ */
+export function lookupTaskContextDetails(
+  location: ProjectLocation,
+  context: TaskContextResult,
+  sourcePaths: string[],
+  options: { limit?: number; maxCharacters?: number } = {},
+): TaskContextItem[] {
+  const limit = options.limit ?? 5;
+  const maxCharacters = options.maxCharacters ?? 8_000;
+  if (!Array.isArray(sourcePaths) || sourcePaths.length === 0 || sourcePaths.length > 20) {
+    throw new Error("sourcePaths must contain between 1 and 20 paths.");
+  }
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 20) throw new Error("limit must be between 1 and 20.");
+  if (!Number.isSafeInteger(maxCharacters) || maxCharacters < 100 || maxCharacters > MAX_CHARACTERS) {
+    throw new Error("maxCharacters must be between 100 and 50000.");
+  }
+  const knownSources = new Set(context.items.map((item) => item.source.split(":")[0]));
+  const uniquePaths = [...new Set(sourcePaths.map((path) => path.replaceAll("\\", "/").replace(/^\.\//, "")))];
+  const results: TaskContextItem[] = [];
+  let used = 0;
+  for (const path of uniquePaths) {
+    if (results.length >= limit) break;
+    if (!knownSources.has(path) && !context.items.some((item) => item.source === path || item.title === path)) {
+      throw new Error(`Follow-up path is not referenced by the existing context: ${path}.`);
+    }
+    const detail = getFileDetails(location, path, Math.min(20, limit));
+    const item: TaskContextItem = {
+      kind: "file", title: path, source: path, score: 1,
+      signals: ["explicit-follow-up-lookup", "existing-context-source"],
+      detail: {
+        indexRevision: detail.indexRevision, contentHash: detail.contentHash,
+        symbols: detail.symbols, imports: detail.imports, unresolvedImports: detail.unresolvedImports,
+        relations: detail.relations, totals: detail.totals, truncated: detail.truncated,
+      },
+    };
+    const size = JSON.stringify(item).length;
+    if (used + size > maxCharacters) continue;
+    results.push(item);
+    used += size;
+  }
+  return results;
 }
