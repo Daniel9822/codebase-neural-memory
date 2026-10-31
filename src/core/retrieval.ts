@@ -122,3 +122,39 @@ export function findImpact(location: ProjectLocation, targetPath: string): strin
     db.close();
   }
 }
+
+
+export function findDependencies(location: ProjectLocation, targetPath: string, maxDepth = 1): string[] {
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 1) {
+    throw new Error("Dependency depth must be a positive safe integer.");
+  }
+  const db = openDatabase(location);
+  try {
+    const normalized = targetPath.replaceAll("\\\\", "/").replace(/^\.\\//, "");
+    const target = db.prepare("SELECT id FROM files WHERE path = ?").get(normalized) as { id: number } | undefined;
+    if (!target) throw new Error(`File not found in memory index: ${normalized}. Run cnm index.`);
+
+    const queue: Array<{ id: number; depth: number }> = [{ id: target.id, depth: 0 }];
+    const visited = new Set<number>([target.id]);
+    const dependencies: string[] = [];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      if (current.depth >= maxDepth) continue;
+      const imports = db.prepare(`
+        SELECT target.id, target.path FROM relations r
+        JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
+        WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
+        ORDER BY target.path
+      `).all(current.id) as Array<{ id: number; path: string }>;
+      for (const item of imports) {
+        if (visited.has(item.id)) continue;
+        visited.add(item.id);
+        dependencies.push(item.path);
+        queue.push({ id: item.id, depth: current.depth + 1 });
+      }
+    }
+    return dependencies.sort((a, b) => a.localeCompare(b));
+  } finally {
+    db.close();
+  }
+}
