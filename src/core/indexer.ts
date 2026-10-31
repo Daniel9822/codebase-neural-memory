@@ -449,7 +449,7 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
       errors: [...discovery.errors], skippedFiles: [...discovery.skippedFiles],
     };
 
-    const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; path: string; content_hash: string }) => {
+    const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; stable_id: string; path: string; content_hash: string }) => {
       const extension = extname(file.relativePath).toLowerCase();
       let fileId: number;
       if (oldFile) {
