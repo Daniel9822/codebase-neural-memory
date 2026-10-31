@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { indexWithDatabase } from "../src/core/indexer.js";
-import { deleteMemory, proposeMemory, remember, recallMemories, transitionMemory, updateMemory } from "../src/core/memories.js";
+import { deleteMemory, inspectMemoryFreshness, proposeMemory, remember, recallMemories, transitionMemory, updateMemory } from "../src/core/memories.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 
@@ -121,6 +121,22 @@ describe("explicit memory lifecycle", () => {
     expect(() => transitionMemory(location, rejected, "confirmed")).toThrow("Invalid memory status transition");
     expect(() => transitionMemory(location, proposed, "unknown" as never)).toThrow("Unsupported memory status");
     expect(transitionMemory(location, "missing-memory", "confirmed")).toBe(false);
+  });
+
+  it("detects changed and missing source files without changing memory status", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "src.ts"), "export const value = 1;");
+    const id = remember(location, "Source-backed decision", "Keep this source boundary.", "decision", "src.ts");
+    expect(recallMemories(location)[0]).toMatchObject({ id, sourceHash: expect.any(String) });
+    expect(inspectMemoryFreshness(location)).toMatchObject([{ id, status: "current", requiresReview: false }]);
+
+    writeFileSync(join(location.rootPath, "src.ts"), "export const value = 2;");
+    expect(inspectMemoryFreshness(location)).toMatchObject([{ id, status: "changed", requiresReview: true }]);
+    expect(recallMemories(location)[0]).toMatchObject({ id, status: "confirmed" });
+
+    rmSync(join(location.rootPath, "src.ts"));
+    expect(inspectMemoryFreshness(location)).toMatchObject([{ id, status: "missing", requiresReview: true }]);
+    expect(recallMemories(location)[0]).toMatchObject({ id, status: "confirmed" });
   });
 
   it("deletes memories only from the selected project's database", () => {
