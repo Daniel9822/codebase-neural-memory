@@ -87,7 +87,7 @@ describe("getSymbolRelations", () => {
         direction: "outgoing", relation: "IMPLEMENTS", symbolName: "Worker", symbolKind: "class",
         symbolFilePath: "worker.ts", symbolStartLine: 3, symbolEndLine: 3,
         relatedSymbolName: "Contract", relatedSymbolKind: "interface", relatedFilePath: "contract.ts",
-        relatedStartLine: 1, relatedEndLine: 1, confidence: 1, provenance: "typescript-ast-heritage",
+        relatedStartLine: 1, relatedEndLine: 1, confidence: 1, provenance: "typescript-ast-heritage", indexRevision: 1,
       },
     ]);
     expect(getSymbolRelations(location, "Base")).toEqual([
