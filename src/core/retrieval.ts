@@ -3,6 +3,9 @@ import type { ProjectLocation } from "./project.js";
 import type { SearchHit } from "../shared/types.js";
 
 export function searchSymbols(location: ProjectLocation, query: string, limit = 20): SearchHit[] {
+  if (!Number.isSafeInteger(limit) || limit < 1) {
+    throw new Error("Search limit must be a positive safe integer.");
+  }
   const db = openDatabase(location);
   try {
     const tokens = query.match(/[\p{L}\p{N}_$]+/gu) ?? [];

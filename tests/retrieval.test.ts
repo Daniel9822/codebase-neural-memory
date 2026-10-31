@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { indexWithDatabase } from "../src/core/indexer.js";
-import { findDependencies, getSymbolRelations } from "../src/core/retrieval.js";
+import { explainSymbol, findDependencies, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
 
 let temporaryDirectory = "";
 let database: MemoryDatabase | undefined;
@@ -30,6 +30,36 @@ afterEach(() => {
   database = undefined;
   if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
   temporaryDirectory = "";
+});
+
+
+describe("symbol retrieval contracts", () => {
+  it("supports exact symbol lookup and partial lexical prefix search with source locations", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "totals.ts"),
+      "export function calculateTotal(items: number[]): number {\n  return items.reduce((sum, item) => sum + item, 0);\n}\nexport function calculateAverage(items: number[]): number {\n  return calculateTotal(items) / items.length;\n}");
+    indexWithDatabase(database!, location);
+
+    expect(explainSymbol(location, "calculateTotal")).toMatchObject([
+      { name: "calculateTotal", kind: "function", filePath: "totals.ts", startLine: 1, endLine: 3 },
+    ]);
+    expect(searchSymbols(location, "calcul")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "calculateTotal", filePath: "totals.ts", startLine: 1, endLine: 3 }),
+      expect.objectContaining({ name: "calculateAverage", filePath: "totals.ts", startLine: 4, endLine: 6 }),
+    ]));
+    expect(searchSymbols(location, "calcul", 1)).toHaveLength(1);
+  });
+
+  it("returns no results for empty or punctuation-only queries and rejects unsafe limits", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "plain.ts"), "export const value = true;");
+    indexWithDatabase(database!, location);
+
+    expect(searchSymbols(location, "")).toEqual([]);
+    expect(searchSymbols(location, "!!!...///")).toEqual([]);
+    expect(() => searchSymbols(location, "value", 0)).toThrow("Search limit must be a positive safe integer");
+    expect(() => searchSymbols(location, "value", Number.MAX_SAFE_INTEGER + 1)).toThrow("Search limit must be a positive safe integer");
+  });
 });
 
 describe("findDependencies", () => {

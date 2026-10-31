@@ -69,7 +69,7 @@ Exit condition: graph rebuild is deterministic, stale edges are removed, and gra
 
 ## Phase 3 — Lexical and structural retrieval
 
-**Status:** Basic symbol search, map, and reverse-import impact exist.
+**Status:** Basic symbol search, map, reverse-import impact, and tested exact/prefix lookup contracts exist; retrieval quality, freshness reporting, and a labeled relevance corpus remain open.
 
 Tasks:
 - Improve FTS query handling, ranking, limits, and empty-result guidance.

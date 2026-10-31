@@ -109,10 +109,10 @@ Phase 0 is complete only after results are recorded, including exact environment
 
 ## 6. Phase 3 — Retrieval
 
-- [ ] Exact symbol lookup returns expected matches.
-- [ ] Partial lexical lookup returns relevant matches with stable limits.
-- [ ] Empty and punctuation-only queries return safe, understandable responses.
-- [ ] Results include file path, symbol kind, and line range when available.
+- [x] Exact symbol lookup returns expected matches (fixture verifies `explainSymbol` resolves an exact declaration with source location).
+- [x] Partial lexical lookup returns relevant matches with stable limits (prefix search and bounded result count are covered by `tests/retrieval.test.ts`).
+- [x] Empty and punctuation-only queries return an empty result safely; invalid result limits are rejected (`tests/retrieval.test.ts`).
+- [x] Symbol retrieval results include file path, symbol kind, and line range when available (verified by exact and partial lookup fixtures).
 - [ ] Direct dependency lookup returns expected edges.
 - [ ] Transitive dependency lookup respects depth/size limits and cycles.
 - [ ] Retrieval explains the evidence or relation that caused a result to be included.
