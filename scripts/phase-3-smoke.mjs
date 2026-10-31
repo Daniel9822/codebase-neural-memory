@@ -32,6 +32,9 @@ try {
   assert.match(runCli(["dependencies", "a.ts", "--depth", "2"]), /b\.ts/);
   assert.match(runCli(["file", "a.ts", "--limit", "1"]), /"path": "a\.ts"/);
   assert.match(runCli(["freshness"]), /"status": "current"/);
+  const cliImpact = JSON.parse(runCli(["impact", "b.ts", "--limit", "10", "--max-processed", "20"]));
+  assert.deepEqual(cliImpact.affectedFiles, ["a.ts"]);
+  assert.equal(cliImpact.truncated, false);
 
   mcp = spawn(process.execPath, [cli, "mcp"], { cwd: repo, stdio: ["pipe", "pipe", "pipe"] });
   const lines = createInterface({ input: mcp.stdout });
