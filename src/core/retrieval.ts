@@ -197,7 +197,7 @@ export interface ProjectMapReport {
   files: Array<{
     path: string;
     imports: string[];
-    unresolvedImports: Array<{ specifier: string; status: string; candidates: string[] }>;
+    unresolvedImports: Array<{ specifier: string; status: string; candidates: string[]; candidatesTotal: number; candidatesTruncated: boolean }>;
     totals: { imports: number; unresolvedImports: number };
     truncated: { imports: boolean; unresolvedImports: boolean };
   }>;
@@ -205,9 +205,11 @@ export interface ProjectMapReport {
   limit: number;
   truncated: boolean;
   perFileLimit: number;
+  candidateLimit: number;
 }
 
 const MAX_PROJECT_MAP_PER_FILE = 200;
+const MAX_PROJECT_MAP_CANDIDATES = 200;
 
 /** MCP-facing project map with bounded top-level and nested collections. */
 export function getProjectMapReport(location: ProjectLocation, limit = 80): ProjectMapReport {
@@ -240,7 +242,13 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
     }>;
     const files = rows.map((row) => {
       const imports = JSON.parse(row.imports) as string[];
-      const unresolvedImports = JSON.parse(row.unresolvedImports) as Array<{ specifier: string; status: string; candidates: string[] }>;
+      const rawUnresolvedImports = JSON.parse(row.unresolvedImports) as Array<{ specifier: string; status: string; candidates: string[] }>;
+      const unresolvedImports = rawUnresolvedImports.map((item) => ({
+        ...item,
+        candidates: item.candidates.slice(0, MAX_PROJECT_MAP_CANDIDATES),
+        candidatesTotal: item.candidates.length,
+        candidatesTruncated: item.candidates.length > MAX_PROJECT_MAP_CANDIDATES,
+      }));
       return {
         path: row.path, imports, unresolvedImports,
         totals: { imports: row.importsTotal, unresolvedImports: row.unresolvedTotal },
@@ -250,7 +258,7 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
         },
       };
     });
-    return { files, totalFiles, limit, truncated: totalFiles > files.length, perFileLimit: MAX_PROJECT_MAP_PER_FILE };
+    return { files, totalFiles, limit, truncated: totalFiles > files.length, perFileLimit: MAX_PROJECT_MAP_PER_FILE, candidateLimit: MAX_PROJECT_MAP_CANDIDATES };
   } finally {
     db.close();
   }
