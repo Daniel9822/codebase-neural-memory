@@ -571,7 +571,7 @@ describe("indexWithDatabase", () => {
       'import { helper } from "./helper";',
       "export function run() { helper(); }",
       "export class Worker extends Base implements Contract {}",
-    ].join("\\n"));
+    ].join("\n"));
 
     indexWithDatabase(database!, location);
 
