@@ -99,7 +99,7 @@ Common generated/dependency folders and sensitive files such as `.env`, private 
 ## Current limitations
 
 - Import resolution supports relative imports, explicit `compilerOptions.paths` aliases from the repository-root `tsconfig.json`, and `exports` targets from local packages whose `package.json` files are in indexed source directories or their ancestors. Root and subpath exports, simple wildcard mappings, and the `types`, `import`, `node`, `default`, and `require` conditions are supported; multiple indexed targets are reported as ambiguous, and missing or unsafe local targets remain unresolved. External packages and `baseUrl`-only resolution are not inferred.
-- Call relationships are resolved locally within a file; cross-file symbol resolution is planned.
+- Call relationships are resolved within a file and across statically imported named exports (including aliased imports) when the import resolves to one indexed file and one exported symbol. Shadowed imports, default/namespace imports, re-exports, dynamic calls, and runtime-generated relationships are not inferred.
 - Dynamic imports, framework-specific dependency injection, reflection, and runtime-generated relationships are not inferred.
 - The index is structural, not a substitute for source code or tests.
 - Embeddings, semantic ranking, background file watching, and multi-developer synchronization are not part of this first milestone.
