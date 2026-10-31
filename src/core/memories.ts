@@ -216,6 +216,27 @@ export function inspectMemoryFreshness(location: ProjectLocation): MemorySourceF
   }
 }
 
+export interface MemoryFreshnessReport {
+  records: MemorySourceFreshness[];
+  total: number;
+  limit: number;
+  truncated: boolean;
+}
+
+/** Bounded MCP-facing view; the CLI's legacy inspection remains complete. */
+export function getMemoryFreshnessReport(location: ProjectLocation, limit = 100): MemoryFreshnessReport {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
+    throw new Error("Memory freshness limit must be a positive safe integer no greater than 500");
+  }
+  const allRecords = inspectMemoryFreshness(location);
+  return {
+    records: allRecords.slice(0, limit),
+    total: allRecords.length,
+    limit,
+    truncated: allRecords.length > limit,
+  };
+}
+
 export function recallMemories(location: ProjectLocation, query = "", limit = 20): MemoryRecord[] {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
     throw new Error("Memory limit must be a positive safe integer no greater than 500");
