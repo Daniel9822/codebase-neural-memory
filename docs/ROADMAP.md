@@ -203,7 +203,7 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
  
 ## Phase 7 — Git awareness and automatic freshness
 
-**Status:** In progress. The first Git-awareness slice is implemented on `phase7-git-awareness-foundation`: index snapshots now record commit, branch, dirty state, and a hash/count of porcelain working-tree changes; freshness detects commit, branch, and worktree changes. A full scan remains the consistency mechanism; no file watcher is introduced.
+**Status:** Complete and formally closed on 2026-10-31. PR [#48](https://github.com/Daniel9822/codebase-neural-memory/pull/48) adds Git-aware index snapshots, dirty/branch/commit freshness, memory commit-ancestry review, deterministic reconciliation, and regression coverage. Clean-checkout CI run [41253305201](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253305201) passed on head `fd7fbac9f67f503a2a46bc393a110effa24e9e30`.
 
 Tasks:
 - [x] Record the indexed Git commit and relevant working-tree state when Git metadata is available (schema migration v10).
@@ -213,11 +213,20 @@ Tasks:
 - [x] Reconcile changes missed by any external watcher through the same deterministic scan; watcher support remains optional and unimplemented.
 - [x] Document identity boundaries: each Git worktree path has a separate path-derived CNM project/database; moving a repository changes its project identity. A submodule opened directly resolves as its own project, but a parent scan does not yet enforce submodule isolation.
 - [x] Expose Git snapshot and stale/current state through the existing `index_freshness` MCP tool.
-- [ ] Prove clean reindex and incremental reconciliation converge to equivalent logical state across controlled branch, rename, and deletion scenarios.
+- [x] Prove clean reindex and incremental reconciliation converge to equivalent logical state across branch switches, renames, deletions, symbols, imports, graph relations, unresolved imports, calls, heritage, and FTS state (`tests/git-awareness.test.ts`).
 
 Deliverable: memory that can detect and report when its view of source may be stale.
 
 Exit condition: controlled Git changes and missed watcher events converge to the same index as a clean reindex.
+
+### Phase 7 verification evidence
+
+- **Implementation:** PR [#48](https://github.com/Daniel9822/codebase-neural-memory/pull/48); schema migration v10.
+- **CI:** [GitHub Actions #41253305201](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253305201) — success on the PR head; clean checkout, `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all passed.
+- **Git state coverage:** initial commit/branch capture, clean and dirty worktrees, source edits, empty commits, branch changes with identical source hashes, rename/deletion reconciliation, non-Git folders, and memory commit ancestry/ahead/divergence.
+- **Convergence:** incremental indexing and forced reindex were compared using logical file, symbol, import, call, heritage, relation, unresolved-import, and FTS snapshots after rename/deletion and branch-switch scenarios.
+- **Consistency design:** freshness always performs a deterministic scan; no background watcher is needed for correctness and none is implemented.
+- **Identity limitations:** each worktree path has its own path-derived CNM database; moving a repository changes its ID. Opening a submodule directly resolves it as a separate project, but the parent indexer does not enforce nested-submodule isolation.
 
 ## Phase 8 — Quality, performance, and evaluation
 
