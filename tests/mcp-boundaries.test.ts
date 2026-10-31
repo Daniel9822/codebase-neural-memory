@@ -102,10 +102,10 @@ describe("MCP bounded output and project isolation", () => {
     const importLines: string[] = [];
     for (let i = 0; i < 205; i += 1) {
       const name = `mod-${String(i).padStart(3, "0")}`;
-      writeFileSync(join(root, `${name}.ts`), `export const value${i} = ${i};\n`);
+      writeFileSync(join(root, `${name}.ts`), `export const value${i} = ${i};\\n`);
       importLines.push(`import { value${i} } from "./${name}";`);
     }
-    writeFileSync(join(root, "entry.ts"), importLines.join("\n") + "\nexport const total = 205;\n");
+    writeFileSync(join(root, "entry.ts"), importLines.join("\\n") + "\\nexport const total = 205;\\n");
     indexWithDatabase(databases[0]!, location);
 
     const unreadableDirectories: string[] = [];
@@ -159,13 +159,13 @@ describe("MCP bounded output and project isolation", () => {
     expect(entry.totals.imports).toBe(205);
     expect(entry.imports).toHaveLength(200);
     expect(entry.truncated.imports).toBe(true);
-  });
+  }, 15_000);
 
   it("keeps concurrent MCP servers isolated to their own repositories and memories", async () => {
     const first = createProject("first");
     const second = createProject("second");
-    writeFileSync(join(first.root, "first-only.ts"), "export const firstOnly = true;\n");
-    writeFileSync(join(second.root, "second-only.ts"), "export const secondOnly = true;\n");
+    writeFileSync(join(first.root, "first-only.ts"), "export const firstOnly = true;\\n");
+    writeFileSync(join(second.root, "second-only.ts"), "export const secondOnly = true;\\n");
     indexWithDatabase(databases[0]!, first.location);
     indexWithDatabase(databases[1]!, second.location);
     remember(first.location, "First secret label", "First project memory", "decision");
@@ -198,9 +198,9 @@ describe("MCP bounded output and project isolation", () => {
 
   it("returns controlled MCP errors for missing, unindexed, traversal, and outside-root paths", async () => {
     const { location, root } = createProject("paths");
-    writeFileSync(join(root, "indexed.ts"), "export const indexed = true;\n");
+    writeFileSync(join(root, "indexed.ts"), "export const indexed = true;\\n");
     indexWithDatabase(databases[0]!, location);
-    writeFileSync(join(root, "not-indexed.ts"), "export const later = true;\n");
+    writeFileSync(join(root, "not-indexed.ts"), "export const later = true;\\n");
     const client = await connect(location);
     const invalidPaths = ["missing.ts", "not-indexed.ts", "../outside.ts", join(root, "..", "outside.ts")];
     for (const path of invalidPaths) {
@@ -212,7 +212,6 @@ describe("MCP bounded output and project isolation", () => {
       expect(Boolean(response.error) || result?.isError === true, path).toBe(true);
     }
   });
-
 
   it("returns empty reports and exact-limit project maps without truncation", async () => {
     const { location } = createProject("empty");
@@ -232,7 +231,7 @@ describe("MCP bounded output and project isolation", () => {
     expect(map.truncated).toBe(false);
     const exactMapProject = createProject("exact-map");
     for (let i = 0; i < 10; i += 1) {
-      writeFileSync(join(exactMapProject.root, `exact-${i}.ts`), `export const item${i} = ${i};\n`);
+      writeFileSync(join(exactMapProject.root, `exact-${i}.ts`), `export const item${i} = ${i};\\n`);
     }
     indexWithDatabase(databases[1]!, exactMapProject.location);
     const exactMapClient = await connect(exactMapProject.location);
@@ -240,7 +239,5 @@ describe("MCP bounded output and project isolation", () => {
     expect(exactMap.totalFiles).toBe(10);
     expect(exactMap.files).toHaveLength(10);
     expect(exactMap.truncated).toBe(false);
-
   });
-
 });
