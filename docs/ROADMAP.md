@@ -230,18 +230,19 @@ Exit condition: controlled Git changes and missed watcher events converge to the
 
 ## Phase 8 — Quality, performance, and evaluation
 
-**Status:** Planned; begin collecting baseline measurements during earlier phases.
+**Status:** In progress. PR [#49](https://github.com/Daniel9822/codebase-neural-memory/pull/49) adds a deterministic synthetic benchmark harness, runs it in CI, and records an initial Linux baseline in [`docs/PHASE_8_BENCHMARKS.md`](PHASE_8_BENCHMARKS.md). Real-repository coverage, cross-platform repetition, and controlled agent comparisons remain open.
 
 Tasks:
-- Build fixture repositories of increasing size and complexity.
-- Add end-to-end tests for real repository layouts.
-- Measure initial indexing, incremental indexing, query latency, database size, and memory use.
-- Evaluate retrieval precision and recall against labeled tasks.
-- Compare agent tasks with and without CNM under comparable conditions.
-- Add regression thresholds only after stable measurements exist.
-- Profile before adding caches or parallelism.
+- [x] Generate deterministic small, medium, and large repository fixtures (26, 101, and 301 source files).
+- [ ] Add end-to-end benchmarks for real repository layouts.
+- [x] Measure initial, unchanged incremental, and changed incremental indexing; record search, graph, and freshness latency.
+- [x] Record SQLite database size and process peak RSS.
+- [x] Evaluate symbol retrieval precision@5, recall@5, MRR, and top-1 accuracy against ten labeled queries.
+- [ ] Compare agent tasks with and without CNM under controlled, comparable conditions.
+- [ ] Add regression thresholds only after repeated stable measurements across supported platforms.
+- [ ] Profile before adding caches or parallelism.
 
-Deliverable: reproducible evaluation suite and evidence-based performance improvements.
+Deliverable: reproducible evaluation suite and evidence-based performance improvements. Initial synthetic baseline methodology and results are recorded in `docs/PHASE_8_BENCHMARKS.md`.
 
 Exit condition: documented benchmarks, stable regression tests, and no known data-integrity failures in the supported scenarios.
 
