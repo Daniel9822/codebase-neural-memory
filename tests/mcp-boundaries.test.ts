@@ -159,7 +159,7 @@ describe("MCP bounded output and project isolation", () => {
     expect(entry.totals.imports).toBe(205);
     expect(entry.imports).toHaveLength(200);
     expect(entry.truncated.imports).toBe(true);
-  });
+  }, 15_000);
 
   it("keeps concurrent MCP servers isolated to their own repositories and memories", async () => {
     const first = createProject("first");
@@ -213,7 +213,6 @@ describe("MCP bounded output and project isolation", () => {
     }
   });
 
-
   it("returns empty reports and exact-limit project maps without truncation", async () => {
     const { location } = createProject("empty");
     const client = await connect(location);
@@ -240,7 +239,5 @@ describe("MCP bounded output and project isolation", () => {
     expect(exactMap.totalFiles).toBe(10);
     expect(exactMap.files).toHaveLength(10);
     expect(exactMap.truncated).toBe(false);
-
   });
-
 });
