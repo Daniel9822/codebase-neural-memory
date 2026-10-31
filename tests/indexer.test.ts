@@ -100,17 +100,48 @@ describe("indexWithDatabase", () => {
     expect(indexedPaths).toEqual(["normal.ts"]);
   });
 
-  it("removes a file that was actually deleted from disk", () => {
+  it("removes stale symbols, FTS entries, and graph relations when a file is deleted", () => {
     createProject();
-    const filePath = join(location.rootPath, "gone.ts");
-    writeFileSync(filePath, "export const gone = true;");
+    const gonePath = join(location.rootPath, "gone.ts");
+    const mainPath = join(location.rootPath, "main.ts");
+    writeFileSync(gonePath, "export function gone() { return true; }");
+    writeFileSync(mainPath, 'import { gone } from "./gone";\nexport function run() { gone(); }');
     indexWithDatabase(database!, location);
-    rmSync(filePath);
 
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get()).toEqual({ count: 1 });
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM symbols_fts WHERE name = 'gone'").get()).toEqual({ count: 1 });
+
+    rmSync(gonePath);
     const summary = indexWithDatabase(database!, location);
 
     expect(summary.deleted).toBe(1);
-    expect(database!.prepare("SELECT COUNT(*) AS count FROM files").get()).toEqual({ count: 0 });
+    expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([{ path: "main.ts" }]);
+    expect(database!.prepare("SELECT name FROM symbols ORDER BY name").all()).toEqual([{ name: "run" }]);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM symbols_fts WHERE name = 'gone'").get()).toEqual({ count: 0 });
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations").get()).toEqual({ count: 0 });
+  });
+
+  it("produces the same logical index after a forced reindex", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import { helper } from "./helper";\nexport function run() { return true; }');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+
+    indexWithDatabase(database!, location);
+    const snapshot = () => ({
+      files: database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all(),
+      symbols: database!.prepare("SELECT file_id, name, kind, signature, start_line, end_line, exported FROM symbols ORDER BY file_id, name").all(),
+      imports: database!.prepare("SELECT file_id, module_specifier FROM file_imports ORDER BY file_id, module_specifier").all(),
+      calls: database!.prepare("SELECT file_id, caller_name, callee_name FROM symbol_calls ORDER BY file_id, caller_name, callee_name").all(),
+      relations: database!.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance FROM relations ORDER BY kind, source_kind, source_id, target_kind, target_id").all(),
+      fts: database!.prepare("SELECT name, signature, file_path, kind FROM symbols_fts ORDER BY file_path, name").all(),
+    });
+    const before = snapshot();
+
+    const forced = indexWithDatabase(database!, location, true);
+
+    expect(forced.updated).toBe(2);
+    expect(snapshot()).toEqual(before);
   });
 
   it("skips unchanged content and updates changed symbols incrementally", () => {
