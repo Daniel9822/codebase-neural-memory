@@ -136,14 +136,16 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ## Phase 6 — MCP adapter and agent workflow
 
-**Status:** Basic read-only MCP stdio server and five tools exist; integration needs validation.
+**Status:** Read-only MCP stdio server registers ten tools; documentation inventory is being synchronized, and end-to-end client integration still needs validation.
 
 Tasks:
 - Verify current MCP SDK lifecycle and stdio behavior.
 - Test server startup from a configured repository working directory.
 - Make project selection explicit and prevent accidental cross-project access.
 - Validate schemas, limits, and error responses.
-- Add component_get, dependency_graph, decision_lookup, and project_context when their underlying core APIs exist.
+- Keep the documented tool inventory synchronized with `src/adapters/mcp/server.ts` (currently ten tools: `project_overview`, `index_freshness`, `project_map`, `symbol_lookup`, `dependency_graph`, `file_details`, `change_impact`, `task_context`, `memory_freshness`, and `memory_recall`).
+- Treat `task_context` as the task-oriented context tool; do not document `project_context` as a registered alias.
+- Keep `component_get` and `decision_lookup` as future candidates only; neither is currently registered.
 - Keep agent-facing tools read-only in this release.
 - Test with OpenCode first, then another MCP-compatible client.
 - Document exact client configuration and troubleshooting.

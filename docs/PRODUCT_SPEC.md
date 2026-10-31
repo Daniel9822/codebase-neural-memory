@@ -97,11 +97,11 @@ The repository currently documents and contains an initial JavaScript/TypeScript
 - Bounded file details with source metadata, symbols, resolved/unresolved imports, relations, per-collection totals, and truncation flags.
 - Read-only working-tree freshness report (`cnm freshness` / `index_freshness`); it is not Git branch/commit tracking or a watcher.
 - Explicit local memories, currently saved as confirmed records by the CLI.
-- Read-only MCP tools: project_overview, project_map, symbol_lookup, change_impact, memory_recall, index_freshness, dependency_graph, and file_details.
+- Read-only MCP tools registered in `src/adapters/mcp/server.ts` (10): `project_overview`, `index_freshness`, `project_map`, `symbol_lookup`, `dependency_graph`, `file_details`, `change_impact`, `task_context`, `memory_freshness`, and `memory_recall`.
 
 Known limitations in this baseline include conservative import resolution, same-file/local call resolution, simple memory lifecycle, path-derived project identity, no conceptual component extraction/retrieval, no repository-scale retrieval quality or performance baseline yet, and lack of semantic embeddings, automatic file watching, advanced Git history analysis, and multi-developer synchronization.
 
-The source code and tests must be inspected before treating this inventory as verified behavior.
+`task_context` is the registered task-oriented context tool; `project_context` is not a separate registered tool. `component_get` and `decision_lookup` are not registered in the current server. The source code and tests must be inspected before treating this inventory as verified behavior.
 
 ## 7. Architecture direction
 

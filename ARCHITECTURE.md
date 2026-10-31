@@ -50,7 +50,20 @@ The task-context builder accepts a natural-language task and returns determinist
 
 ## MCP boundary
 
-MCP exposes read-only tools through the TypeScript SDK v2 and stdio transport: project_overview, project_map, symbol_lookup, change_impact, memory_recall, index_freshness, dependency_graph, and file_details. Search, dependency traversal, and file details validate and bound their result sizes. Memory creation and index mutation remain CLI operations, keeping an agent from silently changing durable project knowledge.
+MCP exposes ten read-only tools through the TypeScript SDK v2 and stdio transport:
+
+- `project_overview` — local repository/index summary.
+- `index_freshness` — read-only working-tree versus index freshness report.
+- `project_map` — indexed files and locally resolved imports.
+- `symbol_lookup` — bounded lexical symbol search with ranking signals.
+- `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
+- `file_details` — bounded indexed file metadata, symbols, imports, and relations.
+- `change_impact` — bounded reverse-import impact traversal.
+- `task_context` — deterministic, bounded task-oriented context from indexed facts and memories.
+- `memory_freshness` — source-file freshness inspection for linked memories.
+- `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
+
+The server registration in `src/adapters/mcp/server.ts` is the source of truth for this inventory. Search, graph traversal, file details, task context, and memory recall validate and bound their inputs/results. Memory creation and index mutation remain CLI operations, keeping an agent from silently changing durable project knowledge. `component_get`, `decision_lookup`, and a tool named `project_context` are not currently registered; task-oriented context is exposed as `task_context`.
 
 ## Deliberate non-goals for v0.1
 
