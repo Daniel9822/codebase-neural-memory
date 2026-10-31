@@ -67,26 +67,30 @@ When a source path is supplied, CNM records a SHA-256 fingerprint of the referen
 
 ## MCP integration
 
-Start the local MCP server from the target repository:
+Start the local MCP server from an initialized target repository:
 
 ```bash
+cnm init
+cnm index
 cnm mcp
 ```
 
-Configure the client to launch `cnm mcp` with the repository as its working directory. The server uses stdio and exposes read-only tools:
+The server uses stdio and exposes ten read-only tools:
 
-- `project_overview` — resumen del índice del repositorio.
-- `index_freshness` — estado del índice frente al árbol de trabajo.
-- `project_map` — archivos indexados e imports resueltos.
-- `symbol_lookup` — búsqueda léxica de símbolos.
-- `dependency_graph` — recorrido de dependencias directas o transitivas.
-- `file_details` — metadatos, símbolos, imports y relaciones de un archivo.
-- `change_impact` — archivos que dependen del archivo objetivo.
-- `task_context` — contexto relevante y acotado para una tarea.
-- `memory_freshness` — vigencia de archivos asociados a memorias.
-- `memory_recall` — recuperación de memorias locales con su estado de ciclo de vida.
+- `project_overview` — local repository/index summary.
+- `index_freshness` — working-tree versus index freshness.
+- `project_map` — indexed files and resolved/unresolved imports.
+- `symbol_lookup` — bounded lexical symbol search.
+- `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
+- `file_details` — bounded file metadata, symbols, imports, and relations.
+- `change_impact` — bounded reverse-import impact traversal.
+- `task_context` — deterministic, bounded task context from indexed facts and memories.
+- `memory_freshness` — source-file freshness for linked memories.
+- `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
 
-Example OpenCode configuration (adjust the executable path for your machine):
+The MCP process is bound to the repository resolved from its working directory. Configure the MCP client with an explicit repository `cwd`; do not rely on whichever directory the client happens to inherit. For the exact argument schemas, defaults, limits, project-binding behavior, and known error-handling verification gaps, see [the Phase 6 MCP contract](docs/PHASE_6_MCP_CONTRACT.md).
+
+Example OpenCode configuration (replace the path with the absolute path to the repository and adjust the executable path for your machine):
 
 ```json
 {
@@ -95,13 +99,14 @@ Example OpenCode configuration (adjust the executable path for your machine):
     "codebase-memory": {
       "type": "local",
       "command": ["cnm", "mcp"],
+      "cwd": "/absolute/path/to/codebase-neural-memory",
       "enabled": true
     }
   }
 }
 ```
 
-If the client launches MCP from a different working directory, set its server working directory to the repository root using the client's supported configuration.
+The project must be initialized before the MCP server starts. If the process is launched from another repository, it will bind to that repository's local project identity instead; see the contract for the resolution rules and limitations.
 
 ## Where data is stored
 
