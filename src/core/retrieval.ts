@@ -5,6 +5,10 @@ import type { SearchHit } from "../shared/types.js";
 const DEFAULT_DEPENDENCY_RESULTS = 100;
 const DEFAULT_DEPENDENCY_PROCESSED = 1_000;
 const MAX_SEARCH_CANDIDATES = 1_000;
+const MAX_SEARCH_RESULTS = 1_000;
+const MAX_DEPENDENCY_RESULTS = 5_000;
+const MAX_DEPENDENCY_PROCESSED = 1_000;
+const MAX_DEPENDENCY_DEPTH = 100;
 
 interface RankedSearchHit extends SearchHit {
   score: number;
@@ -75,8 +79,8 @@ function rankSearchCandidates(
 }
 
 export function searchSymbols(location: ProjectLocation, query: string, limit = 20): RankedSearchHit[] {
-  if (!Number.isSafeInteger(limit) || limit < 1) {
-    throw new Error("Search limit must be a positive safe integer.");
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_SEARCH_RESULTS) {
+    throw new Error("Search limit must be a positive safe integer no greater than 1000.");
   }
   const tokens = tokenizeQuery(query);
   if (tokens.length === 0) return [];
@@ -254,14 +258,14 @@ export function findDependencies(
   maxResults = DEFAULT_DEPENDENCY_RESULTS,
   maxProcessed = DEFAULT_DEPENDENCY_PROCESSED,
 ): DependencyResult {
-  if (!Number.isSafeInteger(maxDepth) || maxDepth < 1) {
-    throw new Error("Dependency depth must be a positive safe integer.");
+  if (!Number.isSafeInteger(maxDepth) || maxDepth < 1 || maxDepth > MAX_DEPENDENCY_DEPTH) {
+    throw new Error("Dependency depth must be a positive safe integer no greater than 100.");
   }
-  if (!Number.isSafeInteger(maxResults) || maxResults < 1) {
-    throw new Error("Dependency result limit must be a positive safe integer.");
+  if (!Number.isSafeInteger(maxResults) || maxResults < 1 || maxResults > MAX_DEPENDENCY_RESULTS) {
+    throw new Error("Dependency result limit must be a positive safe integer no greater than 5000.");
   }
-  if (!Number.isSafeInteger(maxProcessed) || maxProcessed < 1) {
-    throw new Error("Dependency processing limit must be a positive safe integer.");
+  if (!Number.isSafeInteger(maxProcessed) || maxProcessed < 1 || maxProcessed > MAX_DEPENDENCY_PROCESSED) {
+    throw new Error("Dependency processing limit must be a positive safe integer no greater than 1000.");
   }
   const db = openDatabase(location);
   try {
