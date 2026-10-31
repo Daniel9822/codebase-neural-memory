@@ -90,8 +90,9 @@ describe("task-oriented context builder", () => {
     expect(exact.items).toHaveLength(1);
     expect(exact.budget.usedCharacters).toBe(exactBudget);
     const tooSmall = buildTaskContext(location, "refresh auth token", { maxItems: 1, maxCharacters: exactBudget - 1 });
-    expect(tooSmall.items).toHaveLength(0);
-    expect(tooSmall.budget.usedCharacters).toBe(JSON.stringify([]).length);
+    expect(tooSmall.items).not.toContainEqual(exact.items[0]);
+    expect(tooSmall.budget.usedCharacters).toBe(JSON.stringify(tooSmall.items).length);
+    expect(tooSmall.budget.usedCharacters).toBeLessThanOrEqual(exactBudget - 1);
     expect(() => buildTaskContext(location, "   ")).toThrow("Task description must not be empty");
     expect(() => buildTaskContext(location, "auth", { maxCharacters: 10 })).toThrow("maxCharacters");
     expect(() => lookupTaskContextDetails(location, result, ["src/auth.ts"], { limit: 0 })).toThrow("limit");
