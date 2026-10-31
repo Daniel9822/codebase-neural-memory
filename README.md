@@ -63,7 +63,7 @@ cnm memory delete <memory-id>
 
 The lifecycle permits `proposed → confirmed` or `proposed → rejected`, `confirmed → obsolete`, and `obsolete → confirmed`. Rejected memories are terminal and excluded from recall by default. Updates and deletion are explicit and scoped to the current project. Optional source paths, Git commit identifiers, and explicit author identities can be stored with a memory. The original author is retained separately from the identity supplied for the latest update; CNM does not infer or transmit personal identity automatically.
 
-When a source path is supplied, CNM records a SHA-256 fingerprint of the referenced file. `cnm memory freshness` reports `current`, `changed`, `missing`, `untracked`, or `unsafe` references and indicates when review is required. This inspection does not rewrite the memory or change its lifecycle status. An untracked reference has no stored baseline (for example, a legacy memory); it requires review. Unsafe references include paths that resolve outside the project root. This is file-content freshness only: commit/branch comparison and automatic lifecycle transitions are not implemented.
+When a source path is supplied, CNM records a SHA-256 fingerprint of the referenced file. `cnm memory freshness` also compares an optional recorded Git commit with the current `HEAD`: `current`, `ancestor`, `ahead`, `diverged`, `unknown`, or `unavailable` commit relationships are reported separately from file status. Older, ahead-of-branch, divergent, unknown, or unavailable commit references require review. Commit-only memories are included even when no source path is attached. This inspection does not rewrite memory content or change lifecycle status; it never auto-confirms or auto-obsoletes a memory.
 
 ## MCP integration
 
@@ -85,7 +85,7 @@ The server uses stdio and exposes ten read-only tools:
 - `file_details` — bounded file metadata, symbols, imports, and relations.
 - `change_impact` — bounded reverse-import impact traversal.
 - `task_context` — deterministic, bounded task context from indexed facts and memories.
-- `memory_freshness` — source-file freshness for linked memories.
+- `memory_freshness` — source-file fingerprints and Git commit ancestry for linked or commit-referenced memories.
 - `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
 
 The MCP process is bound to the repository resolved from its working directory. Configure the MCP client with an explicit repository `cwd`; do not rely on whichever directory the client happens to inherit. For the exact argument schemas, defaults, limits, bounded freshness/map report metadata, project-binding behavior, and known verification gaps, see [the Phase 6 MCP contract](docs/PHASE_6_MCP_CONTRACT.md).
