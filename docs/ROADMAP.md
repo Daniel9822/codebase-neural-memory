@@ -89,7 +89,7 @@ Exit condition: expected symbols, files, dependencies, and dependents are return
 
 ## Phase 4 — Explicit project memory lifecycle
 
-**Status:** Complete and formally closed on 2026-10-31. The clean-checkout CI verification on merge commit `921be0d219e9ccbd151fa49008a691cee4287bcb` passed lockfile installation, typecheck, the full test suite, production build, and CLI/MCP smoke checks. Git commit/branch freshness is explicitly deferred to Phase 7 and is not a Phase 4 exit requirement; the verification record is in `docs/ACCEPTANCE_CRITERIA.md`.
+**Status:** Complete and formally closed on 2026-10-31. The original Phase 4 close-out verified memory lifecycle and file-content freshness. The Git commit-provenance comparison deferred from Phase 4 was subsequently implemented in Phase 7 (PR #48); see the current Phase 7 acceptance record.
 
 Tasks:
 - [x] Define memory categories and metadata.
@@ -98,7 +98,7 @@ Tasks:
 - [x] Implement proposed, confirmed, obsolete, and rejected states with validated explicit transitions.
 - [x] Preserve explicitly supplied author identity separately from the latest updater; attribution is optional and never inferred.
 - [x] Identify changed, missing, untracked, and unsafe source-file references that require review without mutating the memory.
-- [ ] Compare referenced Git commits/branches with current repository state (deferred to Phase 7).
+- [x] Compare referenced memory commits with current `HEAD` ancestry; Phase 7 reports current, ancestor, ahead, diverged, unknown, and unavailable states without changing memory lifecycle.
 - [x] Require explicit user approval before confirming agent-proposed knowledge.
 - [x] Make memory recall bounded, project-scoped, and predictable.
 
@@ -208,7 +208,7 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 Tasks:
 - [x] Record the indexed Git commit and relevant working-tree state when Git metadata is available (schema migration v10).
 - [x] Detect branch/commit changes and dirty worktrees in `cnm freshness` and MCP `index_freshness`.
-- [ ] Associate memory source commit provenance with current Git ancestry/state; existing `commit_sha` fields are not yet compared.
+- [x] Compare memory `commit_sha` references with current Git `HEAD` ancestry and require review for ancestor, ahead, diverged, unknown, or unavailable references (`tests/git-awareness.test.ts`).
 - [x] Keep freshness reconciliation deterministic and independent of watcher events; each check scans supported source files and reads Git status.
 - [x] Reconcile changes missed by any external watcher through the same deterministic scan; watcher support remains optional and unimplemented.
 - [x] Document identity boundaries: each Git worktree path has a separate path-derived CNM project/database; moving a repository changes its project identity. A submodule opened directly resolves as its own project, but a parent scan does not yet enforce submodule isolation.
