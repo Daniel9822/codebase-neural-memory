@@ -58,7 +58,7 @@ export function getGitSnapshot(rootPath: string): GitSnapshot {
     };
   }
 
-  const normalize = (value: string) => resolve(value).replaceAll("\\\\", "/");
+  const normalize = (value: string) => resolve(value).replaceAll("\\", "/");
   const rootsMatch = process.platform === "win32"
     ? normalize(repositoryRoot).toLowerCase() === normalize(requestedRoot).toLowerCase()
     : normalize(repositoryRoot) === normalize(requestedRoot);
@@ -93,7 +93,7 @@ export function getGitSnapshot(rootPath: string): GitSnapshot {
     commit: runGit(rootPath, ["rev-parse", "--verify", "HEAD"]) || null,
     branch: runGit(rootPath, ["symbolic-ref", "--quiet", "--short", "HEAD"]) || null,
     dirty: status.length > 0,
-    changedPathCount: status.length === 0 ? 0 : status.split("\\n").filter(Boolean).length,
+    changedPathCount: status.length === 0 ? 0 : status.split("\n").filter(Boolean).length,
     statusHash: createHash("sha256").update(status).digest("hex"),
   };
 }
