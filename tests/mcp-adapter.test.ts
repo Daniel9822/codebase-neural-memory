@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InMemoryTransport, LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/server";
@@ -78,6 +78,7 @@ function createProject(): void {
   temporaryDirectory = mkdtempSync(join(tmpdir(), "cnm-mcp-adapter-test-"));
   const rootPath = join(temporaryDirectory, "repository");
   const dataDirectory = join(temporaryDirectory, "data");
+  mkdirSync(rootPath, { recursive: true });
   location = {
     id: "mcp-adapter-test-project",
     rootPath,
