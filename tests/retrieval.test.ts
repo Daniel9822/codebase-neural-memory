@@ -214,6 +214,18 @@ describe("getIndexFreshness", () => {
     });
   });
 
+  it("marks discovery as incomplete when a supported file is skipped", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "large.ts"), "export const small = true;");
+    indexWithDatabase(database!, location);
+    writeFileSync(join(location.rootPath, "large.ts"), "x".repeat(1_000_001));
+
+    expect(getIndexFreshness(location)).toMatchObject({
+      status: "incomplete",
+      skippedFiles: ["large.ts: exceeds 1000000 bytes"],
+    });
+  });
+
   it("reports an unindexed project without treating every source file as a delta", () => {
     createProject();
     writeFileSync(join(location.rootPath, "main.ts"), "export const main = true;");
