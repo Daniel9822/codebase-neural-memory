@@ -109,11 +109,17 @@ describe("MCP bounded output and project isolation", () => {
     indexWithDatabase(databases[0]!, location);
 
     const unreadableDirectories: string[] = [];
+    const canEnforceDirectoryPermissions =
+      process.platform !== "win32" && process.getuid?.() !== 0;
+
     for (let i = 0; i < 205; i += 1) {
       const blocked = join(root, `blocked-${String(i).padStart(3, "0")}`);
       mkdirSync(blocked);
-      chmodSync(blocked, 0);
-      unreadableDirectories.push(blocked);
+
+      if (canEnforceDirectoryPermissions) {
+        chmodSync(blocked, 0);
+        unreadableDirectories.push(blocked);
+      }
       if (i < 200) symlinkSync(join(root, "entry.ts"), join(root, `skipped-${String(i).padStart(3, "0")}.ts`));
       remember(location, `Linked memory ${i}`, "Boundary fixture", "decision", "entry.ts");
     }
@@ -123,9 +129,10 @@ describe("MCP bounded output and project isolation", () => {
     expect(exactFreshness.totals.skippedFiles).toBe(200);
     expect(exactFreshness.skippedFiles).toHaveLength(200);
     expect(exactFreshness.truncated.skippedFiles).toBe(false);
-    expect(exactFreshness.totals.errors).toBe(205);
-    expect(exactFreshness.errors).toHaveLength(200);
-    expect(exactFreshness.truncated.errors).toBe(true);
+    const expectedErrors = canEnforceDirectoryPermissions ? 205 : 0;
+    expect(exactFreshness.totals.errors).toBe(expectedErrors);
+    expect(exactFreshness.errors).toHaveLength(Math.min(expectedErrors, 200));
+    expect(exactFreshness.truncated.errors).toBe(expectedErrors > 200);
     for (let i = 200; i < 205; i += 1) {
       symlinkSync(join(root, "entry.ts"), join(root, `skipped-${String(i).padStart(3, "0")}.ts`));
     }
