@@ -75,14 +75,16 @@ cnm mcp
 
 Configure the client to launch `cnm mcp` with the repository as its working directory. The server uses stdio and exposes read-only tools:
 
-- `project_overview`
-- `project_map`
-- `symbol_lookup`
-- `change_impact`
-- `memory_recall`
-- `index_freshness`
-- `dependency_graph`
-- `file_details`
+- `project_overview` — resumen del índice del repositorio.
+- `index_freshness` — estado del índice frente al árbol de trabajo.
+- `project_map` — archivos indexados e imports resueltos.
+- `symbol_lookup` — búsqueda léxica de símbolos.
+- `dependency_graph` — recorrido de dependencias directas o transitivas.
+- `file_details` — metadatos, símbolos, imports y relaciones de un archivo.
+- `change_impact` — archivos que dependen del archivo objetivo.
+- `task_context` — contexto relevante y acotado para una tarea.
+- `memory_freshness` — vigencia de archivos asociados a memorias.
+- `memory_recall` — recuperación de memorias locales con su estado de ciclo de vida.
 
 Example OpenCode configuration (adjust the executable path for your machine):
 
