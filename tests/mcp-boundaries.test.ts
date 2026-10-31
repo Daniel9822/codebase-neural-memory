@@ -14,12 +14,13 @@ type JsonRpcMessage = Parameters<InMemoryTransport["send"]>[0];
 class ProtocolClient {
   private id = 1;
   private readonly pending = new Map<number, (value: Record<string, unknown>) => void>();
-  private readonly server = createMcpServer(this.location);
+  private readonly server: ReturnType<typeof createMcpServer>;
   private readonly pair = InMemoryTransport.createLinkedPair();
   private readonly clientTransport = this.pair[0];
   private readonly serverTransport = this.pair[1];
 
   constructor(private readonly location: ProjectLocation) {
+    this.server = createMcpServer(location);
     this.clientTransport.onmessage = (message) => {
       if (!("id" in message) || typeof message.id !== "number") return;
       const resolve = this.pending.get(message.id);
@@ -122,7 +123,7 @@ describe("MCP bounded output and project isolation", () => {
     const memories = await client.call("memory_freshness", { limit: 100 });
     expect(memories.total).toBe(205);
     expect(memories.records).toHaveLength(100);
-    expect(memories.truncated).toBe(true);
+    expect(memories.truncated).toBe(true);\n    const completeMemories = await client.call("memory_freshness", { limit: 500 });\n    expect(completeMemories.records).toHaveLength(205);\n    expect(completeMemories.truncated).toBe(false);
 
     const map = await client.call("project_map", { limit: 10 });
     expect(map.totalFiles).toBe(206);
@@ -174,8 +175,9 @@ describe("MCP bounded output and project isolation", () => {
     const { location, root } = createProject("paths");
     writeFileSync(join(root, "indexed.ts"), "export const indexed = true;\n");
     indexWithDatabase(databases[0]!, location);
+    writeFileSync(join(root, "not-indexed.ts"), "export const later = true;\n");
     const client = await connect(location);
-    const invalidPaths = ["missing.ts", "../outside.ts", join(root, "..", "outside.ts")];
+    const invalidPaths = ["missing.ts", "not-indexed.ts", "../outside.ts", join(root, "..", "outside.ts")];
     for (const path of invalidPaths) {
       const response = await client.request("tools/call", {
         name: "dependency_graph",
