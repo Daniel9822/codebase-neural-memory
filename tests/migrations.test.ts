@@ -45,12 +45,14 @@ describe("database migrations", () => {
     ]);
   });
 
-  it("keeps the v7 migration idempotent", () => {
+  it("keeps the v8 migration idempotent and adds memory source fingerprints", () => {
     database = new Database(":memory:") as MemoryDatabase;
     migrate(database);
     migrate(database);
-    expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = 7").get()).toEqual({ count: 1 });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = 8").get()).toEqual({ count: 1 });
     expect(database.prepare("PRAGMA table_info(projects)").all()
       .filter((column: any) => column.name === "index_excludes_json")).toHaveLength(1);
+    expect(database.prepare("PRAGMA table_info(memories)").all()
+      .filter((column: any) => column.name === "source_hash")).toHaveLength(1);
   });
 });
