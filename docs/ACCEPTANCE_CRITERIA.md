@@ -72,7 +72,7 @@ Every milestone must preserve these rules:
 
 ### MCP
 - [ ] The MCP server starts using stdio from the configured project directory.
-- [ ] The server exposes only the documented read-only tools in this baseline.
+- [ ] The server exposes exactly the ten registered read-only tools documented here: `project_overview`, `index_freshness`, `project_map`, `symbol_lookup`, `dependency_graph`, `file_details`, `change_impact`, `task_context`, `memory_freshness`, and `memory_recall`.
 - [ ] Each tool validates inputs and returns a useful error for invalid values.
 - [ ] Repeated MCP reads do not mutate source or memory records.
 - [ ] The server cannot accidentally read a different repository's memory.
@@ -230,7 +230,7 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - [ ] All tools use validated schemas and bounded result sizes.
 - [ ] Errors are returned in a way the client can understand.
 - [ ] Read tools do not write durable memories or modify the source repository.
-- [ ] Component and context tools use the same core APIs as the CLI.
+- [ ] `task_context` uses the core task-context builder; component retrieval is not claimed because `component_get` is not registered or implemented.
 - [ ] OpenCode integration is exercised end to end.
 - [ ] At least one additional MCP-compatible client is tested before stable release.
 - [ ] MCP protocol/SDK updates are covered by compatibility tests.
