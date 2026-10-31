@@ -186,7 +186,7 @@ function rebuildRelations(db: MemoryDatabase): number {
     const candidates = resolveImportCandidates(sourcePath, item.module_specifier)
       .filter((candidate) => candidate.id !== item.file_id);
     if (candidates.length === 1) {
-      insertRelation.run("file", item.file_id, "file", candidates[0].id, "IMPORTS", 1, "typescript-ast");
+      insertRelation.run("file", item.file_id, "file", candidates[0]!.id, "IMPORTS", 1, "typescript-ast");
     } else {
       insertUnresolved.run(
         item.file_id,
