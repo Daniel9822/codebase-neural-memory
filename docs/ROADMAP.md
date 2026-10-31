@@ -136,7 +136,7 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ## Phase 6 — MCP adapter and agent workflow
 
-**Status:** The ten-tool read-only MCP server is implemented. Block 1 (source-derived contract and documentation synchronization) is documented in `docs/PHASE_6_MCP_CONTRACT.md`. Adapter-specific protocol tests, MCP project-isolation proof, real-client integrations, and final CI close-out remain pending. Phase 5's merge-commit/default-branch verification is also still recorded as a prerequisite close-out item and must not be silently treated as complete.
+**Status:** Blocks 1–3 are implemented and CI-verified. Block 4's real OpenCode and VS Code/Copilot discovery and tool calls were manually verified on 2026-10-31 against the local CNM repository; exact client and Node.js versions remain to be recorded. Block 5 regression and formal close-out remain pending. Phase 5's merge-commit/default-branch verification is still a prerequisite and must not be silently treated as complete.
 
 ### Block 1 — Audit and MCP contract
 
@@ -177,11 +177,14 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 ### Block 4 — Real MCP client compatibility
 
 - [x] Add an OpenCode local-server configuration template with explicit workspace-relative \`cwd\` (\`examples/opencode.mcp.json\`).
-- [ ] Verify OpenCode discovery and real tool calls in an installed OpenCode client.
+- [x] Verify OpenCode discovery and real tool calls in an installed OpenCode client (manual evidence recorded in `docs/CLIENT_INTEGRATION.md`).
 - [x] Add a VS Code workspace stdio configuration template with explicit \`\${workspaceFolder}\` binding (\`examples/vscode.mcp.json\`).
-- [ ] Verify VS Code discovery and real tool calls in an installed VS Code/Copilot client.
+- [x] Verify VS Code discovery and real tool calls in an installed VS Code/Copilot client (manual evidence recorded in `docs/CLIENT_INTEGRATION.md`).
 - [x] Document reproducible setup, verification prompts, evidence requirements, and troubleshooting (\`docs/CLIENT_INTEGRATION.md\`).
-- [ ] Record client versions, configuration, observed results, and platform limitations after real-client execution.
+- [x] Record client configurations, observed tool results, execution date, and known platform limitations in `docs/CLIENT_INTEGRATION.md`.
+- [ ] Capture the exact VS Code, GitHub Copilot extension, OpenCode, and Node.js versions; these were not included in the initial manual test report.
+
+**Evidence:** VS Code/Copilot and OpenCode each connected to `codebase-memory` and successfully invoked `project_overview` and `symbol_lookup` against the same local CNM workspace on 2026-10-31. Both returned 25 files, 135 symbols, 171 relations, index revision 1, and located `createMcpServer` at lines 12–102. Exact client/Node versions remain outstanding.
 
 **Deliverable:** two independently verified client integrations; simulated protocol calls do not count as client evidence.
 
