@@ -57,6 +57,19 @@ describe("symbol retrieval contracts", () => {
     });
   });
 
+  it("escapes SQL LIKE wildcards in literal symbol-name queries", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "names.ts"), `
+export function calculate_total(): number { return 1; }
+export function calculateXtotal(): number { return 2; }
+`);
+    indexWithDatabase(database!, location);
+
+    const hits = searchSymbols(location, "calculate_total", 20);
+    expect(hits.map((hit) => hit.name)).toContain("calculate_total");
+    expect(hits.map((hit) => hit.name)).not.toContain("calculateXtotal");
+  });
+
   it("returns no results for empty or punctuation-only queries and rejects unsafe limits", () => {
     createProject();
     writeFileSync(join(location.rootPath, "plain.ts"), "export const value = true;");
@@ -84,8 +97,17 @@ describe("findDependencies", () => {
       truncated: false,
     });
     expect(findDependencies(location, "a.ts", 2).dependencies).toMatchObject([
-      { path: "b.ts", depth: 1, chain: ["a.ts", "b.ts"] },
-      { path: "c.ts", depth: 2, chain: ["a.ts", "b.ts", "c.ts"] },
+      {
+        path: "b.ts", depth: 1, chain: ["a.ts", "b.ts"],
+        chainEvidence: [{ relation: "IMPORTS", provenance: "typescript-ast", confidence: 1, indexRevision: 1 }],
+      },
+      {
+        path: "c.ts", depth: 2, chain: ["a.ts", "b.ts", "c.ts"],
+        chainEvidence: [
+          { relation: "IMPORTS", provenance: "typescript-ast", confidence: 1, indexRevision: 1 },
+          { relation: "IMPORTS", provenance: "typescript-ast", confidence: 1, indexRevision: 1 },
+        ],
+      },
     ]);
     expect(findDependencies(location, "a.ts", 10).dependencies.map((item) => item.path)).toEqual(["b.ts", "c.ts"]);
   });
@@ -296,6 +318,26 @@ describe("bounded dependency traversal and file details", () => {
   });
 });
 
+describe("bounded file detail retrieval", () => {
+  it("limits every collection and reports totals and truncation", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "many.ts"), `
+export function first() {}
+export function second() {}
+export function third() {}
+`);
+    indexWithDatabase(database!, location);
+
+    const details = getFileDetails(location, "many.ts", 1);
+    expect(details.symbols).toHaveLength(1);
+    expect(details.totals.symbols).toBe(3);
+    expect(details.limits).toEqual({ perCollection: 1 });
+    expect(details.truncated).toMatchObject({ symbols: true, imports: false, unresolvedImports: false, relations: false });
+    expect(() => getFileDetails(location, "many.ts", 0)).toThrow("File detail limit must be a positive safe integer");
+    expect(() => getFileDetails(location, "many.ts", 501)).toThrow("File detail limit must be a positive safe integer");
+  });
+});
+
 describe("labeled retrieval relevance corpus", () => {
   it("places each labeled relevant symbol first for its fixture query", () => {
     createProject();
@@ -312,6 +354,13 @@ export function calculateTotal(values: number[]): number {
 export function calculateAverage(values: number[]): number {
   return calculateTotal(values) / values.length;
 }
+export function removeParticipant(participantId: string): boolean { return participantId.length > 0; }
+export function validateRegistration(input: string): boolean { return input.trim().length > 0; }
+export function saveTournament(id: string): boolean { return id.length > 0; }
+export function loadTournament(id: string): string { return id; }
+export function calculateStandings(scores: number[]): number { return scores.length; }
+export function parseTournamentDate(value: string): Date { return new Date(value); }
+export function determineWinner(scores: number[]): number { return Math.max(...scores); }
 `);
     indexWithDatabase(database!, location);
 
