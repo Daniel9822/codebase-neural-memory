@@ -8,6 +8,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import { getProjectLocation } from "../src/core/project.js";
 import { indexWithDatabase } from "../src/core/indexer.js";
+import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/server";
 
 let temporaryDirectory = "";
 let database: MemoryDatabase | undefined;
@@ -84,7 +85,7 @@ function launchMcp(rootPath: string): {
 
 async function initialize(client: ReturnType<typeof launchMcp>): Promise<void> {
   const response = await client.request("initialize", {
-    protocolVersion: "2025-11-25",
+    protocolVersion: LATEST_PROTOCOL_VERSION,
     capabilities: {},
     clientInfo: { name: "cnm-mcp-stdio-test", version: "1.0.0" },
   });
