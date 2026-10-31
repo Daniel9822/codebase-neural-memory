@@ -257,7 +257,7 @@ describe("getIndexFreshness", () => {
 describe("bounded dependency traversal and file details", () => {
   it("reports truncation when result or processing budgets are reached", () => {
     createProject();
-    writeFileSync(join(location.rootPath, "root.ts"), 'import "./a";\\nimport "./b";');
+    writeFileSync(join(location.rootPath, "root.ts"), 'import "./a";\nimport "./b";');
     writeFileSync(join(location.rootPath, "a.ts"), 'import "./leaf";');
     writeFileSync(join(location.rootPath, "b.ts"), 'export const b = true;');
     writeFileSync(join(location.rootPath, "leaf.ts"), "export const leaf = true;");
@@ -275,7 +275,7 @@ describe("bounded dependency traversal and file details", () => {
     createProject();
     writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}");
     writeFileSync(join(location.rootPath, "worker.ts"),
-      'import { Base } from "./base";\\nexport class Worker extends Base {}');
+      'import { Base } from "./base";\nexport class Worker extends Base {}');
     indexWithDatabase(database!, location);
 
     expect(getFileDetails(location, "worker.ts")).toMatchObject({
