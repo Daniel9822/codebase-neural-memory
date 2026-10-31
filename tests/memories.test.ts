@@ -113,7 +113,7 @@ describe("explicit memory lifecycle", () => {
     expect(transitionMemory(location, proposed, "obsolete")).toBe(true);
     expect(recallMemories(location)[0]).toMatchObject({ id: proposed, status: "obsolete" });
     expect(transitionMemory(location, proposed, "confirmed")).toBe(true);
-    expect(transitionMemory(location, proposed, "rejected")).toThrow("Invalid memory status transition");
+    expect(() => transitionMemory(location, proposed, "rejected")).toThrow("Invalid memory status transition");
 
     const rejected = proposeMemory(location, "Rejected suggestion", "Do not adopt.");
     expect(transitionMemory(location, rejected, "rejected")).toBe(true);
