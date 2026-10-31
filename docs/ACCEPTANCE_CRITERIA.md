@@ -225,15 +225,49 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 
 ## 9. Phase 6 — MCP integration
 
-- [ ] MCP server startup is deterministic and documented for the supported clients.
-- [ ] The server is bound to the intended repository and does not infer a different project silently.
-- [ ] All tools use validated schemas and bounded result sizes.
-- [ ] Errors are returned in a way the client can understand.
-- [ ] Read tools do not write durable memories or modify the source repository.
-- [ ] `task_context` uses the core task-context builder; component retrieval is not claimed because `component_get` is not registered or implemented.
-- [ ] OpenCode integration is exercised end to end.
-- [ ] At least one additional MCP-compatible client is tested before stable release.
-- [ ] MCP protocol/SDK updates are covered by compatibility tests.
+### Block 1 — Audit and contract documentation
+
+- [x] The registered tool inventory is exactly the ten tools in `src/adapters/mcp/server.ts`.
+- [x] Every tool's Zod input schema, optional arguments, defaults, and adapter-level hard limits are documented in `docs/PHASE_6_MCP_CONTRACT.md`.
+- [x] Each tool is mapped to the core operation it invokes.
+- [x] Stdio startup, working-directory project binding, initialized-project guard, and the read-only boundary are documented.
+- [x] README, ARCHITECTURE, PRODUCT_SPEC, ROADMAP, and ACCEPTANCE_CRITERIA reference the same contract and do not advertise unregistered tools.
+- [x] Unverified protocol behavior and client integration are explicitly labeled as pending rather than claimed as complete.
+
+### Block 2 — Adapter protocol tests
+
+- [ ] Tests use the real server/SDK and an appropriate MCP transport.
+- [ ] Discovery returns exactly ten tools with the expected schemas.
+- [ ] At least one valid call is tested for every registered tool.
+- [ ] Invalid arguments are rejected and the observed protocol error envelope (including `isError`) is asserted.
+- [ ] Repeated calls, EOF/shutdown, and reconnection are tested.
+- [ ] Read calls do not mutate repository source files or durable memory records.
+
+### Block 3 — Limits, paths, and isolation
+
+- [ ] Every response collection is bounded at the MCP boundary and reports totals/truncation where applicable.
+- [ ] `index_freshness.skippedFiles` and `index_freshness.errors` are bounded and expose total counts plus truncation flags.
+- [ ] `memory_freshness` is bounded and exposes the total eligible count plus a truncation flag.
+- [ ] `project_map` exposes the total indexed-file count and a truncation flag when the result limit is reached.
+- [ ] Boundary tests cover exact-limit, over-limit, empty, and incomplete-discovery cases for these three tools.
+- [ ] Two independent MCP processes bound to different repositories cannot read each other's indexed files or memories.
+- [ ] Invalid, missing, unindexed, traversal, and outside-root paths produce controlled errors.
+
+### Block 4 — Real clients
+
+- [ ] OpenCode discovers the server and completes real tool calls with an explicit repository `cwd`.
+- [ ] VS Code discovers the server and completes real tool calls with workspace-root binding.
+- [ ] Client versions, configurations, and observed evidence are recorded; simulated protocol tests are not counted as real-client integration.
+
+### Block 5 — Regression and close-out
+
+- [ ] Clean-checkout `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all pass.
+- [ ] The final diff is reviewed for unintended repository/source mutation.
+- [ ] Documentation matches the final registered tools, schemas, limits, and tested behavior.
+- [ ] The merge commit, CI run, and both client-integration evidence records are documented.
+- [ ] Phase 5's pending default-branch close-out evidence is verified before the overall sequence is declared closed.
+
+Phase 6 is complete only when all five blocks pass. Documentation of a contract is not proof that protocol behavior or real-client integration has been tested.
 
 ## 10. Phase 7 — Git awareness and freshness
 

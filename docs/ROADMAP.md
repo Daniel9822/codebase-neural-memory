@@ -136,24 +136,64 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ## Phase 6 — MCP adapter and agent workflow
 
-**Status:** Read-only MCP stdio server registers ten tools; documentation inventory is being synchronized, and end-to-end client integration still needs validation.
+**Status:** The ten-tool read-only MCP server is implemented. Block 1 (source-derived contract and documentation synchronization) is documented in `docs/PHASE_6_MCP_CONTRACT.md`. Adapter-specific protocol tests, MCP project-isolation proof, real-client integrations, and final CI close-out remain pending. Phase 5's merge-commit/default-branch verification is also still recorded as a prerequisite close-out item and must not be silently treated as complete.
 
-Tasks:
-- Verify current MCP SDK lifecycle and stdio behavior.
-- Test server startup from a configured repository working directory.
-- Make project selection explicit and prevent accidental cross-project access.
-- Validate schemas, limits, and error responses.
-- Keep the documented tool inventory synchronized with `src/adapters/mcp/server.ts` (currently ten tools: `project_overview`, `index_freshness`, `project_map`, `symbol_lookup`, `dependency_graph`, `file_details`, `change_impact`, `task_context`, `memory_freshness`, and `memory_recall`).
-- Treat `task_context` as the task-oriented context tool; do not document `project_context` as a registered alias.
-- Keep `component_get` and `decision_lookup` as future candidates only; neither is currently registered.
-- Keep agent-facing tools read-only in this release.
-- Test with OpenCode first, then another MCP-compatible client.
-- Document exact client configuration and troubleshooting.
+### Block 1 — Audit and MCP contract
 
-Deliverable: dependable local MCP interface over the stable core.
+- [x] Confirm the exact ten registered tools from `src/adapters/mcp/server.ts`.
+- [x] Record each tool's input schema, defaults, hard limits, and core operation.
+- [x] Document stdio startup, working-directory project binding, and the read-only boundary.
+- [x] Synchronize README, ARCHITECTURE, PRODUCT_SPEC, ROADMAP, and ACCEPTANCE_CRITERIA with the source-derived contract.
+- [x] Explicitly distinguish implemented behavior from protocol/client behavior that still needs evidence.
 
-Exit condition: clients can discover and call tools repeatedly without corrupting database state or mixing project memory.
+**Deliverable:** a source-aligned MCP contract with no invented tools or duplicated Phase 3 retrieval work.
 
+### Block 2 — Adapter-specific protocol tests
+
+- [ ] Use the real MCP server and the installed SDK with an in-memory transport where supported.
+- [ ] Discover exactly ten tools and assert their published input schemas.
+- [ ] Execute at least one valid call for every tool.
+- [ ] Assert invalid inputs and the actual protocol error envelope, including `isError` behavior.
+- [ ] Exercise repeated calls, clean shutdown/EOF, and reconnect behavior.
+- [ ] Verify that read calls do not alter repository source files or create/update/delete durable memories.
+
+**Deliverable:** focused MCP adapter tests independent of the existing general smoke script.
+
+### Block 3 — Limits, paths, and project isolation
+
+- [ ] Audit every response collection for a finite adapter-level limit and explicit truncation/total metadata where applicable.
+- [ ] Bound `index_freshness.skippedFiles` and `index_freshness.errors`, preserving total counts and explicit truncation metadata.
+- [ ] Bound `memory_freshness` records, preserving the total eligible count and explicit truncation metadata.
+- [ ] Make `project_map` report total indexed files and whether its limited result is truncated.
+- [ ] Add boundary tests for all three tools; do not silently drop records or totals.
+- [ ] Run two independent MCP processes against two repositories with different indexed files and memories.
+- [ ] Prove that each process remains bound to its configured project across repeated calls.
+- [ ] Test invalid, missing, unindexed, traversal, and outside-root paths.
+
+**Deliverable:** bounded responses and automated evidence that projects cannot leak into one another.
+
+### Block 4 — Real MCP client compatibility
+
+- [ ] Configure OpenCode with an explicit repository working directory.
+- [ ] Verify discovery and real tool calls from OpenCode.
+- [ ] Configure VS Code as the second client using its documented stdio MCP support and workspace-root binding.
+- [ ] Verify discovery and real tool calls from VS Code.
+- [ ] Record client versions, configuration, observed results, and platform limitations.
+
+**Deliverable:** two independently verified client integrations; simulated protocol calls do not count as client evidence.
+
+### Block 5 — Regression and formal close-out
+
+- [ ] Run `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` on a clean checkout.
+- [ ] Review the complete diff and confirm no unintended source/repository mutation.
+- [ ] Synchronize all official documentation with the final source and tests.
+- [ ] Record the commit, CI run, client evidence, and any limitations.
+- [ ] Verify Phase 5's pending default-branch close-out evidence before declaring the overall sequence closed.
+
+**Deliverable:** Phase 6 merged into `main` with passing CI and reproducible integration evidence.
+
+**Phase 6 exit condition:** all five blocks pass. The existence of ten registered tools or a successful generic smoke test alone is not sufficient.
+ 
 ## Phase 7 — Git awareness and automatic freshness
 
 **Status:** Planned; basic metadata fields exist but lifecycle is not complete.
