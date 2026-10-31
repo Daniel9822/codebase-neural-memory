@@ -1,6 +1,6 @@
 # Phase 6 — MCP Contract
 
-**Status:** Blocks 1 and 2 are implemented and CI-verified on 2026-10-31; Blocks 3–5 remain open. This document records the implemented contract; it does not claim that Phase 6 integration acceptance has passed.
+**Status:** Blocks 1 and 2 are implemented and CI-verified on 2026-10-31. CI run [41238294195](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41238294195) passed all 82 tests across 9 test files, typecheck, build, and smoke. Blocks 3–5 remain open. This document records the implemented contract; it does not claim that Phase 6 integration acceptance has passed.
 
 ## Source of truth
 
