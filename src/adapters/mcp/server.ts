@@ -80,7 +80,7 @@ export function startMcpServer(location: ProjectLocation): void {
       description: "Build deterministic, bounded task context from indexed symbols, file relationships, local memories, and matching test paths. Results include ranking signals, lifecycle status, source references, and freshness warnings.",
       inputSchema: z.object({ task: z.string().min(1), maxItems: z.number().int().min(1).max(100).optional(), maxCharacters: z.number().int().min(100).max(50000).optional() }),
     }, async ({ task, maxItems, maxCharacters }) => ({
-      content: [{ type: "text", text: JSON.stringify(buildTaskContext(location, task, { maxItems, maxCharacters }), null, 2) }],
+      content: [{ type: "text", text: JSON.stringify(buildTaskContext(location, task, { ...(maxItems === undefined ? {} : { maxItems }), ...(maxCharacters === undefined ? {} : { maxCharacters }) }), null, 2) }],
     }));
 
     server.registerTool("memory_freshness", {
