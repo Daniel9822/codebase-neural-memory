@@ -189,9 +189,9 @@ function matchPathAlias(specifier: string, config: PathAliasConfig): string[] | 
 
 function expandSourceCandidates(base: string): string[] {
   const extension = posix.extname(base);
-  const aliases = extension === ".js" ? [base.replace(/\\.js$/, ".ts"), base.replace(/\\.js$/, ".tsx")]
-    : extension === ".jsx" ? [base.replace(/\\.jsx$/, ".tsx")]
-    : extension === ".mjs" ? [base.replace(/\\.mjs$/, ".mts")]
+  const aliases = extension === ".js" ? [base.replace(/\.js$/, ".ts"), base.replace(/\.js$/, ".tsx")]
+    : extension === ".jsx" ? [base.replace(/\.jsx$/, ".tsx")]
+    : extension === ".mjs" ? [base.replace(/\.mjs$/, ".mts")]
     : [];
   return extension
     ? [base, ...aliases]
