@@ -26,7 +26,7 @@ function createProject(withGit = true): void {
     execFileSync("git", ["init"], { cwd: rootPath, stdio: "ignore" });
     execFileSync("git", ["config", "user.email", "cnm-tests@example.invalid"], { cwd: rootPath });
     execFileSync("git", ["config", "user.name", "CNM Tests"], { cwd: rootPath });
-    writeFileSync(join(rootPath, "tracked.ts"), "export const tracked = 1;\\n");
+    writeFileSync(join(rootPath, "tracked.ts"), "export const tracked = 1;\n");
     execFileSync("git", ["add", "tracked.ts"], { cwd: rootPath });
     execFileSync("git", ["commit", "-m", "initial"], { cwd: rootPath, stdio: "ignore" });
   }
@@ -78,7 +78,7 @@ describe("Git-aware indexing and freshness", () => {
     createProject();
     indexWithDatabase(database!, location);
 
-    writeFileSync(join(location.rootPath, "tracked.ts"), "export const tracked = 2;\\n");
+    writeFileSync(join(location.rootPath, "tracked.ts"), "export const tracked = 2;\n");
     expect(getIndexFreshness(location)).toMatchObject({
       status: "stale",
       changedFiles: 1,
@@ -135,7 +135,7 @@ describe("Git-aware indexing and freshness", () => {
 
   it("keeps non-Git folders usable and reports Git metadata as unavailable", () => {
     createProject(false);
-    writeFileSync(join(location.rootPath, "plain.ts"), "export const plain = true;\\n");
+    writeFileSync(join(location.rootPath, "plain.ts"), "export const plain = true;\n");
     indexWithDatabase(database!, location);
 
     expect(getGitSnapshot(location.rootPath).available).toBe(false);
