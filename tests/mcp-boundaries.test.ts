@@ -225,7 +225,7 @@ describe("MCP bounded output and project isolation", () => {
     expect(map.truncated).toBe(false);
     const exactMapProject = createProject("exact-map");
     for (let i = 0; i < 10; i += 1) {
-      writeFileSync(join(exactMapProject.root, `exact-${i}.ts`), `export const item${i} = ${i};\\n`);
+      writeFileSync(join(exactMapProject.root, `exact-${i}.ts`), `export const item${i} = ${i};\n`);
     }
     indexWithDatabase(databases[1]!, exactMapProject.location);
     const exactMapClient = await connect(exactMapProject.location);
