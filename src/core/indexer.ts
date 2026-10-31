@@ -335,6 +335,7 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     }) };
   };
 
+  const resolvedImportTargets = new Map<string, number[]>();
   const imports = db.prepare("SELECT file_id, module_specifier FROM file_imports ORDER BY file_id, module_specifier").all() as Array<{ file_id: number; module_specifier: string }>;
   for (const item of imports) {
     const sourcePath = fileById.get(item.file_id);
@@ -343,6 +344,7 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     if (!resolution.recognized) continue;
     const candidates = resolution.candidates.filter((candidate) => candidate.id !== item.file_id);
     if (candidates.length === 1) {
+      resolvedImportTargets.set(`${item.file_id}:${item.module_specifier}`, [candidates[0]!.id]);
       insertRelation.run("file", item.file_id, "file", candidates[0]!.id, "IMPORTS", 1, "typescript-ast");
     } else {
       insertUnresolved.run(
@@ -354,21 +356,45 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     }
   }
 
-  const calls = db.prepare("SELECT file_id, caller_name, callee_name FROM symbol_calls").all() as Array<{
-    file_id: number; caller_name: string; callee_name: string;
+  const calls = db.prepare("SELECT file_id, caller_name, callee_name, module_specifier, imported_symbol_name FROM symbol_calls").all() as Array<{
+    file_id: number;
+    caller_name: string;
+    callee_name: string;
+    module_specifier: string | null;
+    imported_symbol_name: string | null;
   }>;
-  const symbols = db.prepare("SELECT id, file_id, name FROM symbols").all() as Array<{ id: number; file_id: number; name: string }>;
+  const symbols = db.prepare("SELECT id, file_id, name, exported FROM symbols").all() as Array<{
+    id: number; file_id: number; name: string; exported: number;
+  }>;
   const symbolMap = new Map<string, number>();
   const shortNames = new Map<string, number | null>();
+  const exportedNames = new Map<string, number | null>();
   for (const symbol of symbols) {
     symbolMap.set(`${symbol.file_id}:${symbol.name}`, symbol.id);
     const shortKey = `${symbol.file_id}:${symbol.name.split(".").at(-1)}`;
     shortNames.set(shortKey, shortNames.has(shortKey) ? null : symbol.id);
+    if (symbol.exported) {
+      const exportedKey = `${symbol.file_id}:${symbol.name}`;
+      exportedNames.set(exportedKey, exportedNames.has(exportedKey) ? null : symbol.id);
+    }
   }
+
   for (const call of calls) {
     const sourceId = symbolMap.get(`${call.file_id}:${call.caller_name}`);
+    if (sourceId === undefined) continue;
+
+    if (call.module_specifier && call.imported_symbol_name) {
+      const targetFiles = resolvedImportTargets.get(`${call.file_id}:${call.module_specifier}`) ?? [];
+      if (targetFiles.length !== 1) continue;
+      const targetId = exportedNames.get(`${targetFiles[0]}:${call.imported_symbol_name}`);
+      if (targetId !== undefined && targetId !== null && targetId !== sourceId) {
+        insertRelation.run("symbol", sourceId, "symbol", targetId, "CALLS", 0.95, "typescript-ast-import-binding");
+      }
+      continue;
+    }
+
     const targetId = shortNames.get(`${call.file_id}:${call.callee_name}`) ?? undefined;
-    if (sourceId !== undefined && targetId !== undefined && sourceId !== targetId) {
+    if (targetId !== undefined && targetId !== sourceId) {
       insertRelation.run("symbol", sourceId, "symbol", targetId, "CALLS", 0.95, "typescript-ast");
     }
   }
@@ -423,9 +449,11 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
       }
       const insertImport = db.prepare("INSERT OR IGNORE INTO file_imports(file_id, module_specifier) VALUES (?, ?)");
       for (const specifier of parsed.imports) insertImport.run(fileId, specifier);
-      const insertCall = db.prepare("INSERT OR IGNORE INTO symbol_calls(file_id, caller_name, callee_name) VALUES (?, ?, ?)");
+      const insertCall = db.prepare("INSERT OR IGNORE INTO symbol_calls(file_id, caller_name, callee_name, module_specifier, imported_symbol_name) VALUES (?, ?, ?, ?, ?)");
       for (const call of parsed.calls) {
-        if (call.callerName) insertCall.run(fileId, call.callerName, call.calleeName);
+        if (call.callerName) {
+          insertCall.run(fileId, call.callerName, call.calleeName, call.moduleSpecifier ?? null, call.importedSymbolName ?? null);
+        }
       }
     });
 

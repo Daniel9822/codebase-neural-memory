@@ -18,6 +18,8 @@ export interface ParsedSymbol {
 export interface ParsedCall {
   callerName: string | null;
   calleeName: string;
+  moduleSpecifier?: string;
+  importedSymbolName?: string;
 }
 
 export interface ParsedFile {

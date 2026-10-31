@@ -307,6 +307,72 @@ describe("indexWithDatabase", () => {
   });
 
 
+  it("resolves calls through imported named exports, including aliased bindings", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"),
+      'import { helper as runHelper } from "./helper";\nexport function caller() { runHelper(); }');
+    writeFileSync(join(location.rootPath, "helper.ts"),
+      "export function helper() { return true; }");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare(`
+      SELECT source.name AS caller, target.name AS callee, r.provenance
+      FROM relations r
+      JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
+      JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
+      WHERE r.kind = 'CALLS'
+    `).all()).toEqual([{
+      caller: "caller",
+      callee: "helper",
+      provenance: "typescript-ast-import-binding",
+    }]);
+  });
+
+  it("resolves each imported binding against its own module when names overlap", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"),
+      'import { shared as callFirst } from "./first";\nimport { shared as callSecond } from "./second";\nexport function caller() { callFirst(); callSecond(); }');
+    writeFileSync(join(location.rootPath, "first.ts"), "export function shared() { return 1; }");
+    writeFileSync(join(location.rootPath, "second.ts"), "export function shared() { return 2; }");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare(`
+      SELECT targetFile.path AS target
+      FROM relations r
+      JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
+      JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
+      JOIN files targetFile ON targetFile.id = target.file_id
+      WHERE r.kind = 'CALLS' AND source.name = 'caller'
+      ORDER BY targetFile.path
+    `).all()).toEqual([{ target: "first.ts" }, { target: "second.ts" }]);
+  });
+
+  it("does not resolve imported calls when a local parameter shadows the import", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"),
+      'import { helper as runHelper } from "./helper";\nexport function caller(runHelper: () => void) { runHelper(); }');
+    writeFileSync(join(location.rootPath, "helper.ts"),
+      "export function helper() { return true; }");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT kind FROM relations WHERE kind = 'CALLS'").all()).toEqual([]);
+  });
+
+  it("does not create cross-file calls to non-exported symbols", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"),
+      'import { helper } from "./helper";\nexport function caller() { helper(); }');
+    writeFileSync(join(location.rootPath, "helper.ts"),
+      "function helper() { return true; }");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT kind FROM relations WHERE kind = 'CALLS'").all()).toEqual([]);
+  });
+
   it("rolls back the entire indexing run when relation rebuilding fails", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
@@ -332,7 +398,7 @@ describe("indexWithDatabase", () => {
     expect(symbols).toContainEqual({ name: "helper" });
     expect(symbols).not.toContainEqual({ name: "changedHelper" });
     expect(fileCount).toBe(2);
-    expect(relationCount).toBe(1);
+    expect(relationCount).toBe(2);
   });
 
   it("reports malformed files without aborting other files or replacing a valid index", () => {
