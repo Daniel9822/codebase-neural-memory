@@ -6,7 +6,7 @@ import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
 import { getIndexFreshness, indexProject } from "../core/indexer.js";
 import { explainSymbol, findDependencies, findImpact, getFileDetails, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
-import { recallMemories, remember } from "../core/memories.js";
+import { deleteMemory, proposeMemory, recallMemories, remember, transitionMemory, updateMemory, type MemoryStatus } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
 
@@ -158,9 +158,56 @@ program.command("remember <title> <content>")
   .description("Save an explicit, confirmed project decision or note locally.")
   .option("--category <category>", "Memory category", "decision")
   .option("--source <path>", "Optional source file path")
-  .action((title: string, content: string, options: { category: string; source?: string }) => {
-    const id = remember(ensureInitialized(), title, content, options.category, options.source);
+  .option("--commit <sha>", "Optional source Git commit")
+  .action((title: string, content: string, options: { category: string; source?: string; commit?: string }) => {
+    const id = remember(ensureInitialized(), title, content, options.category, options.source, options.commit);
     console.log(`Saved memory ${id}.`);
+  });
+
+program.command("propose <title> <content>")
+  .description("Save a project knowledge suggestion as proposed, not confirmed.")
+  .option("--category <category>", "Memory category", "decision")
+  .option("--source <path>", "Optional source file path")
+  .option("--commit <sha>", "Optional source Git commit")
+  .action((title: string, content: string, options: { category: string; source?: string; commit?: string }) => {
+    const id = proposeMemory(ensureInitialized(), title, content, options.category, options.source, options.commit);
+    console.log(`Saved proposed memory ${id}; it requires explicit confirmation.`);
+  });
+
+const memory = program.command("memory").description("Manage the lifecycle of an existing project memory.");
+
+memory.command("update <id>")
+  .description("Update explicitly supplied fields on a project memory.")
+  .option("--category <category>", "New category")
+  .option("--title <title>", "New title")
+  .option("--content <content>", "New content")
+  .option("--source <path>", "New source file path")
+  .option("--commit <sha>", "New source Git commit")
+  .action((id: string, options: { category?: string; title?: string; content?: string; source?: string; commit?: string }) => {
+    const changed = updateMemory(ensureInitialized(), id, {
+      category: options.category,
+      title: options.title,
+      content: options.content,
+      sourcePath: options.source,
+      commitSha: options.commit,
+    });
+    if (!changed) throw new Error(`Memory not found: ${id}`);
+    console.log(`Updated memory ${id}.`);
+  });
+
+memory.command("transition <id> <status>")
+  .description("Explicitly transition a memory to confirmed, obsolete, or rejected.")
+  .action((id: string, status: string) => {
+    const changed = transitionMemory(ensureInitialized(), id, status as MemoryStatus);
+    if (!changed) throw new Error(`Memory not found or transition was not applied: ${id}`);
+    console.log(`Memory ${id} is now ${status}.`);
+  });
+
+memory.command("delete <id>")
+  .description("Delete a memory from this project's local database.")
+  .action((id: string) => {
+    if (!deleteMemory(ensureInitialized(), id)) throw new Error(`Memory not found: ${id}`);
+    console.log(`Deleted memory ${id}.`);
   });
 
 program.command("memories [query]")
