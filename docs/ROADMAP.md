@@ -161,14 +161,16 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ### Block 3 — Limits, paths, and project isolation
 
-- [ ] Audit every response collection for a finite adapter-level limit and explicit truncation/total metadata where applicable.
-- [ ] Bound `index_freshness.skippedFiles` and `index_freshness.errors`, preserving total counts and explicit truncation metadata. (Implementation added; protocol boundary tests pending.)
-- [ ] Bound `memory_freshness` records, preserving the total eligible count and explicit truncation metadata. (Implementation added; protocol boundary tests pending.)
-- [ ] Make `project_map` report total indexed files and whether its limited result is truncated. (Implementation added, including nested per-file caps; protocol boundary tests pending.)
-- [ ] Add boundary tests for all three tools; do not silently drop records or totals.
-- [ ] Run two independent MCP processes against two repositories with different indexed files and memories.
-- [ ] Prove that each process remains bound to its configured project across repeated calls.
-- [ ] Test invalid, missing, unindexed, traversal, and outside-root paths.
+- [x] Audit every response collection for a finite adapter-level limit and explicit truncation/total metadata where applicable.
+- [x] Bound `index_freshness.skippedFiles` and `index_freshness.errors`, preserving total counts and explicit truncation metadata.
+- [x] Bound `memory_freshness` records, preserving the total eligible count and explicit truncation metadata; inspection work is limited to the requested records.
+- [x] Make `project_map` report total indexed files and truncation; nested imports, unresolved imports, and candidate paths are capped with metadata.
+- [x] Add exact-limit, over-limit, empty, and incomplete-discovery protocol tests for the three tools.
+- [x] Run two concurrent MCP servers against two repositories with different indexed files and memories.
+- [x] Prove that each server remains bound to its configured project across repeated calls.
+- [x] Test invalid, missing, unindexed, traversal, and outside-root paths.
+
+**Evidence:** CI run [41239258583](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41239258583) passed 86 tests across 10 test files, typecheck, build, and smoke.
 
 **Deliverable:** bounded responses and automated evidence that projects cannot leak into one another.
 
