@@ -67,6 +67,7 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
       imports.add(node.moduleSpecifier.text);
       if (node.importClause && node.importClause.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
         for (const element of node.importClause.namedBindings.elements) {
+          if (node.importClause.isTypeOnly || element.isTypeOnly) continue;
           importedBindings.set(element.name.text, {
             moduleSpecifier: node.moduleSpecifier.text,
             importedName: element.propertyName?.text ?? element.name.text,
@@ -142,6 +143,7 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
     if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) &&
       node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
       for (const element of node.importClause.namedBindings.elements) {
+        if (node.importClause.isTypeOnly || element.isTypeOnly) continue;
         importedBindings.set(element.name.text, {
           moduleSpecifier: node.moduleSpecifier.text,
           importedName: element.propertyName?.text ?? element.name.text,
