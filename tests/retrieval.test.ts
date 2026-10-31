@@ -278,6 +278,9 @@ describe("bounded dependency traversal and file details", () => {
       'import { Base } from "./base";\nexport class Worker extends Base {}');
     indexWithDatabase(database!, location);
 
+    expect(getFileDetails(location, "base.ts").relations).toEqual([expect.objectContaining({
+      direction: "incoming", relation: "EXTENDS", sourceName: "Worker", targetName: "Base",
+    })]);
     expect(getFileDetails(location, "worker.ts")).toMatchObject({
       path: "worker.ts",
       language: "typescript",
