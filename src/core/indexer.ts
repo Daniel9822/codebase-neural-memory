@@ -36,6 +36,7 @@ interface DiscoveryResult {
   skipped: number;
   failed: number;
   errors: string[];
+  skippedFiles: string[];
 }
 
 function loadIgnoreRules(directory: string, isRoot = false): IgnoreScope {
@@ -64,19 +65,20 @@ function discoverFiles(root: string): DiscoveryResult {
   const presentPaths = new Set<string>();
   const protectedDirectories = new Set<string>();
   const errors: string[] = [];
+  const skippedFiles: string[] = [];
   let scanned = 0;
   let skipped = 0;
   let failed = 0;
   const rootScope = loadIgnoreRules(root, true);
   const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
-    const directoryPath = relative(root, directory).replaceAll("\\\\", "/");
+    const directoryPath = relative(root, directory).replaceAll("\\", "/");
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
     let entries;
     try {
       entries = readdirSync(directory, { withFileTypes: true });
     } catch (error) {
       failed += 1;
-      errors.push(directoryPath || "." + ": " + (error instanceof Error ? error.message : String(error)));
+      errors.push((directoryPath || ".") + ": " + (error instanceof Error ? error.message : String(error)));
       protectedDirectories.add(directoryPath);
       return;
     }
@@ -94,9 +96,9 @@ function discoverFiles(root: string): DiscoveryResult {
       scanned += 1;
       try {
         const stat = statSync(absolutePath);
-        if (stat.size > MAX_FILE_BYTES) { skipped += 1; continue; }
+        if (stat.size > MAX_FILE_BYTES) { skipped += 1; skippedFiles.push(relativePath + ": exceeds " + MAX_FILE_BYTES + " bytes"); continue; }
         const content = readFileSync(absolutePath);
-        if (content.includes(0)) { skipped += 1; continue; }
+        if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
         const source = content.toString("utf8");
         output.push({
           relativePath,
@@ -114,7 +116,7 @@ function discoverFiles(root: string): DiscoveryResult {
   walk(root, [rootScope]);
   return {
     files: output.sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
-    presentPaths, protectedDirectories, scanned, skipped, failed, errors,
+    presentPaths, protectedDirectories, scanned, skipped, failed, errors, skippedFiles,
   };
 }
 function languageForExtension(extension: string): string {
@@ -210,7 +212,7 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
     const summary: IndexSummary = {
       scanned: discovery.scanned, added: 0, updated: 0, unchanged: 0, deleted: 0,
       symbols: 0, relations: 0, skipped: discovery.skipped, failed: discovery.failed,
-      errors: [...discovery.errors],
+      errors: [...discovery.errors], skippedFiles: [...discovery.skippedFiles],
     };
 
     const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; path: string; content_hash: string }) => {
