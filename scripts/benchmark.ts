@@ -1,6 +1,6 @@
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdtempSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join, relative, resolve } from "node:path";
 import { performance } from "node:perf_hooks";
 import { ensureProject, openDatabase } from "../src/storage/database.js";
 import { indexProject, getIndexFreshness } from "../src/core/indexer.js";
@@ -188,6 +188,72 @@ function runCase(scale: typeof scales[number]) {
   }
 }
 
+function findFirstSource(rootPath: string, currentPath = rootPath): string | null {
+  const ignored = new Set([".git", "node_modules", "dist", "coverage", ".cnm"]);
+  const entries = readdirSync(currentPath, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      if (ignored.has(entry.name)) continue;
+      const nested = findFirstSource(rootPath, join(currentPath, entry.name));
+      if (nested) return nested;
+    } else if (entry.isFile() && /\.tsx?$/.test(entry.name) && !entry.name.endsWith(".d.ts")) {
+      return relative(rootPath, join(currentPath, entry.name)).replaceAll("\\", "/");
+    }
+  }
+  return null;
+}
+
+function runWorkspaceCase() {
+  const rootPath = resolve(process.cwd());
+  const sourcePath = existsSync(join(rootPath, "src", "core", "indexer.ts"))
+    ? "src/core/indexer.ts"
+    : findFirstSource(rootPath);
+  if (!sourcePath) return null;
+
+  const temporaryDirectory = mkdtempSync(join(tmpdir(), "cnm-benchmark-workspace-"));
+  const location: ProjectLocation = {
+    id: "benchmark-real-workspace",
+    rootPath,
+    dataDirectory: join(temporaryDirectory, "data"),
+    databasePath: join(temporaryDirectory, "data", "memory.sqlite"),
+  };
+  try {
+    const db = openDatabase(location);
+    try { ensureProject(db, location); } finally { db.close(); }
+
+    const rssBeforeBytes = process.memoryUsage().rss;
+    const initialStart = performance.now();
+    const initial = indexProject(location);
+    const initialIndexMs = performance.now() - initialStart;
+    const unchangedStart = performance.now();
+    const unchanged = indexProject(location);
+    const unchangedIndexMs = performance.now() - unchangedStart;
+    const search = measure(() => searchSymbols(location, "indexProject", 20), 25);
+    const graph = measure(() => findDependencies(location, sourcePath, 5, 100, 1000), 25);
+    const freshness = measure(() => getIndexFreshness(location), 10);
+
+    return {
+      repository: basename(rootPath),
+      sourceFiles: initial.added + initial.updated + initial.unchanged,
+      graphStartPath: sourcePath,
+      initialIndexMs: Number(initialIndexMs.toFixed(3)),
+      unchangedIndexMs: Number(unchangedIndexMs.toFixed(3)),
+      unchangedFiles: unchanged.unchanged,
+      searchLatency: summarize(search.timings),
+      searchResultCount: search.last.length,
+      graphLatency: summarize(graph.timings),
+      graphResultCount: graph.last.dependencies.length,
+      freshnessLatency: summarize(freshness.timings),
+      databaseBytes: databaseBytes(location.databasePath),
+      rssBeforeBytes,
+      rssAfterBytes: process.memoryUsage().rss,
+      processPeakRssBytes: peakRssBytes(),
+    };
+  } finally {
+    rmSync(temporaryDirectory, { recursive: true, force: true });
+  }
+}
+
 const report = {
   schemaVersion: 1,
   generatedAt: new Date().toISOString(),
@@ -203,6 +269,7 @@ const report = {
     note: "Measurements are descriptive and machine-dependent. No performance threshold or improvement claim is implied.",
   },
   cases: scales.map(runCase),
+  realRepository: runWorkspaceCase(),
   processPeakRssBytes: peakRssBytes(),
 };
 
