@@ -35,7 +35,7 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 | `file_details` | `path`: non-empty string; `limit`: optional integer, 1–500 | 100 per collection | `getFileDetails(location, path, limit)` |
 | `change_impact` | `path`: non-empty string; `limit`: optional integer, 1–5,000; `maxProcessed`: optional integer, 1–10,000 | `limit`: 100; `maxProcessed`: 1,000 | `findImpact(location, path, limit, maxProcessed)` |
 | `task_context` | `task`: non-empty string; `maxItems`: optional integer, 1–100; `maxCharacters`: optional integer, 100–50,000 | `maxItems`: 20; `maxCharacters`: 12,000 | `buildTaskContext(location, task, options)` |
-| `memory_freshness` | `limit`: optional integer, 1–500 | 100 records; total eligible count and truncation flag | `getMemoryFreshnessReport(location, limit)` |
+| `memory_freshness` | `limit`: optional integer, 1–500 | 100 source- or commit-linked records; total eligible count and truncation flag | `getMemoryFreshnessReport(location, limit)` |
 | `memory_recall` | `query`: optional string; `limit`: optional integer, 1–50 | `query`: empty string; `limit`: 20 | `recallMemories(location, query, limit)` |
 
 ### Result and truncation behavior
