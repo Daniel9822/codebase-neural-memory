@@ -98,7 +98,7 @@ The repository currently documents and contains an initial JavaScript/TypeScript
 - Read-only working-tree freshness report (`cnm freshness` / `index_freshness`); it is not Git branch/commit tracking or a watcher.
 - Explicit local memories, currently saved as confirmed records by the CLI.
 - Read-only MCP tools registered in `src/adapters/mcp/server.ts` (10): `project_overview`, `index_freshness`, `project_map`, `symbol_lookup`, `dependency_graph`, `file_details`, `change_impact`, `task_context`, `memory_freshness`, and `memory_recall`.
-- MCP input schemas, adapter defaults and hard bounds, core-operation mappings, project binding, and known verification gaps are specified in [`docs/PHASE_6_MCP_CONTRACT.md`](PHASE_6_MCP_CONTRACT.md). The specification records the implemented contract; it does not treat protocol error mapping or client integrations as verified.
+- MCP input schemas, adapter defaults and hard bounds, core-operation mappings, project binding, and known verification gaps are specified in [`docs/PHASE_6_MCP_CONTRACT.md`](PHASE_6_MCP_CONTRACT.md). Workspace-scoped OpenCode and VS Code setup templates and a real-client verification runbook are provided in [`docs/CLIENT_INTEGRATION.md`](CLIENT_INTEGRATION.md); the templates are tested, but live client execution remains an explicit acceptance requirement.
 
 Known limitations in this baseline include conservative import resolution, same-file/local call resolution, simple memory lifecycle, path-derived project identity, no conceptual component extraction/retrieval, no repository-scale retrieval quality or performance baseline yet, and lack of semantic embeddings, automatic file watching, advanced Git history analysis, and multi-developer synchronization.
 

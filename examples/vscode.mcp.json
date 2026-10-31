@@ -1,0 +1,10 @@
+{
+  "servers": {
+    "codebase-memory": {
+      "type": "stdio",
+      "command": "cnm",
+      "args": ["mcp"],
+      "cwd": "${workspaceFolder}"
+    }
+  }
+}

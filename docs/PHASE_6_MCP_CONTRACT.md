@@ -63,7 +63,7 @@ The ten handlers call overview, freshness, map, search, graph, file-detail, cont
 - The current handlers serialize successful results as JSON text in MCP text content.
 - The adapter tests exercise the real registered server through the SDK's `InMemoryTransport`. Zod-invalid arguments and a core missing-indexed-path exception are both observed as tool results with `isError: true`.
 - Repeated calls, clean in-memory transport close/reconnect, and real CLI stdio startup, EOF exit, and process reconnection are covered by `tests/mcp-adapter.test.ts` and `tests/mcp-stdio.test.ts`.
-- **Not yet verified:** isolation across two concurrently running project processes. This remains a Block 3 requirement.
+- Two concurrently running MCP servers bound to different project roots are covered by `tests/mcp-boundaries.test.ts`; distinct indexed files and memories remain isolated across repeated calls.
 
 ## Phase 6 verification status
 
@@ -76,9 +76,9 @@ The ten handlers call overview, freshness, map, search, graph, file-detail, cont
 | All ten valid calls and invalid arguments | SDK in-memory tests discover all ten schemas and call all ten handlers; invalid Zod/core errors are asserted | Verified in tests |
 | Bounded freshness and map reports | Exact/over/empty/incomplete discovery boundaries, totals, truncation, nested map caps, and invalid path errors are tested | Verified in CI run 41239258583 |
 | Repeat calls, EOF, and reconnection | In-memory protocol test plus real CLI stdio process EOF/restart test | Verified in tests |
-| Two-project process isolation | Two concurrent MCP servers tested with distinct indexed files and memories; no cross-project reads observed | Verified in tests |
-| OpenCode end-to-end | Not evidenced by the reviewed source/docs | Pending |
-| Second real MCP client | Not evidenced by the reviewed source/docs | Pending |
+| Two-project process isolation | Two concurrent MCP servers tested with distinct indexed files and memories; no cross-project reads observed | Verified in CI run 41239370942 |
+| OpenCode end-to-end | Workspace-scoped config template and manual real-client runbook added; actual client invocation still requires execution in an OpenCode installation | Pending execution |
+| VS Code end-to-end | Workspace-scoped stdio config template and manual real-client runbook added; actual client invocation still requires execution in VS Code | Pending execution |
 
 ## Maintenance rule
 
