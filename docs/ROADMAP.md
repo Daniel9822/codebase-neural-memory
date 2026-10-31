@@ -108,7 +108,7 @@ Exit condition: memory CRUD, lifecycle transitions, source traceability, and sta
 
 ## Phase 5 — Task-oriented context builder
 
-**Status:** Implementation complete; final close-out awaits this PR's post-merge verification.
+**Status:** Implementation merged; final close-out awaits verification of the merge commit on the default branch.
 
 Tasks:
 - [x] Accept a natural-language task description and extract deterministic lexical anchors without an LLM.
@@ -129,7 +129,9 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 - **Previously merged feature baseline:** PR [#36 — stale source-index warnings](https://github.com/Daniel9822/codebase-neural-memory/pull/36), merge commit `992fcd3c2aebc8029b3ca2f24a3c3e76aeba1bb6`.
 - **Post-merge CI:** [GitHub Actions #41233040729](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41233040729) — success.
 - **Verified commands:** `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke`; every workflow step completed successfully on GitHub-hosted Ubuntu / Node.js 22.
-- **Final relevance/budget close-out:** implemented and regression-tested in PR pending merge; record its merge SHA and post-merge CI here before changing status to formally closed.
+- **Final relevance/budget close-out:** PR [#37](https://github.com/Daniel9822/codebase-neural-memory/pull/37) merged into `main`; merge commit `f4f5aa6612de5aafdf4423095251030ac862b12b`.
+- **PR verification:** [GitHub Actions #41233795736](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41233795736) — success; `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all completed successfully on the final PR head.
+- **Remaining close-out check:** verify a workflow run against the merge commit/default branch before marking Phase 5 formally closed.
 - **Limitations:** retrieval remains lexical/structural and does not promise semantic completeness. Context items are structured file details, not text excerpts. Incremental lookup remains a core API; no separate CLI/MCP incremental-lookup command is exposed.
 
 ## Phase 6 — MCP adapter and agent workflow
