@@ -49,9 +49,10 @@ program.command("init")
 program.command("index")
   .description("Index JavaScript and TypeScript files; later runs update changed files only.")
   .option("--force", "Reparse every supported file")
-  .action((options: { force?: boolean }) => {
+  .option("--exclude <pattern>", "Additional ignore pattern (repeatable)", (value: string, previous: string[]) => [...previous, value], [])
+  .action((options: { force?: boolean; exclude: string[] }) => {
     const location = ensureInitialized();
-    const result = indexProject(location, Boolean(options.force));
+    const result = indexProject(location, Boolean(options.force), options.exclude);
     console.log("Index completed:");
     console.table(result);
     if (result.skippedFiles.length > 0) {
