@@ -23,31 +23,56 @@ interface DiscoveredFile {
   source: string;
 }
 
-function loadIgnoreRules(root: string) {
-  const rules = ignore().add(DEFAULT_EXCLUDES);
+interface IgnoreScope {
+  directory: string;
+  rules: ReturnType<typeof ignore>;
+}
+
+interface DiscoveryResult {
+  files: DiscoveredFile[];
+  presentPaths: Set<string>;
+}
+
+function loadIgnoreRules(directory: string, isRoot = false): IgnoreScope {
+  const rules = ignore();
+  if (isRoot) {
+    rules.add(DEFAULT_EXCLUDES);
+    rules.add([".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx"]);
+  }
   try {
-    rules.add(readFileSync(join(root, ".gitignore"), "utf8"));
+    rules.add(readFileSync(join(directory, ".gitignore"), "utf8"));
   } catch {
     // A missing .gitignore is normal.
   }
-  rules.add([".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx"]);
-  return rules;
+  return { directory, rules };
 }
 
-function discoverFiles(root: string): DiscoveredFile[] {
-  const rules = loadIgnoreRules(root);
+function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
+  return scopes.some(({ directory, rules }) => {
+    const scopedPath = relative(directory, absolutePath).replaceAll("\\", "/");
+    return rules.ignores(scopedPath) || rules.ignores(scopedPath + "/");
+  });
+}
+
+function discoverFiles(root: string): DiscoveryResult {
   const output: DiscoveredFile[] = [];
-  const walk = (directory: string): void => {
+  const presentPaths = new Set<string>();
+  const rootScope = loadIgnoreRules(root, true);
+  const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
+    const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       const absolutePath = join(directory, entry.name);
       const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
-      if (rules.ignores(relativePath) || rules.ignores(`${relativePath}/`)) continue;
+      if (isIgnored(absolutePath, scopes)) continue;
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
-        walk(absolutePath);
+        walk(absolutePath, scopes);
         continue;
       }
       if (!entry.isFile() || !isSupportedSourceFile(relativePath)) continue;
+      // Track existing source files even when they are skipped by the size limit.
+      // They must not be mistaken for deleted files during index reconciliation.
+      presentPaths.add(relativePath);
       const stat = statSync(absolutePath);
       if (stat.size > MAX_FILE_BYTES) continue;
       const source = readFileSync(absolutePath, "utf8");
@@ -60,8 +85,11 @@ function discoverFiles(root: string): DiscoveredFile[] {
       });
     }
   };
-  walk(root);
-  return output.sort((a, b) => a.relativePath.localeCompare(b.relativePath));
+  walk(root, [rootScope]);
+  return {
+    files: output.sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
+    presentPaths,
+  };
 }
 
 function languageForExtension(extension: string): string {
@@ -147,12 +175,11 @@ export function indexProject(location: ProjectLocation, force = false): IndexSum
 }
 
 export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation, force = false): IndexSummary {
-  const discovered = discoverFiles(location.rootPath);
+  const { files: discovered, presentPaths } = discoverFiles(location.rootPath);
   const existing = db.prepare("SELECT id, path, content_hash FROM files").all() as Array<{
     id: number; path: string; content_hash: string;
   }>;
   const existingByPath = new Map(existing.map((file) => [file.path, file]));
-  const foundPaths = new Set(discovered.map((file) => file.relativePath));
   const summary: IndexSummary = { scanned: discovered.length, added: 0, updated: 0, unchanged: 0, deleted: 0, symbols: 0, relations: 0 };
 
   const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; path: string; content_hash: string }) => {
@@ -202,7 +229,7 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
     db.prepare("DELETE FROM files WHERE id = ?").run(fileId);
   });
   for (const file of existing) {
-    if (!foundPaths.has(file.path)) {
+    if (!presentPaths.has(file.path)) {
       removeFile(file.id);
       summary.deleted += 1;
     }
