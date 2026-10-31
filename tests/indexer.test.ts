@@ -396,9 +396,9 @@ describe("indexWithDatabase", () => {
       WHERE r.kind IN ('EXTENDS', 'IMPLEMENTS')
       ORDER BY r.kind, source.name
     `).all()).toEqual([
+      { source: "LocalWorker", target: "LocalBase", kind: "EXTENDS", provenance: "typescript-ast-heritage" },
       { source: "Worker", target: "Base", kind: "EXTENDS", provenance: "typescript-ast-heritage" },
       { source: "Worker", target: "Contract", kind: "IMPLEMENTS", provenance: "typescript-ast-heritage" },
-      { source: "LocalWorker", target: "LocalBase", kind: "EXTENDS", provenance: "typescript-ast-heritage" },
     ]);
   });
 
