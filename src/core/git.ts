@@ -1,0 +1,109 @@
+import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
+import { realpathSync } from "node:fs";
+import { resolve } from "node:path";
+
+export interface GitSnapshot {
+  available: boolean;
+  repositoryRoot: string | null;
+  commit: string | null;
+  branch: string | null;
+  dirty: boolean | null;
+  changedPathCount: number | null;
+  statusHash: string | null;
+}
+
+function runGit(rootPath: string, args: string[]): string | null {
+  try {
+    return execFileSync("git", args, {
+      cwd: rootPath,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+    }).trimEnd();
+  } catch {
+    return null;
+  }
+}
+
+/** Read only the repository identity and working-tree state; never changes Git metadata. */
+export function getGitSnapshot(rootPath: string): GitSnapshot {
+  const reportedRoot = runGit(rootPath, ["rev-parse", "--show-toplevel"]);
+  if (!reportedRoot) {
+    return {
+      available: false,
+      repositoryRoot: null,
+      commit: null,
+      branch: null,
+      dirty: null,
+      changedPathCount: null,
+      statusHash: null,
+    };
+  }
+
+  let repositoryRoot: string;
+  let requestedRoot: string;
+  try {
+    repositoryRoot = realpathSync(reportedRoot);
+    requestedRoot = realpathSync(rootPath);
+  } catch {
+    return {
+      available: false,
+      repositoryRoot: null,
+      commit: null,
+      branch: null,
+      dirty: null,
+      changedPathCount: null,
+      statusHash: null,
+    };
+  }
+
+  const normalize = (value: string) => resolve(value).replaceAll("\\\\", "/");
+  const rootsMatch = process.platform === "win32"
+    ? normalize(repositoryRoot).toLowerCase() === normalize(requestedRoot).toLowerCase()
+    : normalize(repositoryRoot) === normalize(requestedRoot);
+  if (!rootsMatch) {
+    return {
+      available: false,
+      repositoryRoot: null,
+      commit: null,
+      branch: null,
+      dirty: null,
+      changedPathCount: null,
+      statusHash: null,
+    };
+  }
+
+  const status = runGit(rootPath, ["status", "--porcelain=v1", "--untracked-files=all"]);
+  if (status === null) {
+    return {
+      available: false,
+      repositoryRoot,
+      commit: null,
+      branch: null,
+      dirty: null,
+      changedPathCount: null,
+      statusHash: null,
+    };
+  }
+
+  return {
+    available: true,
+    repositoryRoot,
+    commit: runGit(rootPath, ["rev-parse", "--verify", "HEAD"]) || null,
+    branch: runGit(rootPath, ["symbolic-ref", "--quiet", "--short", "HEAD"]) || null,
+    dirty: status.length > 0,
+    changedPathCount: status.length === 0 ? 0 : status.split("\\n").filter(Boolean).length,
+    statusHash: createHash("sha256").update(status).digest("hex"),
+  };
+}
+
+export function sameGitSnapshot(left: GitSnapshot, right: GitSnapshot): boolean {
+  return left.available === right.available &&
+    left.repositoryRoot === right.repositoryRoot &&
+    left.commit === right.commit &&
+    left.branch === right.branch &&
+    left.dirty === right.dirty &&
+    left.changedPathCount === right.changedPathCount &&
+    left.statusHash === right.statusHash;
+}
