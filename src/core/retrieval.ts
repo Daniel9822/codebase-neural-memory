@@ -236,7 +236,7 @@ export function findImpact(
   }
   const db = openDatabase(location);
   try {
-    const normalized = targetPath.replaceAll("\\\\", "/").replace(/^\\.\\//, "");
+    const normalized = targetPath.replaceAll("\\", "/").replace(/^\.\//, "");
     const target = db.prepare("SELECT id FROM files WHERE path = ?").get(normalized) as { id: number } | undefined;
     if (!target) throw new Error(`File not found in memory index: ${normalized}. Run cnm index.`);
     const queue = [target.id];
