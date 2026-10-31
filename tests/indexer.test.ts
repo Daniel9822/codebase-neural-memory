@@ -34,6 +34,25 @@ afterEach(() => {
 });
 
 describe("indexWithDatabase", () => {
+  it("keeps stable file and symbol identifiers across forced reindex and line shifts", () => {
+    createProject();
+    const filePath = join(location.rootPath, "src", "stable.ts");
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(filePath, "export function stable(value: string) { return value; }\\n");
+    indexWithDatabase(database!, location);
+
+    const beforeFile = database!.prepare("SELECT stable_id FROM files WHERE path = ?").get("src/stable.ts") as { stable_id: string };
+    const beforeSymbol = database!.prepare("SELECT stable_id FROM symbols WHERE name = ?").get("stable") as { stable_id: string };
+
+    writeFileSync(filePath, "// a harmless line shift\\nexport function stable(value: string) { return value; }\\n");
+    indexWithDatabase(database!, location, true);
+
+    const afterFile = database!.prepare("SELECT stable_id FROM files WHERE path = ?").get("src/stable.ts") as { stable_id: string };
+    const afterSymbol = database!.prepare("SELECT stable_id FROM symbols WHERE name = ?").get("stable") as { stable_id: string };
+    expect(afterFile.stable_id).toBe(beforeFile.stable_id);
+    expect(afterSymbol.stable_id).toBe(beforeSymbol.stable_id);
+  });
+
   it("does not delete an indexed file just because it grows beyond the size limit", () => {
     createProject();
     const filePath = join(location.rootPath, "src", "large.ts");
