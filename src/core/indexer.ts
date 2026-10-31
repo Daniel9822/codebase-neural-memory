@@ -4,6 +4,7 @@ import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "no
 import ts from "typescript";
 import ignore from "ignore";
 import type { ProjectLocation } from "./project.js";
+import { getGitSnapshot, sameGitSnapshot } from "./git.js";
 import { isSupportedSourceFile, parseTypeScriptFile } from "./typescript-parser.js";
 import type { IndexSummary } from "../shared/types.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
@@ -439,20 +440,68 @@ export interface IndexFreshness {
   limits: { detailItems: number };
   totals: { skippedFiles: number; errors: number };
   truncated: { skippedFiles: boolean; errors: boolean };
+  git: {
+    status: "unavailable" | "unrecorded" | "current" | "changed";
+    indexedCommit: string | null;
+    currentCommit: string | null;
+    indexedBranch: string | null;
+    currentBranch: string | null;
+    indexedDirty: boolean | null;
+    currentDirty: boolean | null;
+    indexedChangedPathCount: number | null;
+    currentChangedPathCount: number | null;
+    commitChanged: boolean;
+    branchChanged: boolean;
+    workingTreeChanged: boolean;
+  };
 }
 
 const MAX_FRESHNESS_DETAIL_ITEMS = 200;
 
+type IndexedGitMetadata = {
+  indexed_commit: string | null;
+  indexed_branch: string | null;
+  indexed_worktree_dirty: number | null;
+  indexed_worktree_status_hash: string | null;
+  indexed_worktree_changed_paths: number | null;
+};
+
+function gitFreshness(project: IndexedGitMetadata, current: ReturnType<typeof getGitSnapshot>): IndexFreshness["git"] {
+  const recorded = project.indexed_worktree_status_hash !== null;
+  const available = current.available;
+  const commitChanged = available && recorded && project.indexed_commit !== current.commit;
+  const branchChanged = available && recorded && project.indexed_branch !== current.branch;
+  const workingTreeChanged = available && recorded && project.indexed_worktree_status_hash !== current.statusHash;
+  const status = !available ? "unavailable" : !recorded ? "unrecorded"
+    : commitChanged || branchChanged || workingTreeChanged ? "changed" : "current";
+  return {
+    status,
+    indexedCommit: project.indexed_commit,
+    currentCommit: current.commit,
+    indexedBranch: project.indexed_branch,
+    currentBranch: current.branch,
+    indexedDirty: project.indexed_worktree_dirty === null ? null : project.indexed_worktree_dirty !== 0,
+    currentDirty: current.dirty,
+    indexedChangedPathCount: project.indexed_worktree_changed_paths,
+    currentChangedPathCount: current.changedPathCount,
+    commitChanged,
+    branchChanged,
+    workingTreeChanged,
+  };
+}
+
 export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
   const db = openDatabase(location);
   try {
-    const project = db.prepare("SELECT last_indexed_at, index_revision, index_excludes_json FROM projects WHERE id = ?").get(location.id) as {
+    const project = db.prepare("SELECT last_indexed_at, index_revision, index_excludes_json, indexed_commit, indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths FROM projects WHERE id = ?").get(location.id) as ({
       last_indexed_at: string | null; index_revision: number; index_excludes_json: string;
-    } | undefined;
+    } & IndexedGitMetadata) | undefined;
     if (!project) throw new Error("This repository has not been initialized. Run `cnm init` first.");
+    const currentGit = getGitSnapshot(location.rootPath);
+    const git = gitFreshness(project, currentGit);
     if (!project.last_indexed_at) {
       return { status: "not-indexed", indexRevision: project.index_revision, checkedFiles: 0, addedFiles: 0,
-        changedFiles: 0, deletedFiles: 0, skippedFiles: [], errors: [], limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS }, totals: { skippedFiles: 0, errors: 0 }, truncated: { skippedFiles: false, errors: false } };
+        changedFiles: 0, deletedFiles: 0, skippedFiles: [], errors: [], limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS }, totals: { skippedFiles: 0, errors: 0 }, truncated: { skippedFiles: false, errors: false }, git };
     }
     const excludes = JSON.parse(project.index_excludes_json) as string[];
     const discovery = discoverFiles(location.rootPath, excludes);
@@ -472,8 +521,9 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
         directory === "" || file.path === directory || file.path.startsWith(directory + "/"));
       if (!protectedByReadFailure) deletedFiles += 1;
     }
-    const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0;
-    const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0;
+    const gitMetadataUnavailable = git.status === "unavailable" && project.indexed_worktree_status_hash !== null;
+    const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0 || gitMetadataUnavailable;
+    const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0 || git.status === "changed" || git.status === "unrecorded";
     return {
       status: incomplete ? "incomplete" : stale ? "stale" : "current",
       indexRevision: project.index_revision,
@@ -487,6 +537,7 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
         skippedFiles: discovery.skippedFiles.length > MAX_FRESHNESS_DETAIL_ITEMS,
         errors: discovery.errors.length > MAX_FRESHNESS_DETAIL_ITEMS,
       },
+      git,
     };
   } finally {
     db.close();
@@ -503,6 +554,7 @@ export function indexProject(location: ProjectLocation, force = false, extraExcl
 }
 
 export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation, force = false, extraExcludes: string[] = []): IndexSummary {
+  const gitBefore = getGitSnapshot(location.rootPath);
   const discovery = discoverFiles(location.rootPath, extraExcludes);
   const { files: discovered, presentPaths } = discovery;
   return db.transaction(() => {
@@ -595,8 +647,15 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
     if (!revisionRow) throw new Error("Project record is missing; run cnm init first.");
     summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
+    const gitAfter = getGitSnapshot(location.rootPath);
+    if (!sameGitSnapshot(gitBefore, gitAfter)) {
+      throw new Error("Git repository state changed during indexing; rerun `cnm index` to capture a consistent snapshot.");
+    }
     const now = new Date().toISOString();
-    db.prepare("UPDATE projects SET last_indexed_at = ? WHERE id = ?").run(now, location.id);
+    db.prepare("UPDATE projects SET last_indexed_at = ?, indexed_commit = ?, indexed_branch = ?, indexed_worktree_dirty = ?, indexed_worktree_status_hash = ?, indexed_worktree_changed_paths = ? WHERE id = ?")
+      .run(now, gitAfter.available ? gitAfter.commit : null, gitAfter.available ? gitAfter.branch : null,
+        gitAfter.available && gitAfter.dirty !== null ? (gitAfter.dirty ? 1 : 0) : null,
+        gitAfter.available ? gitAfter.statusHash : null, gitAfter.available ? gitAfter.changedPathCount : null, location.id);
     return summary;
   })();
 }

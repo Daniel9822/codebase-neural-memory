@@ -67,7 +67,7 @@ program.command("index")
   });
 
 program.command("freshness")
-  .description("Check whether supported source files differ from the local index.")
+  .description("Check source-file hashes and Git revision/worktree state against the local index.")
   .action(() => {
     console.log(JSON.stringify(getIndexFreshness(ensureInitialized()), null, 2));
   });
@@ -211,7 +211,7 @@ memory.command("transition <id> <status>")
   });
 
 memory.command("freshness")
-  .description("Check whether source files linked to memories have changed or disappeared.")
+  .description("Check source-file fingerprints and referenced Git commits for project memories.")
   .action(() => {
     console.log(JSON.stringify(inspectMemoryFreshness(ensureInitialized()), null, 2));
   });

@@ -45,7 +45,7 @@ cnm freshness
 cnm file "src/services/tournamentService.ts" --limit 100
 ```
 
-Run `cnm index` again after changing the code. Unchanged files are skipped by content hash; modified files are reparsed and deleted files are removed from the active index. Use `cnm freshness` to compare the working tree with the index without modifying it: the report distinguishes `not-indexed`, `current`, `stale`, and `incomplete`, and counts added, changed, and deleted files while listing skipped files and discovery errors. Add project-specific exclusions with repeatable `--exclude` patterns, for example `cnm index --exclude "generated/" --exclude "*.fixture.ts"`. These patterns are additive and cannot disable mandatory safety exclusions.
+Run `cnm index` again after changing the code. Unchanged files are skipped by content hash; modified files are reparsed and deleted files are removed from the active index. Use `cnm freshness` to compare the working tree with the index without modifying it: the report distinguishes `not-indexed`, `current`, `stale`, and `incomplete`, counts added, changed, and deleted files, and reports the indexed/current Git commit, branch, and working-tree state when Git metadata is available. A changed commit, branch, or Git working-tree snapshot is reported as stale even when source-file hashes are unchanged. Non-Git folders continue to use file-content freshness alone. Add project-specific exclusions with repeatable `--exclude` patterns, for example `cnm index --exclude "generated/" --exclude "*.fixture.ts"`. These patterns are additive and cannot disable mandatory safety exclusions.
 
 ## Project memory lifecycle
 
@@ -63,7 +63,7 @@ cnm memory delete <memory-id>
 
 The lifecycle permits `proposed → confirmed` or `proposed → rejected`, `confirmed → obsolete`, and `obsolete → confirmed`. Rejected memories are terminal and excluded from recall by default. Updates and deletion are explicit and scoped to the current project. Optional source paths, Git commit identifiers, and explicit author identities can be stored with a memory. The original author is retained separately from the identity supplied for the latest update; CNM does not infer or transmit personal identity automatically.
 
-When a source path is supplied, CNM records a SHA-256 fingerprint of the referenced file. `cnm memory freshness` reports `current`, `changed`, `missing`, `untracked`, or `unsafe` references and indicates when review is required. This inspection does not rewrite the memory or change its lifecycle status. An untracked reference has no stored baseline (for example, a legacy memory); it requires review. Unsafe references include paths that resolve outside the project root. This is file-content freshness only: commit/branch comparison and automatic lifecycle transitions are not implemented.
+When a source path is supplied, CNM records a SHA-256 fingerprint of the referenced file. `cnm memory freshness` also compares an optional recorded Git commit with the current `HEAD`: `current`, `ancestor`, `ahead`, `diverged`, `unknown`, or `unavailable` commit relationships are reported separately from file status. Older, ahead-of-branch, divergent, unknown, or unavailable commit references require review. Commit-only memories are included even when no source path is attached. This inspection does not rewrite memory content or change lifecycle status; it never auto-confirms or auto-obsoletes a memory.
 
 ## MCP integration
 
@@ -78,14 +78,14 @@ cnm mcp
 The server uses stdio and exposes ten read-only tools:
 
 - `project_overview` — local repository/index summary.
-- `index_freshness` — working-tree versus index freshness.
+- `index_freshness` — source-file and Git commit/branch/working-tree freshness versus the index.
 - `project_map` — indexed files and resolved/unresolved imports.
 - `symbol_lookup` — bounded lexical symbol search.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
 - `file_details` — bounded file metadata, symbols, imports, and relations.
 - `change_impact` — bounded reverse-import impact traversal.
 - `task_context` — deterministic, bounded task context from indexed facts and memories.
-- `memory_freshness` — source-file freshness for linked memories.
+- `memory_freshness` — source-file fingerprints and Git commit ancestry for linked or commit-referenced memories.
 - `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
 
 The MCP process is bound to the repository resolved from its working directory. Configure the MCP client with an explicit repository `cwd`; do not rely on whichever directory the client happens to inherit. For the exact argument schemas, defaults, limits, bounded freshness/map report metadata, project-binding behavior, and known verification gaps, see [the Phase 6 MCP contract](docs/PHASE_6_MCP_CONTRACT.md).
@@ -134,7 +134,7 @@ Common generated/dependency folders and sensitive files such as `.env`, private 
 - Class and interface `extends` / class `implements` relationships are recorded when the target is a unique local symbol or a uniquely resolved named import. Complex heritage expressions and unresolved or ambiguous targets are not inferred.
 - Call relationships are resolved within a file and across statically imported named exports (including aliased imports) when the import resolves to one indexed file and one exported symbol. Shadowed imports, default/namespace imports, re-exports, dynamic calls, and runtime-generated relationships are not inferred.
 - Dynamic imports, framework-specific dependency injection, reflection, and runtime-generated relationships are not inferred.
-- The index is structural, not a substitute for source code or tests. `cnm freshness` is a read-only working-tree comparison, not Git commit/branch tracking or a background watcher; it uses the exclusion patterns persisted by the last index run. The MCP `index_freshness` tool returns the same report without changing the index.
+- The index is structural, not a substitute for source code or tests. `cnm freshness` is a read-only filesystem and Git-state comparison, not a background watcher; it uses the exclusion patterns persisted by the last index run. Git dirty-state tracking covers the repository's unignored working-tree changes, so unrelated non-source edits can also make the Git snapshot stale. The MCP `index_freshness` tool returns the same report without changing the index.
 - Embeddings, semantic ranking, background file watching, and multi-developer synchronization are not part of this first milestone.
 
 ## Design principles

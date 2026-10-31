@@ -41,7 +41,7 @@ describe("database migrations", () => {
       id: "legacy-project", index_revision: 6, index_excludes_json: "[]",
     });
     expect(database.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
-      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 },
+      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 },
     ]);
   });
 
@@ -49,10 +49,14 @@ describe("database migrations", () => {
     database = new Database(":memory:") as MemoryDatabase;
     migrate(database);
     migrate(database);
-    for (const version of [8, 9]) expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = ?").get(version)).toEqual({ count: 1 });
+    for (const version of [8, 9, 10]) expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = ?").get(version)).toEqual({ count: 1 });
     expect(database.prepare("PRAGMA table_info(projects)").all()
       .filter((column: any) => column.name === "index_excludes_json")).toHaveLength(1);
     const memoryColumns = database.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
     for (const name of ["source_hash", "author", "updated_by"]) expect(memoryColumns.some((column) => column.name === name)).toBe(true);
+    const projectColumns = database.prepare("PRAGMA table_info(projects)").all() as Array<{ name: string }>;
+    for (const name of ["indexed_branch", "indexed_worktree_dirty", "indexed_worktree_status_hash", "indexed_worktree_changed_paths"]) {
+      expect(projectColumns.some((column) => column.name === name)).toBe(true);
+    }
   });
 });

@@ -30,6 +30,10 @@ export function migrate(db: MemoryDatabase): void {
       created_at TEXT NOT NULL,
       last_indexed_at TEXT,
       indexed_commit TEXT,
+      indexed_branch TEXT,
+      indexed_worktree_dirty INTEGER,
+      indexed_worktree_status_hash TEXT,
+      indexed_worktree_changed_paths INTEGER,
       index_revision INTEGER NOT NULL DEFAULT 0,
       index_excludes_json TEXT NOT NULL DEFAULT '[]'
     );
@@ -208,6 +212,22 @@ export function migrate(db: MemoryDatabase): void {
     db.exec("ALTER TABLE memories ADD COLUMN updated_by TEXT");
   }
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (9, ?)`).run(now);
+
+  const gitProjectColumns = db.prepare("PRAGMA table_info(projects)").all() as Array<{ name: string }>;
+  const gitProjectColumnNames = new Set(gitProjectColumns.map((column) => column.name));
+  if (!gitProjectColumnNames.has("indexed_branch")) {
+    db.exec("ALTER TABLE projects ADD COLUMN indexed_branch TEXT");
+  }
+  if (!gitProjectColumnNames.has("indexed_worktree_dirty")) {
+    db.exec("ALTER TABLE projects ADD COLUMN indexed_worktree_dirty INTEGER");
+  }
+  if (!gitProjectColumnNames.has("indexed_worktree_status_hash")) {
+    db.exec("ALTER TABLE projects ADD COLUMN indexed_worktree_status_hash TEXT");
+  }
+  if (!gitProjectColumnNames.has("indexed_worktree_changed_paths")) {
+    db.exec("ALTER TABLE projects ADD COLUMN indexed_worktree_changed_paths INTEGER");
+  }
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (10, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {

@@ -1,6 +1,6 @@
 # Phase 6 — MCP Contract
 
-**Status:** Blocks 1–3 are implemented and CI-verified on 2026-10-31. CI run [41239258583](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41239258583) passed all 86 tests across 10 test files, typecheck, build, and smoke. Block 4 real-client calls were manually verified in VS Code/GitHub Copilot and OpenCode on 2026-10-31. VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 are recorded; the Copilot extension identifier/version remains unverified. Block 5 regression and close-out are complete: clean-checkout default-branch CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) passed on merge commit `f3c74147ce6b9cad2100156a644c404b965d6f6a`. Phase 5's default-branch close-out is verified by the same run. Phase 6 remains formally open only because the exact GitHub Copilot extension identifier/version is unverified.
+**Status:** Complete and formally closed on 2026-10-31. Blocks 1–3 are CI-verified; Block 4 real-client calls were manually verified in VS Code with its integrated GitHub Copilot Agent experience and in OpenCode. Recorded versions: VS Code 1.144.0 (x64), OpenCode 1.19.5, Node.js v22.12.0. No separate Copilot extension version is required for the validated VS Code installation. Block 5 regression passed in clean-checkout CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815); the documentation close-out merged in PR [#47](https://github.com/Daniel9822/codebase-neural-memory/pull/47), and post-merge main CI [41250490923](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250490923) passed.
 
 ## Source of truth
 
@@ -35,7 +35,7 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 | `file_details` | `path`: non-empty string; `limit`: optional integer, 1–500 | 100 per collection | `getFileDetails(location, path, limit)` |
 | `change_impact` | `path`: non-empty string; `limit`: optional integer, 1–5,000; `maxProcessed`: optional integer, 1–10,000 | `limit`: 100; `maxProcessed`: 1,000 | `findImpact(location, path, limit, maxProcessed)` |
 | `task_context` | `task`: non-empty string; `maxItems`: optional integer, 1–100; `maxCharacters`: optional integer, 100–50,000 | `maxItems`: 20; `maxCharacters`: 12,000 | `buildTaskContext(location, task, options)` |
-| `memory_freshness` | `limit`: optional integer, 1–500 | 100 records; total eligible count and truncation flag | `getMemoryFreshnessReport(location, limit)` |
+| `memory_freshness` | `limit`: optional integer, 1–500 | 100 source- or commit-linked records; total eligible count and truncation flag | `getMemoryFreshnessReport(location, limit)` |
 | `memory_recall` | `query`: optional string; `limit`: optional integer, 1–50 | `query`: empty string; `limit`: 20 | `recallMemories(location, query, limit)` |
 
 ### Result and truncation behavior
@@ -78,7 +78,7 @@ The ten handlers call overview, freshness, map, search, graph, file-detail, cont
 | Repeat calls, EOF, and reconnection | In-memory protocol test plus real CLI stdio process EOF/restart test | Verified in tests |
 | Two-project process isolation | Two concurrent MCP servers tested with distinct indexed files and memories; no cross-project reads observed | Verified in CI run 41239370942 |
 | OpenCode end-to-end | Installed OpenCode client connected to the workspace-scoped stdio server and successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; OpenCode 1.19.5, Node.js v22.12.0 |
-| VS Code end-to-end | VS Code MCP server showed Running; GitHub Copilot Agent successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; VS Code 1.144.0 (x64), Node.js v22.12.0; Copilot extension version not identified |
+| VS Code end-to-end | VS Code MCP server showed Running; integrated GitHub Copilot Agent successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; VS Code 1.144.0 (x64), Node.js v22.12.0; Copilot treated as part of the VS Code installation |
 | Clean-checkout regression | Default-branch CI ran lockfile install, typecheck, full tests, build, and CLI/MCP smoke on merge commit `f3c74147ce6b9cad2100156a644c404b965d6f6a` | Passed in CI run 41250061815 |
 
 ## Maintenance rule
@@ -91,4 +91,4 @@ When changing `src/adapters/mcp/server.ts`, update this contract and the linked 
 - **CI:** [run 41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) — success; `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` passed on GitHub-hosted Ubuntu / Node.js 22.
 - **Diff review:** Phase 6 PRs #42, #43, #45, and #46 reviewed. Changes are within the intended MCP adapter/core/tests, client config templates/tests, and documentation scope.
 - **Client evidence:** OpenCode and VS Code/Copilot manual calls and known version limitations are recorded in `docs/CLIENT_INTEGRATION.md`.
-- **Remaining Phase 6 gap:** exact GitHub Copilot extension identifier/version remains unverified; do not infer it from VS Code version or from the filtered extension listing.
+- **Phase 6 closure:** the user confirmed that Copilot is integrated into the validated VS Code installation; no independent extension identifier/version is required.
