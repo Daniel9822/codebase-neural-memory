@@ -1,0 +1,81 @@
+# Phase 8 — Benchmark methodology and initial baseline
+
+## How to run
+
+From a clean checkout with dependencies installed:
+
+```bash
+npm ci --no-audit --no-fund
+npm run benchmark
+```
+
+The command creates temporary repositories, indexes and measures them, then removes them. It prints one JSON report to stdout. It does not write benchmark artifacts into the repository, contact external services, or apply performance thresholds.
+
+CI runs the same command after the smoke test. The measurements below are from GitHub Actions run [41253753337](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253753337).
+
+## Fixture design
+
+The generator creates three deterministic TypeScript repositories:
+
+| Case | Source files | Generated modules | Shape |
+|---|---:|---:|---|
+| Small | 26 | 25 | One labeled domain file plus a 25-module import chain |
+| Medium | 101 | 100 | One labeled domain file plus a 100-module import chain |
+| Large | 301 | 300 | One labeled domain file plus a 300-module import chain |
+
+The shared labeled retrieval corpus contains ten symbol queries with one or more relevant symbols per query. The domain fixture is held constant across scales; generated modules add repository size and graph depth without adding matching names for the labeled domain queries.
+
+## Measurement protocol
+
+- Initial index: one clean index per fixture.
+- Unchanged incremental index: one immediate second index with no source changes.
+- Changed incremental index: append one deterministic comment to the last generated module and index again.
+- Search: 25 samples of `searchSymbols("calculateAverage", 20)`.
+- Graph: 25 samples of a depth-5 dependency traversal from the final generated module.
+- Freshness: 10 samples of `getIndexFreshness`.
+- Latencies report median and p95 in milliseconds.
+- Retrieval reports top-1 accuracy, precision@5, recall@5, and mean reciprocal rank (MRR) over the ten labeled queries.
+- Database size includes the SQLite database and any remaining WAL/SHM files.
+- RSS is measured with Node's process resource usage. Per-case RSS snapshots and the process high-water mark are reported; the cases run sequentially in one process, so the high-water mark is cumulative rather than an isolated per-case peak.
+
+## Initial CI baseline
+
+Environment: GitHub-hosted `ubuntu-latest`, Node.js `v22.23.3`, Linux x64.
+
+| Metric | Small (26 files) | Medium (101 files) | Large (301 files) |
+|---|---:|---:|---:|
+| Initial index (ms) | 47.535 | 69.476 | 128.657 |
+| Unchanged index (ms) | 10.961 | 20.139 | 17.582 |
+| One-file changed index (ms) | 12.752 | 15.693 | 20.381 |
+| Search median / p95 (ms) | 0.856 / 1.029 | 0.871 / 1.094 | 1.006 / 1.055 |
+| Graph median / p95 (ms) | 0.799 / 0.968 | 0.792 / 0.817 | 0.922 / 0.953 |
+| Freshness median / p95 (ms) | 4.899 / 8.009 | 6.623 / 7.085 | 10.135 / 17.165 |
+| Database bytes | 180,224 | 327,680 | 684,032 |
+| Process peak RSS at case end (bytes, cumulative) | 238,170,112 | 249,966,592 | 250,359,808 |
+
+Retrieval metrics were identical across the three scales because the labeled domain fixture is held constant:
+
+| Metric | Result |
+|---|---:|
+| Labeled queries | 10 |
+| Top-1 accuracy | 1.000 |
+| Mean precision@5 | 0.260 |
+| Mean recall@5 | 0.817 |
+| Mean reciprocal rank | 1.000 |
+
+## Interpretation and limitations
+
+- These are descriptive baseline measurements from one GitHub-hosted Linux runner, not universal performance guarantees.
+- The retrieval corpus is a small, hand-labeled symbol-search fixture. It does not establish quality for large real repositories, file-level retrieval, task-context ranking, or other languages.
+- Precision@5 uses a fixed denominator of five; a low value can coexist with high recall when each query has only one or two labeled relevant symbols.
+- The unchanged-index timings vary with runtime and filesystem cache state; do not infer a speedup from one run.
+- The RSS high-water mark is cumulative across the three sequential fixture cases.
+- No agent task comparison has been run. A controlled comparison must hold repository, task, model, prompt, and run conditions constant.
+- No optimization thresholds are set until repeated baselines across supported operating systems and real repositories exist.
+
+## Next evaluation work
+
+1. Add a checked-in or generated real-world repository fixture with a known source layout and expected relationships.
+2. Expand labeled retrieval cases to file-level and task-context queries with independently reviewed relevance judgments.
+3. Add controlled agent-task comparisons with and without CNM.
+4. Repeat baselines on Windows and macOS before setting regression thresholds.
