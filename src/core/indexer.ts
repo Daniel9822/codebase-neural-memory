@@ -335,6 +335,7 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     }) };
   };
 
+  const resolvedImportTargets = new Map<string, number[]>();
   const imports = db.prepare("SELECT file_id, module_specifier FROM file_imports ORDER BY file_id, module_specifier").all() as Array<{ file_id: number; module_specifier: string }>;
   for (const item of imports) {
     const sourcePath = fileById.get(item.file_id);
@@ -343,6 +344,7 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     if (!resolution.recognized) continue;
     const candidates = resolution.candidates.filter((candidate) => candidate.id !== item.file_id);
     if (candidates.length === 1) {
+      resolvedImportTargets.set(`${item.file_id}:${item.module_specifier}`, [candidates[0]!.id]);
       insertRelation.run("file", item.file_id, "file", candidates[0]!.id, "IMPORTS", 1, "typescript-ast");
     } else {
       insertUnresolved.run(
@@ -377,26 +379,12 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     }
   }
 
-  const importedFileTargets = new Map<string, number[]>();
-  const importRelations = db.prepare("SELECT source_id, target_id FROM relations WHERE source_kind = 'file' AND target_kind = 'file' AND kind = 'IMPORTS'").all() as Array<{
-    source_id: number; target_id: number;
-  }>;
-  const importRows = db.prepare("SELECT file_id, module_specifier FROM file_imports").all() as Array<{
-    file_id: number; module_specifier: string;
-  }>;
-  for (const imported of importRows) {
-    const targets = importRelations
-      .filter((relation) => relation.source_id === imported.file_id)
-      .map((relation) => relation.target_id);
-    importedFileTargets.set(`${imported.file_id}:${imported.module_specifier}`, targets);
-  }
-
   for (const call of calls) {
     const sourceId = symbolMap.get(`${call.file_id}:${call.caller_name}`);
     if (sourceId === undefined) continue;
 
     if (call.module_specifier && call.imported_symbol_name) {
-      const targetFiles = importedFileTargets.get(`${call.file_id}:${call.module_specifier}`) ?? [];
+      const targetFiles = resolvedImportTargets.get(`${call.file_id}:${call.module_specifier}`) ?? [];
       if (targetFiles.length !== 1) continue;
       const targetId = exportedNames.get(`${targetFiles[0]}:${call.imported_symbol_name}`);
       if (targetId !== undefined && targetId !== null && targetId !== sourceId) {
