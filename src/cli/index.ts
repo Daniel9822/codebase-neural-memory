@@ -105,6 +105,7 @@ program.command("search <query>")
     for (const hit of hits) {
       console.log(`${hit.kind} ${hit.name} — ${hit.filePath}:${hit.startLine}-${hit.endLine}${hit.exported ? " [exported]" : ""}`);
       console.log(`  ${hit.signature}`);
+      console.log(`  score: ${hit.score.toFixed(2)}; method: ${hit.searchMethod}; signals: ${hit.rankingSignals.join(", ")}`);
     }
   });
 
