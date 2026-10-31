@@ -11,7 +11,7 @@ npm run benchmark
 
 The command creates temporary repositories, indexes and measures them, then removes them. It prints one JSON report to stdout. It does not write benchmark artifacts into the repository, contact external services, or apply performance thresholds.
 
-CI runs the same command after the smoke test. The measurements below are from GitHub Actions run [41253753337](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253753337).
+CI runs the benchmark in a separate Linux/Windows/macOS matrix job. The original baseline measurements below are from Linux-only GitHub Actions runs [41253753337](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253753337).
 
 ## Fixture design
 
