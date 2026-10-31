@@ -214,13 +214,13 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 
 ### Phase 5 close-out verification
 
-- **Status:** Final close-out PR merged; merge-commit/default-branch CI verification remains. Do not mark Phase 5 formally closed until that run is verified.
+- **Status:** PASS — Phase 5 formally closed on 2026-10-31 after successful default-branch CI verification.
 - **Merged freshness baseline:** PR [#36](https://github.com/Daniel9822/codebase-neural-memory/pull/36), merge commit `992fcd3c2aebc8029b3ca2f24a3c3e76aeba1bb6`.
 - **Post-merge CI for PR #36:** [GitHub Actions #41233040729](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41233040729) — success; `npm ci`, typecheck, tests, build, and smoke all completed successfully.
 - **Environment:** GitHub-hosted Ubuntu, Node.js 22.
 - **Final close-out PR:** [#37](https://github.com/Daniel9822/codebase-neural-memory/pull/37) merged into `main` at `f4f5aa6612de5aafdf4423095251030ac862b12b`; it includes test relevance filtering, exact serialized-array budget semantics, and regression fixtures.
 - **PR verification:** [GitHub Actions #41233795736](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41233795736) — success; install, typecheck, tests, build, and smoke steps all completed successfully on the final PR head.
-- **Remaining verification:** record a successful workflow run for the merge commit/default branch before closing Phase 5.
+- **Default-branch verification:** [GitHub Actions #41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) — success on `main` at merge commit `f3c74147ce6b9cad2100156a644c404b965d6f6a`; clean checkout, lockfile install, typecheck, tests, build, and smoke all passed.
 - **Limitations:** retrieval is lexical/structural and does not promise semantic completeness. The API emits structured file details rather than text excerpts. Incremental lookup is core API only; no dedicated CLI/MCP lookup command is exposed.
 
 ## 9. Phase 6 — MCP integration
@@ -267,13 +267,13 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 
 ### Block 5 — Regression and close-out
 
-- [ ] Clean-checkout `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all pass.
-- [ ] The final diff is reviewed for unintended repository/source mutation.
-- [ ] Documentation matches the final registered tools, schemas, limits, and tested behavior.
-- [ ] The merge commit, CI run, and both client-integration evidence records are documented.
-- [ ] Phase 5's pending default-branch close-out evidence is verified before the overall sequence is declared closed.
+- [x] Clean-checkout `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all pass in default-branch CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) on merge commit `f3c74147ce6b9cad2100156a644c404b965d6f6a`.
+- [x] The Phase 6 diffs across PRs #42, #43, #45, and #46 were reviewed; the changes are confined to the MCP implementation/tests, client configuration templates/tests, and intended documentation. No unrelated source or repository mutation was found.
+- [x] Documentation matches the ten registered tools, schemas, limits, and tested behavior; the stale version statement in the product specification has been corrected.
+- [x] The merge commit, default-branch CI run, and both real-client integration evidence records are documented.
+- [x] Phase 5's default-branch close-out evidence is verified by the same successful main-branch CI run.
 
-Phase 6 is complete only when all five blocks pass. The Block 4 manual client calls are now evidenced; exact client-version metadata and all Block 5 regression/close-out checks remain outstanding. Documentation of a contract alone is not proof that protocol behavior or real-client integration has been tested.
+Block 5 is complete. Phase 6 remains formally open only because the exact GitHub Copilot extension identifier/version is still unverified; the VS Code, OpenCode, and Node.js versions and both real-client calls are recorded. Do not infer the missing extension metadata.
 
 ## 10. Phase 7 — Git awareness and freshness
 

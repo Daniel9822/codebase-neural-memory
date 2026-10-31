@@ -108,7 +108,7 @@ Exit condition: memory CRUD, lifecycle transitions, source traceability, and sta
 
 ## Phase 5 — Task-oriented context builder
 
-**Status:** Implementation merged; final close-out awaits verification of the merge commit on the default branch.
+**Status:** Complete and formally closed on 2026-10-31. The default-branch clean-checkout CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) passed on merge commit `f3c74147ce6b9cad2100156a644c404b965d6f6a`, including lockfile installation, typecheck, the full test suite, production build, and CLI/MCP smoke checks.
 
 Tasks:
 - [x] Accept a natural-language task description and extract deterministic lexical anchors without an LLM.
@@ -131,12 +131,12 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 - **Verified commands:** `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke`; every workflow step completed successfully on GitHub-hosted Ubuntu / Node.js 22.
 - **Final relevance/budget close-out:** PR [#37](https://github.com/Daniel9822/codebase-neural-memory/pull/37) merged into `main`; merge commit `f4f5aa6612de5aafdf4423095251030ac862b12b`.
 - **PR verification:** [GitHub Actions #41233795736](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41233795736) — success; `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all completed successfully on the final PR head.
-- **Remaining close-out check:** verify a workflow run against the merge commit/default branch before marking Phase 5 formally closed.
+- **Default-branch close-out:** verified. CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) ran on `main` at `f3c74147ce6b9cad2100156a644c404b965d6f6a` and completed successfully. The workflow ran `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` on GitHub-hosted Ubuntu / Node.js 22.
 - **Limitations:** retrieval remains lexical/structural and does not promise semantic completeness. Context items are structured file details, not text excerpts. Incremental lookup remains a core API; no separate CLI/MCP incremental-lookup command is exposed.
 
 ## Phase 6 — MCP adapter and agent workflow
 
-**Status:** Blocks 1–3 are implemented and CI-verified. Block 4's real OpenCode and VS Code/Copilot discovery and tool calls were manually verified on 2026-10-31 against the local CNM repository. VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 are recorded; the Copilot extension identifier/version remains unverified. Block 5 regression and formal close-out remain pending. Phase 5's merge-commit/default-branch verification is still a prerequisite and must not be silently treated as complete.
+**Status:** Blocks 1–3 are implemented and CI-verified; Block 4's real OpenCode and VS Code/Copilot calls are manually verified, with VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 recorded. Block 5 regression and close-out are complete: clean-checkout CI passed on `main` at `f3c74147ce6b9cad2100156a644c404b965d6f6a` (run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815)); the Phase 6 PR diffs were reviewed and the documentation was reconciled. Phase 5's default-branch close-out is also verified. Formal Phase 6 closure remains pending only the exact GitHub Copilot extension identifier/version, which has not been established by the supplied CLI output.
 
 ### Block 1 — Audit and MCP contract
 
@@ -191,13 +191,13 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ### Block 5 — Regression and formal close-out
 
-- [ ] Run `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` on a clean checkout.
-- [ ] Review the complete diff and confirm no unintended source/repository mutation.
-- [ ] Synchronize all official documentation with the final source and tests.
-- [ ] Record the commit, CI run, client evidence, and any limitations.
-- [ ] Verify Phase 5's pending default-branch close-out evidence before declaring the overall sequence closed.
+- [x] Run `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` on a clean checkout; all passed in default-branch CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) on merge commit `f3c74147ce6b9cad2100156a644c404b965d6f6a`.
+- [x] Review the Phase 6 implementation, configuration, and documentation diffs across PRs #42, #43, #45, and #46; expected source/tests/config/docs changes only, with no unrelated repository mutation found.
+- [x] Synchronize the README, architecture, product specification, roadmap, acceptance criteria, MCP contract, and client integration record with the final source and observed tests.
+- [x] Record the merge commit, successful CI run, both real-client evidence records, and remaining limitations.
+- [x] Verify Phase 5's default-branch close-out evidence; run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) passed on `main`.
 
-**Deliverable:** Phase 6 merged into `main` with passing CI and reproducible integration evidence.
+**Deliverable:** Phase 6 implementation and regression close-out merged into `main` with passing CI and reproducible integration evidence. The phase itself remains formally open only for the Block 4 Copilot extension identifier/version evidence gap.
 
 **Phase 6 exit condition:** all five blocks pass. The existence of ten registered tools or a successful generic smoke test alone is not sufficient.
  
