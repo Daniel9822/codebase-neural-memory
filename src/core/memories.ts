@@ -15,6 +15,8 @@ export interface MemoryRecord {
   sourcePath: string | null;
   commitSha: string | null;
   sourceHash: string | null;
+  author: string | null;
+  updatedBy: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -25,6 +27,7 @@ export interface MemoryUpdate {
   content?: string;
   sourcePath?: string | null;
   commitSha?: string | null;
+  author?: string | null;
 }
 
 
@@ -62,19 +65,21 @@ function createMemory(
   status: "proposed" | "confirmed",
   sourcePath?: string,
   commitSha?: string,
+  author?: string,
 ): string {
   const normalizedTitle = requireText(title, "title");
   const normalizedContent = requireText(content, "content");
   const normalizedCategory = requireText(category, "category");
   const normalizedSource = sourcePath === undefined ? null : requireText(sourcePath, "source path");
   const normalizedCommit = commitSha === undefined ? null : requireText(commitSha, "commit reference");
+  const normalizedAuthor = author === undefined ? null : requireText(author, "author");
   const db = openDatabase(location);
   try {
     const id = randomUUID();
     const now = new Date().toISOString();
-    db.prepare(`INSERT INTO memories(id, category, title, content, status, source_path, commit_sha, source_hash, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(id, normalizedCategory, normalizedTitle, normalizedContent, status, normalizedSource, normalizedCommit, sourceFingerprint(location, normalizedSource), now, now);
+    db.prepare(`INSERT INTO memories(id, category, title, content, status, source_path, commit_sha, source_hash, author, updated_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, normalizedCategory, normalizedTitle, normalizedContent, status, normalizedSource, normalizedCommit, sourceFingerprint(location, normalizedSource), normalizedAuthor, normalizedAuthor, now, now);
     return id;
   } finally {
     db.close();
@@ -89,8 +94,9 @@ export function remember(
   category = "decision",
   sourcePath?: string,
   commitSha?: string,
+  author?: string,
 ): string {
-  return createMemory(location, title, content, category, "confirmed", sourcePath, commitSha);
+  return createMemory(location, title, content, category, "confirmed", sourcePath, commitSha, author);
 }
 
 /** Save a suggestion without treating it as confirmed knowledge. */
@@ -101,8 +107,9 @@ export function proposeMemory(
   category = "decision",
   sourcePath?: string,
   commitSha?: string,
+  author?: string,
 ): string {
-  return createMemory(location, title, content, category, "proposed", sourcePath, commitSha);
+  return createMemory(location, title, content, category, "proposed", sourcePath, commitSha, author);
 }
 
 /** Update only explicitly supplied fields. Returns false when the ID is not in this project. */
@@ -122,6 +129,10 @@ export function updateMemory(location: ProjectLocation, id: string, patch: Memor
   if (patch.commitSha !== undefined) {
     fields.push("commit_sha = ?");
     values.push(patch.commitSha === null ? null : requireText(patch.commitSha, "commit reference"));
+  }
+  if (patch.author !== undefined) {
+    fields.push("updated_by = ?");
+    values.push(patch.author === null ? null : requireText(patch.author, "author"));
   }
   if (fields.length === 0) throw new Error("At least one memory field must be supplied for update");
   fields.push("updated_at = ?");
@@ -213,7 +224,7 @@ export function recallMemories(location: ProjectLocation, query = "", limit = 20
   try {
     const rows = query.trim()
       ? db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
-          commit_sha AS commitSha, source_hash AS sourceHash, created_at AS createdAt, updated_at AS updatedAt FROM memories
+          commit_sha AS commitSha, source_hash AS sourceHash, author, updated_by AS updatedBy, created_at AS createdAt, updated_at AS updatedAt FROM memories
           WHERE status != 'rejected' AND (title LIKE ? OR content LIKE ? OR category LIKE ?)
           ORDER BY updated_at DESC, id LIMIT ?`).all(`%${query}%`, `%${query}%`, `%${query}%`, limit)
       : db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
