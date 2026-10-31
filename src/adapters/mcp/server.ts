@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 import { recallMemories } from "../../core/memories.js";
-import { getProjectMap, getProjectOverview, searchSymbols, findImpact } from "../../core/retrieval.js";
+import { getProjectMap, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails } from "../../core/retrieval.js";
 import { getIndexFreshness } from "../../core/indexer.js";
 import type { ProjectLocation } from "../../core/project.js";
 
@@ -32,10 +32,31 @@ export function startMcpServer(location: ProjectLocation): void {
     }));
 
     server.registerTool("symbol_lookup", {
-      description: "Search indexed functions, classes, interfaces, and types.",
+      description: "Search indexed symbols. Results explain exact-name, name-term, signature, export, and FTS5 ranking signals.",
       inputSchema: z.object({ query: z.string().min(1), limit: z.number().int().min(1).max(50).optional() }),
     }, async ({ query, limit }) => ({
       content: [{ type: "text", text: JSON.stringify(searchSymbols(location, query, limit ?? 20), null, 2) }],
+    }));
+
+    server.registerTool("dependency_graph", {
+      description: "Traverse direct or transitive file imports with relation provenance, confidence, depth, dependency chains, and explicit truncation limits.",
+      inputSchema: z.object({
+        path: z.string().min(1),
+        depth: z.number().int().min(1).max(20).optional(),
+        limit: z.number().int().min(1).max(100).optional(),
+        maxProcessed: z.number().int().min(1).max(1000).optional(),
+      }),
+    }, async ({ path, depth, limit, maxProcessed }) => ({
+      content: [{ type: "text", text: JSON.stringify(
+        findDependencies(location, path, depth ?? 1, limit ?? 100, maxProcessed ?? 1000), null, 2,
+      ) }],
+    }));
+
+    server.registerTool("file_details", {
+      description: "Return indexed file metadata, symbols, resolved and unresolved imports, symbol relationships, and relation provenance.",
+      inputSchema: z.object({ path: z.string().min(1) }),
+    }, async ({ path }) => ({
+      content: [{ type: "text", text: JSON.stringify(getFileDetails(location, path), null, 2) }],
     }));
 
     server.registerTool("change_impact", {
