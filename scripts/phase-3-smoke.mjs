@@ -24,6 +24,7 @@ function runCli(args) {
 }
 
 let mcp;
+let mcpClosed;
 try {
   assert.match(runCli(["--help"]), /Usage:/);
   assert.match(runCli(["init"]), /Initialized memory/);
@@ -53,6 +54,9 @@ try {
   assert.equal(cliImpact.truncated, false);
 
   mcp = spawn(process.execPath, [cli, "mcp"], { cwd: repo, stdio: ["pipe", "pipe", "pipe"] });
+  mcpClosed = new Promise((resolve) => {
+  mcp.once("close", resolve);
+});
   const lines = createInterface({ input: mcp.stdout });
   const pending = new Map();
   lines.on("line", (line) => {
@@ -118,6 +122,13 @@ try {
   assert.deepEqual([digest(aPath), digest(bPath)], originalHashes, "CLI/MCP read operations modified repository source files");
   console.log("Phase 3 CLI/MCP smoke checks passed; source files remained unchanged.");
 } finally {
-  if (mcp && mcp.exitCode === null) mcp.kill("SIGTERM");
+  if (mcp) {
+    if (mcp.exitCode === null && mcp.signalCode === null) {
+      mcp.kill("SIGTERM");
+    }
+
+    await mcpClosed;
+  }
+
   rmSync(root, { recursive: true, force: true });
 }
