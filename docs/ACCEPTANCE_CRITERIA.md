@@ -194,25 +194,32 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - **Limitations:** This records the Linux/Node 22 CI environment. Other operating systems are not claimed as verified by this run.
 ## 8. Phase 5 — Task context builder
 
-- [x] A task description can be passed to the context builder without requiring an LLM (`buildTaskContext`; lexical anchors and retrieval are deterministic).
-- [x] Context can include relevant files, symbols, direct dependencies, memories, and tests when available (`tests/context.test.ts`).
+- [x] A task description is accepted without requiring an LLM; lexical anchors and retrieval are deterministic.
+- [x] Context can include relevant files, symbols, direct dependencies, memories, and relevant tests.
 - [x] Every included code fact has a source reference (symbol path/line range; file/dependency/test path; memory source path or stable memory ID).
-- [x] The builder deduplicates repeated entities before ranking and budget application (`boundedItems`; context regression coverage). Overlapping excerpts are not emitted by this API, so excerpt-overlap deduplication is not applicable.
-- [x] The builder respects configured item and serialized-character budgets (`tests/context.test.ts`).
-- [x] If a budget is exceeded, lower-ranked context is omitted predictably (score-descending, source/title tie-break ordering).
-- [x] The output explains why each major item was selected through ranking `signals` (`tests/context.test.ts`).
-- [x] Missing, ambiguous, and stale information is explicitly marked (no symbol matches, unresolved/ambiguous imports, memory freshness, and stale/incomplete index warnings).
-- [x] A follow-up lookup can retrieve additional detail without rebuilding the whole context (`lookupTaskContextDetails`; reads only requested known source paths; `tests/context.test.ts`).
+- [x] Repeated entities are deduplicated before ranking and budget application. Overlapping excerpts are not emitted by this API, so excerpt-overlap deduplication is not applicable.
+- [x] The builder respects `maxItems` and the exact serialized-character budget.
+- [x] `maxCharacters` is defined as `JSON.stringify(result.items).length`: the character count of the complete serialized items array, including opening/closing brackets, commas, quotes, and all serialized item fields. It excludes task text, anchors, warnings, follow-up prompts, and budget metadata. For an empty result, the count is 2 (the serialized value `[]`).
+- [x] Candidates are ranked deterministically; lower-ranked items that do not fit are omitted and truncation is reported.
+- [x] Repository-wide test-path candidates are included only when the test path contains at least one lexical task anchor; unrelated test paths are excluded. Tests already discovered as a matching symbol source remain eligible on their symbol evidence.
+- [x] The output explains selection through ranking `signals`.
+- [x] Missing, ambiguous, and stale information is explicitly marked, including stale/incomplete source-index warnings.
+- [x] A follow-up lookup retrieves additional details without rebuilding task ranking, symbol search, or memory recall.
+
+### Regression evidence
+
+- `tests/context.test.ts` includes both relevant `tests/auth.test.ts` and unrelated `tests/billing.test.ts`; the auth task includes only the relevant path candidate.
+- Budget tests assert `usedCharacters === JSON.stringify(items).length`, exact-fit inclusion, and exclusion of a candidate that no longer fits; a smaller later candidate may still use the remaining budget.
+- Existing regression coverage exercises source references, dependencies, memories, unresolved imports, stale index state, deduplication, item limits, truncation, and incremental lookup.
 
 ### Phase 5 close-out verification
 
-- **Result:** PASS
-- **Verified merge commit:** `60fb6a20752a9c8f4ac0de3d456d20c01a8be166` (PR #35; task-context dependencies and incremental lookup).
-- **Post-merge CI:** [GitHub Actions #41231963768](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41231963768) — success.
-- **Commands passed in GitHub-hosted Ubuntu / Node.js 22:** `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke`.
-- **Coverage:** task-context ranking and source references, direct dependencies, test paths, memory lifecycle labels, unresolved imports, deduplication, bounded output, and incremental detail lookup.
-- **Follow-up hardening:** explicit stale/incomplete source-index warnings and a regression test are included in the follow-up change; this close-out record should be finalized only after its CI passes.
-- **Limitations:** retrieval is lexical/structural; it does not promise semantic completeness. The context API emits structured file details rather than text excerpts, so overlapping-excerpt handling is not applicable. The follow-up lookup is a core API; no separate CLI/MCP incremental-lookup command is exposed yet.
+- **Status:** Pending final close-out PR merge and its post-merge CI; do not mark Phase 5 formally closed before both are verified.
+- **Merged freshness baseline:** PR [#36](https://github.com/Daniel9822/codebase-neural-memory/pull/36), merge commit `992fcd3c2aebc8029b3ca2f24a3c3e76aeba1bb6`.
+- **Post-merge CI for PR #36:** [GitHub Actions #41233040729](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41233040729) — success; `npm ci`, typecheck, tests, build, and smoke all completed successfully.
+- **Environment:** GitHub-hosted Ubuntu, Node.js 22.
+- **Final close-out PR:** includes test relevance filtering, exact serialized-array budget semantics, and regression fixtures; merge SHA and post-merge CI result must be appended after merge.
+- **Limitations:** retrieval is lexical/structural and does not promise semantic completeness. The API emits structured file details rather than text excerpts. Incremental lookup is core API only; no dedicated CLI/MCP lookup command is exposed.
 
 ## 9. Phase 6 — MCP integration
 

@@ -23,6 +23,7 @@ function setup(): void {
   writeFileSync(join(rootPath, "src", "auth.ts"), "import { normalizeToken } from './token';\nimport './missing-module';\nexport function refreshAuthToken() { return normalizeToken(); }\n");
   writeFileSync(join(rootPath, "src", "token.ts"), "export function normalizeToken() { return true; }\n");
   writeFileSync(join(rootPath, "tests", "auth.test.ts"), "import { refreshAuthToken } from '../src/auth';\n");
+  writeFileSync(join(rootPath, "tests", "billing.test.ts"), "export function calculatesInvoiceTotal() { return 42; }\\n");
   indexWithDatabase(db, location);
 }
 
@@ -43,7 +44,8 @@ describe("task-oriented context builder", () => {
     expect(result.anchors).toContain("refresh");
     expect(result.items.some((item) => item.kind === "symbol" && item.title.includes("refreshAuthToken"))).toBe(true);
     expect(result.items.some((item) => item.kind === "dependency" && item.source === "src/token.ts")).toBe(true);
-    expect(result.items.some((item) => item.kind === "test" && item.source.includes("auth.test.ts"))).toBe(true);
+    expect(result.items.some((item) => item.kind === "test" && item.source === "tests/auth.test.ts")).toBe(true);
+    expect(result.items.some((item) => item.kind === "test" && item.source === "tests/billing.test.ts")).toBe(false);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "confirmed")).toBe(true);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "proposed")).toBe(true);
     expect(result.warnings.some((warning) => warning.includes("Proposed memories"))).toBe(true);
@@ -51,6 +53,7 @@ describe("task-oriented context builder", () => {
     expect(result.items.filter((item) => item.kind === "dependency" && item.source === "src/token.ts")).toHaveLength(1);
     expect(result.items.filter((item) => item.kind === "dependency").every((item) => item.detail !== undefined)).toBe(true);
     expect(result.budget.usedItems).toBeLessThanOrEqual(30);
+    expect(result.budget.usedCharacters).toBe(JSON.stringify(result.items).length);
     expect(result.budget.usedCharacters).toBeLessThanOrEqual(12000);
   });
 
@@ -79,8 +82,17 @@ describe("task-oriented context builder", () => {
     const result = buildTaskContext(location, "refresh auth token", { maxItems: 1, maxCharacters: 500 });
     expect(result.items).toHaveLength(1);
     expect(result.budget.usedItems).toBe(1);
+    expect(result.budget.usedCharacters).toBe(JSON.stringify(result.items).length);
     expect(result.budget.usedCharacters).toBeLessThanOrEqual(500);
     expect(result.budget.truncated).toBe(true);
+    const exactBudget = result.budget.usedCharacters;
+    const exact = buildTaskContext(location, "refresh auth token", { maxItems: 1, maxCharacters: exactBudget });
+    expect(exact.items).toHaveLength(1);
+    expect(exact.budget.usedCharacters).toBe(exactBudget);
+    const tooSmall = buildTaskContext(location, "refresh auth token", { maxItems: 1, maxCharacters: exactBudget - 1 });
+    expect(tooSmall.items).not.toContainEqual(exact.items[0]);
+    expect(tooSmall.budget.usedCharacters).toBe(JSON.stringify(tooSmall.items).length);
+    expect(tooSmall.budget.usedCharacters).toBeLessThanOrEqual(exactBudget - 1);
     expect(() => buildTaskContext(location, "   ")).toThrow("Task description must not be empty");
     expect(() => buildTaskContext(location, "auth", { maxCharacters: 10 })).toThrow("maxCharacters");
     expect(() => lookupTaskContextDetails(location, result, ["src/auth.ts"], { limit: 0 })).toThrow("limit");

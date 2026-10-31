@@ -60,14 +60,17 @@ function boundedItems(candidates: TaskContextItem[], maxItems: number, maxCharac
   const ranked = [...unique.values()].sort((a, b) =>
     b.score - a.score || a.source.localeCompare(b.source) || a.title.localeCompare(b.title));
   const items: TaskContextItem[] = [];
-  let usedCharacters = 0;
+  // maxCharacters is the exact character length of JSON.stringify(items), including
+  // the array brackets, commas, quotes, and serialized item fields.
+  let usedCharacters = JSON.stringify(items).length;
   let truncated = false;
   for (const item of ranked) {
     if (items.length >= maxItems) { truncated = true; break; }
-    const size = JSON.stringify(item).length;
-    if (usedCharacters + size > maxCharacters) { truncated = true; continue; }
+    const candidate = [...items, item];
+    const candidateCharacters = JSON.stringify(candidate).length;
+    if (candidateCharacters > maxCharacters) { truncated = true; continue; }
     items.push(item);
-    usedCharacters += size;
+    usedCharacters = candidateCharacters;
   }
   return { items, usedCharacters, truncated };
 }
@@ -167,10 +170,13 @@ export function buildTaskContext(
   } finally { testDb.close(); }
   for (const path of testPaths) {
     const matchingAnchors = anchors.filter((anchor) => path.toLocaleLowerCase().includes(anchor));
+    // Do not add every test in the repository: a test path must match at least
+    // one lexical task anchor to be considered a task-context candidate.
+    if (matchingAnchors.length === 0) continue;
     candidates.push({
       kind: "test", title: `Test source: ${path}`, source: path,
       score: 12 + matchingAnchors.length * 8,
-      signals: ["test-path", ...(matchingAnchors.length ? ["task-anchor-in-path"] : [])],
+      signals: ["test-path", "task-anchor-in-path"],
       detail: { matchingAnchors },
     });
   }
