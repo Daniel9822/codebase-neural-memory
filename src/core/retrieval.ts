@@ -59,7 +59,7 @@ function rankSearchCandidates(
       score += 3;
       signals.push("exported-symbol");
     }
-    if (method === "fts5") {
+    if (row.ftsRank !== undefined) {
       // FTS5 bm25 values are lower for better matches; use its rank only as a
       // small tie-break signal so lexical relevance remains explainable.
       const rankBonus = Number.isFinite(row.ftsRank) ? Math.max(0, Math.min(2, -Number(row.ftsRank))) : 0;
@@ -68,7 +68,7 @@ function rankSearchCandidates(
     } else {
       signals.push("like-fallback");
     }
-    return { ...row, score, rankingSignals: signals, searchMethod: method };
+    return { ...row, score, rankingSignals: signals, searchMethod: row.ftsRank === undefined ? "like-fallback" : "fts5" };
   }).sort((a, b) =>
     b.score - a.score ||
     a.filePath.localeCompare(b.filePath) ||
@@ -100,7 +100,6 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
         ORDER BY ftsRank, f.path, s.start_line, s.name
         LIMIT ?
       `).all(ftsQuery, candidateLimit) as Array<SearchHit & { ftsRank: number }>;
-      if (rows.length > 0) return rankSearchCandidates(rows, tokens, "fts5", limit);
       const fallbackParameters = tokens.flatMap((token) => [`%${token}%`, `%${token}%`]);
       const fallbackRows = db.prepare(`
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
@@ -110,7 +109,13 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
         ORDER BY f.path, s.start_line, s.name
         LIMIT ?
       `).all(...fallbackParameters, candidateLimit) as SearchHit[];
-      return rankSearchCandidates(fallbackRows, tokens, "like-fallback", limit);
+      const combined = new Map<string, SearchHit & { ftsRank?: number }>();
+      for (const row of rows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}`, row);
+      for (const row of fallbackRows) {
+        const key = `${row.filePath}:${row.startLine}:${row.name}:${row.kind}`;
+        if (!combined.has(key)) combined.set(key, row);
+      }
+      return rankSearchCandidates([...combined.values()], tokens, rows.length > 0 ? "fts5" : "like-fallback", limit);
     } catch (error) {
       if (!isFtsUnavailable(error)) throw error;
       const parameters = tokens.flatMap((token) => [`%${token}%`, `%${token}%`]);
