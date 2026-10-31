@@ -176,11 +176,12 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ### Block 4 — Real MCP client compatibility
 
-- [ ] Configure OpenCode with an explicit repository working directory.
-- [ ] Verify discovery and real tool calls from OpenCode.
-- [ ] Configure VS Code as the second client using its documented stdio MCP support and workspace-root binding.
-- [ ] Verify discovery and real tool calls from VS Code.
-- [ ] Record client versions, configuration, observed results, and platform limitations.
+- [x] Add an OpenCode local-server configuration template with explicit workspace-relative \`cwd\` (\`examples/opencode.mcp.json\`).
+- [ ] Verify OpenCode discovery and real tool calls in an installed OpenCode client.
+- [x] Add a VS Code workspace stdio configuration template with explicit \`\${workspaceFolder}\` binding (\`examples/vscode.mcp.json\`).
+- [ ] Verify VS Code discovery and real tool calls in an installed VS Code/Copilot client.
+- [x] Document reproducible setup, verification prompts, evidence requirements, and troubleshooting (\`docs/CLIENT_INTEGRATION.md\`).
+- [ ] Record client versions, configuration, observed results, and platform limitations after real-client execution.
 
 **Deliverable:** two independently verified client integrations; simulated protocol calls do not count as client evidence.
 
