@@ -122,6 +122,7 @@ export function migrate(db: MemoryDatabase): void {
       status TEXT NOT NULL DEFAULT 'confirmed',
       source_path TEXT,
       commit_sha TEXT,
+      source_hash TEXT,
       created_at TEXT NOT NULL,
       updated_at TEXT NOT NULL
     );
@@ -190,6 +191,12 @@ export function migrate(db: MemoryDatabase): void {
     db.exec("ALTER TABLE projects ADD COLUMN index_excludes_json TEXT NOT NULL DEFAULT '[]'");
   }
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (7, ?)`).run(now);
+
+  const memoryColumns = db.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
+  if (!memoryColumns.some((column) => column.name === "source_hash")) {
+    db.exec("ALTER TABLE memories ADD COLUMN source_hash TEXT");
+  }
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (8, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {
