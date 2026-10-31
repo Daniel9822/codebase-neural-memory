@@ -315,6 +315,9 @@ export function calculateAverage(values: number[]): number {
 `);
     indexWithDatabase(database!, location);
 
+    expect(searchSymbols(location, "ticipant")[0]).toMatchObject({
+      name: "registerParticipant", searchMethod: "like-fallback",
+    });
     for (const fixture of retrievalRelevanceCases) {
       const results = searchSymbols(location, fixture.query, 10);
       expect(results[0]?.name, fixture.query).toBe(fixture.expectedTop);
