@@ -39,11 +39,13 @@ interface DiscoveryResult {
   skippedFiles: string[];
 }
 
-function loadIgnoreRules(directory: string, isRoot = false): IgnoreScope {
+function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: string[] = []): IgnoreScope {
   const rules = ignore();
   if (isRoot) {
     rules.add(DEFAULT_EXCLUDES);
     rules.add([".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx"]);
+    // User patterns are additive: they cannot remove mandatory safety exclusions.
+    rules.add(extraExcludes);
   }
   try {
     rules.add(readFileSync(join(directory, ".gitignore"), "utf8"));
@@ -60,7 +62,7 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
   });
 }
 
-function discoverFiles(root: string): DiscoveryResult {
+function discoverFiles(root: string, extraExcludes: string[] = []): DiscoveryResult {
   const output: DiscoveredFile[] = [];
   const presentPaths = new Set<string>();
   const protectedDirectories = new Set<string>();
@@ -69,7 +71,7 @@ function discoverFiles(root: string): DiscoveryResult {
   let scanned = 0;
   let skipped = 0;
   let failed = 0;
-  const rootScope = loadIgnoreRules(root, true);
+  const rootScope = loadIgnoreRules(root, true, extraExcludes);
   const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
     const directoryPath = relative(root, directory).replaceAll("\\", "/");
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
@@ -192,17 +194,17 @@ function rebuildRelations(db: MemoryDatabase): number {
   return (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
 }
 
-export function indexProject(location: ProjectLocation, force = false): IndexSummary {
+export function indexProject(location: ProjectLocation, force = false, extraExcludes: string[] = []): IndexSummary {
   const db = openDatabase(location);
   try {
-    return indexWithDatabase(db, location, force);
+    return indexWithDatabase(db, location, force, extraExcludes);
   } finally {
     db.close();
   }
 }
 
-export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation, force = false): IndexSummary {
-  const discovery = discoverFiles(location.rootPath);
+export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation, force = false, extraExcludes: string[] = []): IndexSummary {
+  const discovery = discoverFiles(location.rootPath, extraExcludes);
   const { files: discovered, presentPaths } = discovery;
   return db.transaction(() => {
     const existing = db.prepare("SELECT id, path, content_hash FROM files").all() as Array<{
