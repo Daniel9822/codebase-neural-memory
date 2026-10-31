@@ -45,7 +45,7 @@ cnm freshness
 cnm file "src/services/tournamentService.ts" --limit 100
 ```
 
-Run `cnm index` again after changing the code. Unchanged files are skipped by content hash; modified files are reparsed and deleted files are removed from the active index. Use `cnm freshness` to compare the working tree with the index without modifying it: the report distinguishes `not-indexed`, `current`, `stale`, and `incomplete`, and counts added, changed, and deleted files while listing skipped files and discovery errors. Add project-specific exclusions with repeatable `--exclude` patterns, for example `cnm index --exclude "generated/" --exclude "*.fixture.ts"`. These patterns are additive and cannot disable mandatory safety exclusions.
+Run `cnm index` again after changing the code. Unchanged files are skipped by content hash; modified files are reparsed and deleted files are removed from the active index. Use `cnm freshness` to compare the working tree with the index without modifying it: the report distinguishes `not-indexed`, `current`, `stale`, and `incomplete`, counts added, changed, and deleted files, and reports the indexed/current Git commit, branch, and working-tree state when Git metadata is available. A changed commit, branch, or Git working-tree snapshot is reported as stale even when source-file hashes are unchanged. Non-Git folders continue to use file-content freshness alone. Add project-specific exclusions with repeatable `--exclude` patterns, for example `cnm index --exclude "generated/" --exclude "*.fixture.ts"`. These patterns are additive and cannot disable mandatory safety exclusions.
 
 ## Project memory lifecycle
 
@@ -78,7 +78,7 @@ cnm mcp
 The server uses stdio and exposes ten read-only tools:
 
 - `project_overview` — local repository/index summary.
-- `index_freshness` — working-tree versus index freshness.
+- `index_freshness` — source-file and Git commit/branch/working-tree freshness versus the index.
 - `project_map` — indexed files and resolved/unresolved imports.
 - `symbol_lookup` — bounded lexical symbol search.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
@@ -134,7 +134,7 @@ Common generated/dependency folders and sensitive files such as `.env`, private 
 - Class and interface `extends` / class `implements` relationships are recorded when the target is a unique local symbol or a uniquely resolved named import. Complex heritage expressions and unresolved or ambiguous targets are not inferred.
 - Call relationships are resolved within a file and across statically imported named exports (including aliased imports) when the import resolves to one indexed file and one exported symbol. Shadowed imports, default/namespace imports, re-exports, dynamic calls, and runtime-generated relationships are not inferred.
 - Dynamic imports, framework-specific dependency injection, reflection, and runtime-generated relationships are not inferred.
-- The index is structural, not a substitute for source code or tests. `cnm freshness` is a read-only working-tree comparison, not Git commit/branch tracking or a background watcher; it uses the exclusion patterns persisted by the last index run. The MCP `index_freshness` tool returns the same report without changing the index.
+- The index is structural, not a substitute for source code or tests. `cnm freshness` is a read-only filesystem and Git-state comparison, not a background watcher; it uses the exclusion patterns persisted by the last index run. Git dirty-state tracking covers the repository's unignored working-tree changes, so unrelated non-source edits can also make the Git snapshot stale. The MCP `index_freshness` tool returns the same report without changing the index.
 - Embeddings, semantic ranking, background file watching, and multi-developer synchronization are not part of this first milestone.
 
 ## Design principles
