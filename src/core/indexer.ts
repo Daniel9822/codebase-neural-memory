@@ -269,7 +269,7 @@ function resolvePackageExportBases(specifier: string, packages: Map<string, Loca
     const target = selectPackageExport(localPackage.exports, parts.subpath);
     if (!target || !target.startsWith("./")) continue;
     const absoluteTarget = resolve(localPackage.root, target);
-    const relativeToPackage = relative(localPackage.root, absoluteTarget).replaceAll("\\\\", "/");
+    const relativeToPackage = relative(localPackage.root, absoluteTarget).replaceAll("\\", "/");
     if (relativeToPackage === ".." || relativeToPackage.startsWith("../") || isAbsolute(relativeToPackage) ||
       absoluteTarget === localPackage.root) continue;
     const relativeToProject = relative(rootPath, absoluteTarget).replaceAll("\\", "/");
