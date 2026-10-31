@@ -223,7 +223,7 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
       const targets = aliasConfig ? matchPathAlias(specifier, aliasConfig) : undefined;
       if (!targets) return [];
       bases = targets.flatMap((target) => {
-        const candidate = relative(rootPath, target).replaceAll("\\\\", "/");
+        const candidate = relative(rootPath, target).replaceAll("\\", "/");
         return candidate === ".." || candidate.startsWith("../") || isAbsolute(candidate) ? [] : [candidate];
       });
     }
