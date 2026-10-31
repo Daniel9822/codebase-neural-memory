@@ -8,6 +8,7 @@ import { indexProject } from "../core/indexer.js";
 import { explainSymbol, findImpact, getProjectMap, getProjectOverview, searchSymbols } from "../core/retrieval.js";
 import { recallMemories, remember } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
+import { parsePositiveInteger } from "../shared/validation.js";
 
 const program = new Command();
 
@@ -64,9 +65,9 @@ program.command("status")
 
 program.command("map")
   .description("Print indexed files and their resolved imports.")
-  .option("--limit <number>", "Maximum number of files", "80")
-  .action((options: { limit: string }) => {
-    const rows = getProjectMap(ensureInitialized(), Number(options.limit));
+  .option("--limit <number>", "Maximum number of files", parsePositiveInteger, 80)
+  .action((options: { limit: number }) => {
+    const rows = getProjectMap(ensureInitialized(), options.limit);
     for (const row of rows) {
       console.log(`\n${row.path}`);
       for (const dependency of row.imports) console.log(`  └─ imports ${dependency}`);
@@ -75,9 +76,9 @@ program.command("map")
 
 program.command("search <query>")
   .description("Search indexed functions, classes, interfaces, and types.")
-  .option("--limit <number>", "Maximum results", "20")
-  .action((query: string, options: { limit: string }) => {
-    const hits = searchSymbols(ensureInitialized(), query, Number(options.limit));
+  .option("--limit <number>", "Maximum results", parsePositiveInteger, 20)
+  .action((query: string, options: { limit: number }) => {
+    const hits = searchSymbols(ensureInitialized(), query, options.limit);
     if (hits.length === 0) {
       console.log("No matching symbols. Try a broader query or run `cnm index`.");
       return;
@@ -114,9 +115,9 @@ program.command("remember <title> <content>")
 
 program.command("memories [query]")
   .description("List local project memories, optionally filtered by text.")
-  .option("--limit <number>", "Maximum results", "20")
-  .action((query: string | undefined, options: { limit: string }) => {
-    console.log(JSON.stringify(recallMemories(ensureInitialized(), query ?? "", Number(options.limit)), null, 2));
+  .option("--limit <number>", "Maximum results", parsePositiveInteger, 20)
+  .action((query: string | undefined, options: { limit: number }) => {
+    console.log(JSON.stringify(recallMemories(ensureInitialized(), query ?? "", options.limit), null, 2));
   });
 
 program.command("mcp")
