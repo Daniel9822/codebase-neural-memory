@@ -67,7 +67,7 @@ function rankSearchCandidates(
     } else {
       signals.push("like-fallback");
     }
-    return { ...row, score, rankingSignals: signals, searchMethod: row.ftsRank === undefined ? "like-fallback" : "fts5" };
+    return { ...row, score, rankingSignals: signals, searchMethod: (row.ftsRank === undefined ? "like-fallback" : "fts5") as RankedSearchHit["searchMethod"] };
   }).sort((a, b) =>
     b.score - a.score ||
     a.filePath.localeCompare(b.filePath) ||
