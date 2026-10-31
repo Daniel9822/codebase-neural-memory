@@ -124,7 +124,7 @@ describe("indexWithDatabase", () => {
   it("produces the same logical index after a forced reindex", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
-    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import { helper } from "./helper";\nexport function run() { helper(); }');
+    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import { helper } from "./helper";\nexport function run() { return true; }');
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
 
     indexWithDatabase(database!, location);
