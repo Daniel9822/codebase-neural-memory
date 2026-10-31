@@ -48,10 +48,11 @@ afterEach(() => {
     expect(summary.symbols).toBe(persistedSymbols);
     expect(summary.relations).toBe(persistedRelations);
     expect(summary.errors.join(" ")).toMatch(/broken\\.ts/);
-    expect(summary.skippedFiles).toEqual([
+    expect(summary.skippedFiles).toHaveLength(2);
+    expect(summary.skippedFiles).toEqual(expect.arrayContaining([
       "binary.ts: binary content",
       "large.ts: exceeds 1000000 bytes",
-    ]);
+    ]));
   });
 
 });
