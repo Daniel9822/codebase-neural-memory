@@ -70,6 +70,8 @@ export function migrate(db: MemoryDatabase): void {
       file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
       caller_name TEXT NOT NULL,
       callee_name TEXT NOT NULL,
+      module_specifier TEXT,
+      imported_symbol_name TEXT,
       PRIMARY KEY (file_id, caller_name, callee_name)
     );
 
@@ -115,6 +117,16 @@ export function migrate(db: MemoryDatabase): void {
   const now = new Date().toISOString();
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, ?)`).run(now);
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (2, ?)`).run(now);
+
+  const callColumns = db.prepare("PRAGMA table_info(symbol_calls)").all() as Array<{ name: string }>;
+  const callColumnNames = new Set(callColumns.map((column) => column.name));
+  if (!callColumnNames.has("module_specifier")) {
+    db.exec("ALTER TABLE symbol_calls ADD COLUMN module_specifier TEXT");
+  }
+  if (!callColumnNames.has("imported_symbol_name")) {
+    db.exec("ALTER TABLE symbol_calls ADD COLUMN imported_symbol_name TEXT");
+  }
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (3, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {
