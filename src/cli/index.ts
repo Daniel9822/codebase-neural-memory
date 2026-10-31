@@ -130,10 +130,11 @@ program.command("relations <symbol>")
   });
 
 program.command("impact <file>")
-  .description("List files that depend on the specified indexed file.")
-  .action((file: string) => {
-    const affected = findImpact(ensureInitialized(), file);
-    console.log(JSON.stringify({ file, affectedFiles: affected }, null, 2));
+  .description("List files that depend on the specified indexed file, with explicit traversal limits.")
+  .option("--limit <number>", "Maximum affected files (1-5000)", parsePositiveInteger, 100)
+  .option("--max-processed <number>", "Maximum reverse dependency edges examined (1-10000)", parsePositiveInteger, 1000)
+  .action((file: string, options: { limit: number; maxProcessed: number }) => {
+    console.log(JSON.stringify(findImpact(ensureInitialized(), file, options.limit, options.maxProcessed), null, 2));
   });
 
 
