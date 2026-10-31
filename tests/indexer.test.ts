@@ -166,7 +166,7 @@ describe("indexWithDatabase", () => {
   it("records missing and ambiguous relative imports without guessing a target", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
-    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import "./missing";\\nimport "./shared";');
+    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import "./missing";\nimport "./shared";');
     writeFileSync(join(location.rootPath, "src", "shared.ts"), "export const shared = true;");
     writeFileSync(join(location.rootPath, "src", "shared.tsx"), "export const sharedView = true;");
 
