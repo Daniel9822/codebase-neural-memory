@@ -107,3 +107,41 @@ export function sameGitSnapshot(left: GitSnapshot, right: GitSnapshot): boolean 
     left.changedPathCount === right.changedPathCount &&
     left.statusHash === right.statusHash;
 }
+
+export type GitCommitRelationship = "not-referenced" | "unavailable" | "unknown" | "current" | "ancestor" | "ahead" | "diverged";
+
+function isAncestor(rootPath: string, candidate: string, descendant: string): boolean | null {
+  try {
+    execFileSync("git", ["merge-base", "--is-ancestor", candidate, descendant], {
+      cwd: rootPath,
+      stdio: "ignore",
+      windowsHide: true,
+    });
+    return true;
+  } catch (error) {
+    const status = (error as { status?: number }).status;
+    return status === 1 ? false : null;
+  }
+}
+
+/** Compare a memory's recorded commit with the current checkout without changing Git state. */
+export function compareGitCommits(
+  rootPath: string,
+  referenceCommit: string | null,
+  currentCommit: string | null,
+): GitCommitRelationship {
+  if (referenceCommit === null) return "not-referenced";
+  if (!currentCommit) return "unavailable";
+  if (!/^[0-9a-f]{7,64}$/i.test(referenceCommit)) return "unknown";
+
+  const resolvedReference = runGit(rootPath, ["rev-parse", "--verify", referenceCommit + "^{commit}"]);
+  if (!resolvedReference) return "unknown";
+  if (resolvedReference === currentCommit) return "current";
+
+  const referenceIsAncestor = isAncestor(rootPath, resolvedReference, currentCommit);
+  if (referenceIsAncestor === true) return "ancestor";
+  const currentIsAncestor = isAncestor(rootPath, currentCommit, resolvedReference);
+  if (currentIsAncestor === true) return "ahead";
+  if (referenceIsAncestor === false && currentIsAncestor === false) return "diverged";
+  return "unknown";
+}
