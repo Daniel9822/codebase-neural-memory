@@ -1,5 +1,5 @@
 import ts from "typescript";
-import type { ParsedCall, ParsedFile, ParsedSymbol, SymbolKind } from "../shared/types.js";
+import type { ParsedCall, ParsedFile, ParsedHeritage, ParsedSymbol, SymbolKind } from "../shared/types.js";
 
 const supportedExtensions = new Set([".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"]);
 
@@ -42,6 +42,7 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
   const symbols: ParsedSymbol[] = [];
   const imports = new Set<string>();
   const calls: ParsedCall[] = [];
+  const heritage: ParsedHeritage[] = [];
   const importedBindings = new Map<string, { moduleSpecifier: string; importedName: string }>();
   const shadowedImportedNames = new Set<string>();
 
@@ -80,6 +81,24 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
     }
 
     let nextOwner = owner;
+    if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
+      const ownerName = nodeName(node);
+      if (ownerName && node.heritageClauses) {
+        for (const clause of node.heritageClauses) {
+          for (const type of clause.types) {
+            if (!ts.isIdentifier(type.expression)) continue;
+            const targetName = type.expression.text;
+            const binding = importedBindings.get(targetName);
+            heritage.push({
+              ownerName,
+              relationKind: clause.token === ts.SyntaxKind.ImplementsKeyword ? "IMPLEMENTS" : "EXTENDS",
+              targetName,
+              ...(binding ? { moduleSpecifier: binding.moduleSpecifier, importedName: binding.importedName } : {}),
+            });
+          }
+        }
+      }
+    }
     if (ts.isFunctionDeclaration(node)) {
       const name = nodeName(node);
       if (name) {
@@ -156,5 +175,5 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
   collectImportedBindings(sourceFile);
   collectShadowedNames(sourceFile);
   visit(sourceFile);
-  return { symbols, imports: [...imports], calls };
+  return { symbols, imports: [...imports], calls, heritage };
 }
