@@ -1,6 +1,6 @@
 # Phase 6 — MCP Contract
 
-**Status:** Blocks 1 and 2 are implemented and CI-verified on 2026-10-31. CI run [41238294195](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41238294195) passed all 82 tests across 9 test files, typecheck, build, and smoke. Blocks 3–5 remain open. This document records the implemented contract; it does not claim that Phase 6 integration acceptance has passed.
+**Status:** Blocks 1 and 2 are implemented and CI-verified. Block 3 implementation is in progress on `phase6-block3-limits-isolation`; it adds bounded freshness and project-map report APIs. Blocks 3–5 remain open pending tests, CI, and client evidence. This document records the implemented contract; it does not claim that Phase 6 integration acceptance has passed.
 
 ## Source of truth
 
@@ -28,21 +28,21 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 | Tool | Input schema | Adapter default / hard maximum | Core operation |
 |---|---|---|---|
 | `project_overview` | No arguments | — | `getProjectOverview(location)` |
-| `index_freshness` | No arguments | —; output detail arrays are currently unbounded | `getIndexFreshness(location)` |
-| `project_map` | `limit`: optional integer, 1–200 | 80; no total/truncated fields in current result | `getProjectMap(location, limit)` |
+| `index_freshness` | No arguments | 200 skipped-file details and 200 error details; totals and truncation flags | `getIndexFreshness(location)` |
+| `project_map` | `limit`: optional integer, 1–200 | 80 files; 200 imports and 200 unresolved imports per file; totals and truncation flags | `getProjectMapReport(location, limit)` |
 | `symbol_lookup` | `query`: non-empty string; `limit`: optional integer, 1–50 | `limit`: 20 | `searchSymbols(location, query, limit)` |
 | `dependency_graph` | `path`: non-empty string; `depth`: optional integer, 1–20; `limit`: optional integer, 1–100; `maxProcessed`: optional integer, 1–10,000 | `depth`: 1; `limit`: 100; `maxProcessed`: 1,000 | `findDependencies(location, path, depth, limit, maxProcessed)` |
 | `file_details` | `path`: non-empty string; `limit`: optional integer, 1–500 | 100 per collection | `getFileDetails(location, path, limit)` |
 | `change_impact` | `path`: non-empty string; `limit`: optional integer, 1–5,000; `maxProcessed`: optional integer, 1–10,000 | `limit`: 100; `maxProcessed`: 1,000 | `findImpact(location, path, limit, maxProcessed)` |
 | `task_context` | `task`: non-empty string; `maxItems`: optional integer, 1–100; `maxCharacters`: optional integer, 100–50,000 | `maxItems`: 20; `maxCharacters`: 12,000 | `buildTaskContext(location, task, options)` |
-| `memory_freshness` | No arguments | —; returns all eligible records | `inspectMemoryFreshness(location)` |
+| `memory_freshness` | `limit`: optional integer, 1–500 | 100 records; total eligible count and truncation flag | `getMemoryFreshnessReport(location, limit)` |
 | `memory_recall` | `query`: optional string; `limit`: optional integer, 1–50 | `query`: empty string; `limit`: 20 | `recallMemories(location, query, limit)` |
 
 ### Result and truncation behavior
 
-- `project_map` is capped at 200 files by the MCP schema, but the current core return type is only an array: it does not include a total count or a truncation flag. A caller cannot distinguish a complete map from a map cut off by the limit.
-- `index_freshness` has no input limit. Its summary counters are finite, but `skippedFiles` and `errors` contain discovery details without an adapter-level cap or truncation metadata.
-- `memory_freshness` has no input limit and returns every eligible memory-source record; the current response has no total count or truncation metadata.
+- `project_map` returns a report with total indexed files, a top-level truncation flag, and per-file totals/truncation flags for resolved and unresolved imports. Nested import collections are capped at 200 per file.
+- `index_freshness` retains finite summary counters and caps `skippedFiles` and `errors` independently at 200 each. `totals` reports the full counts and `truncated` reports whether either detail list was shortened.
+- `memory_freshness` accepts `limit` from 1 to 500 (default 100) and returns `records`, `total`, `limit`, and `truncated`.
 - `symbol_lookup` is capped at 50 results by the MCP schema.
 - `dependency_graph` has independent depth, unique-result, and processed-edge budgets. The core traversal also protects against cycles and reports its traversal/truncation metadata.
 - `file_details` applies the supplied limit independently to its returned collections; the core response includes collection totals and truncation indicators.
