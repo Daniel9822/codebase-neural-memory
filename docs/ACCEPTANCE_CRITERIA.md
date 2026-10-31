@@ -292,7 +292,7 @@ Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code ins
 ## 11. Phase 8 — Evaluation and performance
 
 - [x] A reproducible synthetic fixture corpus is generated deterministically by `scripts/benchmark.ts`.
-- [x] Small, medium, and large cases (26, 101, and 301 source files) are measured in CI.
+- [x] Small, medium, and large synthetic cases (26, 101, and 301 source files) plus the checked-out CNM repository layout are measured in CI.
 - [x] Initial, unchanged incremental, and one-file changed incremental index timings are recorded.
 - [x] Search, dependency-graph, and freshness latency are recorded as median and p95.
 - [x] SQLite size and process peak RSS are recorded, with cumulative RSS methodology documented.
