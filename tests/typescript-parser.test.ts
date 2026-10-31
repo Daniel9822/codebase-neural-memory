@@ -13,4 +13,8 @@ describe("parseTypeScriptFile", () => {
     expect(parsed.calls).toContainEqual({ callerName: "runTask", calleeName: "helper" });
     expect(parsed.calls).toContainEqual({ callerName: "Worker.execute", calleeName: "runTask" });
   });
+  it("rejects malformed source and includes a source location", () => {
+    expect(() => parseTypeScriptFile("broken.ts", "export function broken( {"))
+      .toThrow(/broken\\.ts:1:/);
+  });
 });
