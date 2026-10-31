@@ -101,7 +101,7 @@ describe("indexWithDatabase", () => {
   it("rebuilds a local import relation between indexed files", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
-    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import { helper } from "./helper";\\nexport function run() { helper(); }');
+    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import { helper } from "./helper";\nexport function run() { helper(); }');
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
 
     const summary = indexWithDatabase(database!, location);
