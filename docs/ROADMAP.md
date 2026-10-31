@@ -136,7 +136,7 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ## Phase 6 — MCP adapter and agent workflow
 
-**Status:** Blocks 1–3 are implemented and CI-verified; Block 4's real OpenCode and VS Code/Copilot calls are manually verified, with VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 recorded. Block 5 regression and close-out are complete: clean-checkout CI passed on `main` at `f3c74147ce6b9cad2100156a644c404b965d6f6a` (run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815)); the Phase 6 PR diffs were reviewed and the documentation was reconciled. Phase 5's default-branch close-out is also verified. Formal Phase 6 closure remains pending only the exact GitHub Copilot extension identifier/version, which has not been established by the supplied CLI output.
+**Status:** Complete and formally closed on 2026-10-31. Blocks 1–3 are implemented and CI-verified; Block 4's real OpenCode and VS Code/GitHub Copilot calls are manually verified, with VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 recorded. In the validated VS Code installation, Copilot is integrated into the editor experience and does not require a separately tracked extension version. Block 5 regression and close-out passed on `main` in clean-checkout CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815); documentation reconciliation merged in PR [#47](https://github.com/Daniel9822/codebase-neural-memory/pull/47), followed by successful main-branch CI run [41250490923](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250490923).
 
 ### Block 1 — Audit and MCP contract
 
@@ -183,9 +183,9 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 - [x] Document reproducible setup, verification prompts, evidence requirements, and troubleshooting (`docs/CLIENT_INTEGRATION.md`).
 - [x] Record client configurations, observed tool results, execution date, and known platform limitations in `docs/CLIENT_INTEGRATION.md`.
 - [x] Record VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 from local CLI output.
-- [ ] Identify and record the exact GitHub Copilot extension identifier/version; the filtered extension-list command returned no matching lines.
+- [x] Record the validated VS Code/Copilot integration as the integrated Copilot experience in VS Code 1.144.0; no independent extension identifier/version is required for this environment.
 
-**Evidence:** VS Code/Copilot and OpenCode each connected to `codebase-memory` and successfully invoked `project_overview` and `symbol_lookup` against the same local CNM workspace on 2026-10-31. Both returned 25 files, 135 symbols, 171 relations, index revision 1, and located `createMcpServer` at lines 12–102. Versions recorded: VS Code 1.144.0 (x64), OpenCode 1.19.5, Node.js v22.12.0. Exact Copilot extension identity/version remains unverified.
+**Evidence:** VS Code with its integrated GitHub Copilot Agent experience and OpenCode each connected to `codebase-memory` and successfully invoked `project_overview` and `symbol_lookup` against the same local CNM workspace on 2026-10-31. Both returned 25 files, 135 symbols, 171 relations, index revision 1, and located `createMcpServer` at lines 12–102. Versions recorded: VS Code 1.144.0 (x64), OpenCode 1.19.5, Node.js v22.12.0. Copilot is recorded as part of the validated VS Code installation, not as a separately versioned extension.
 
 **Deliverable:** two independently verified client integrations; simulated protocol calls do not count as client evidence.
 
@@ -197,22 +197,23 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 - [x] Record the merge commit, successful CI run, both real-client evidence records, and remaining limitations.
 - [x] Verify Phase 5's default-branch close-out evidence; run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) passed on `main`.
 
-**Deliverable:** Phase 6 implementation and regression close-out merged into `main` with passing CI and reproducible integration evidence. The phase itself remains formally open only for the Block 4 Copilot extension identifier/version evidence gap.
+**Deliverable:** Phase 6 implementation and regression close-out merged into `main` with passing CI and reproducible integration evidence. All five blocks are complete.
 
 **Phase 6 exit condition:** all five blocks pass. The existence of ten registered tools or a successful generic smoke test alone is not sufficient.
  
 ## Phase 7 — Git awareness and automatic freshness
 
-**Status:** Planned; basic metadata fields exist but lifecycle is not complete.
+**Status:** In progress. The first Git-awareness slice is implemented on `phase7-git-awareness-foundation`: index snapshots now record commit, branch, dirty state, and a hash/count of porcelain working-tree changes; freshness detects commit, branch, and worktree changes. A full scan remains the consistency mechanism; no file watcher is introduced.
 
 Tasks:
-- Record the indexed Git commit and relevant file state.
-- Detect branch/commit changes and dirty worktrees.
-- Associate source facts with the index revision.
-- Evaluate a file watcher as an optional convenience, not as the consistency mechanism.
-- Reconcile missed events through a deterministic scan.
-- Handle renamed files, worktrees, submodules, and repository moves deliberately.
-- Make freshness visible to retrieval clients.
+- [x] Record the indexed Git commit and relevant working-tree state when Git metadata is available (schema migration v10).
+- [x] Detect branch/commit changes and dirty worktrees in `cnm freshness` and MCP `index_freshness`.
+- [ ] Associate memory source commit provenance with current Git ancestry/state; existing `commit_sha` fields are not yet compared.
+- [x] Keep freshness reconciliation deterministic and independent of watcher events; each check scans supported source files and reads Git status.
+- [x] Reconcile changes missed by any external watcher through the same deterministic scan; watcher support remains optional and unimplemented.
+- [x] Document identity boundaries: each Git worktree path has a separate path-derived CNM project/database; moving a repository changes its project identity. A submodule opened directly resolves as its own project, but a parent scan does not yet enforce submodule isolation.
+- [x] Expose Git snapshot and stale/current state through the existing `index_freshness` MCP tool.
+- [ ] Prove clean reindex and incremental reconciliation converge to equivalent logical state across controlled branch, rename, and deletion scenarios.
 
 Deliverable: memory that can detect and report when its view of source may be stale.
 
