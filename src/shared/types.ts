@@ -37,6 +37,7 @@ export interface IndexSummary {
   skipped: number;
   failed: number;
   errors: string[];
+  skippedFiles: string[];
 }
 
 export interface SearchHit {
