@@ -22,10 +22,19 @@ export interface ParsedCall {
   importedSymbolName?: string;
 }
 
+export interface ParsedHeritage {
+  ownerName: string;
+  relationKind: "EXTENDS" | "IMPLEMENTS";
+  targetName: string;
+  moduleSpecifier?: string;
+  importedName?: string;
+}
+
 export interface ParsedFile {
   symbols: ParsedSymbol[];
   imports: string[];
   calls: ParsedCall[];
+  heritage: ParsedHeritage[];
 }
 
 export interface IndexSummary {
