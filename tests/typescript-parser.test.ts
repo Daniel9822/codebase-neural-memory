@@ -10,7 +10,7 @@ describe("parseTypeScriptFile", () => {
     expect(parsed.symbols.map((symbol) => symbol.name)).toContain("runTask");
     expect(parsed.symbols.map((symbol) => symbol.name)).toContain("Worker");
     expect(parsed.symbols.map((symbol) => symbol.name)).toContain("Worker.execute");
-    expect(parsed.calls).toContainEqual({ callerName: "runTask", calleeName: "helper" });
+    expect(parsed.calls).toContainEqual({ callerName: "runTask", calleeName: "helper", moduleSpecifier: "./helper", importedSymbolName: "helper" });
     expect(parsed.calls).toContainEqual({ callerName: "Worker.execute", calleeName: "runTask" });
   });
   it("rejects malformed source and includes a source location", () => {
