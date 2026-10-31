@@ -74,13 +74,18 @@ try {
   mcp.stdin.write(JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" }) + "\n");
   const listed = await request("tools/list");
   const names = listed.tools.map((tool) => tool.name);
-  for (const name of ["symbol_lookup", "dependency_graph", "file_details", "index_freshness"]) {
+  for (const name of ["symbol_lookup", "dependency_graph", "file_details", "index_freshness", "change_impact"]) {
     assert.ok(names.includes(name), `MCP tool missing: ${name}`);
   }
   const lookup = await request("tools/call", { name: "symbol_lookup", arguments: { query: "alpha", limit: 10 } });
   assert.match(lookup.content.map((item) => item.text ?? "").join("\n"), /alpha/);
   const dependencies = await request("tools/call", { name: "dependency_graph", arguments: { path: "a.ts", depth: 2 } });
   assert.match(dependencies.content.map((item) => item.text ?? "").join("\n"), /b\.ts/);
+  const impact = await request("tools/call", { name: "change_impact", arguments: { path: "b.ts", limit: 10, maxProcessed: 20 } });
+  const impactText = impact.content.map((item) => item.text ?? "").join("\n");
+  const impactResult = JSON.parse(impactText);
+  assert.deepEqual(impactResult.affectedFiles, ["a.ts"]);
+  assert.equal(impactResult.truncated, false);
   const details = await request("tools/call", { name: "file_details", arguments: { path: "a.ts", limit: 1 } });
   assert.match(details.content.map((item) => item.text ?? "").join("\n"), /a\.ts/);
   const freshness = await request("tools/call", { name: "index_freshness", arguments: {} });

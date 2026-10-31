@@ -63,10 +63,16 @@ export function startMcpServer(location: ProjectLocation): void {
     }));
 
     server.registerTool("change_impact", {
-      description: "Find indexed files that import a target file, recursively.",
-      inputSchema: z.object({ path: z.string().min(1) }),
-    }, async ({ path }) => ({
-      content: [{ type: "text", text: JSON.stringify({ path, affectedFiles: findImpact(location, path) }, null, 2) }],
+      description: "Find indexed files that import a target file, recursively, with explicit result and processing limits.",
+      inputSchema: z.object({
+        path: z.string().min(1),
+        limit: z.number().int().min(1).max(5000).optional(),
+        maxProcessed: z.number().int().min(1).max(10000).optional(),
+      }),
+    }, async ({ path, limit, maxProcessed }) => ({
+      content: [{ type: "text", text: JSON.stringify(
+        findImpact(location, path, limit ?? 100, maxProcessed ?? 1000), null, 2,
+      ) }],
     }));
 
     server.registerTool("memory_recall", {

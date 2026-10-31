@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
-import { explainSymbol, findDependencies, getFileDetails, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
+import { explainSymbol, findDependencies, findImpact, getFileDetails, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
 import { retrievalRelevanceCases } from "./fixtures/retrieval-relevance.js";
 
 let temporaryDirectory = "";
@@ -135,6 +135,43 @@ describe("findDependencies", () => {
   });
 });
 
+
+describe("findImpact", () => {
+  it("returns known reverse dependents transitively and terminates on cycles and duplicate paths", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "target.ts"), "export const target = true;");
+    writeFileSync(join(location.rootPath, "alpha.ts"), 'import "./target";\nimport "./gamma";');
+    writeFileSync(join(location.rootPath, "beta.ts"), 'import "./target";\nimport "./alpha";');
+    writeFileSync(join(location.rootPath, "gamma.ts"), 'import "./alpha";');
+    indexWithDatabase(database!, location);
+
+    const result = findImpact(location, "target.ts");
+    expect(result.affectedFiles).toEqual(["alpha.ts", "beta.ts", "gamma.ts"]);
+    expect(result).toMatchObject({
+      file: "target.ts", truncated: false, processedFiles: 4,
+      limits: { maxResults: 100, maxProcessed: 1000 },
+    });
+    expect(result.processedRelations).toBeGreaterThanOrEqual(4);
+  });
+
+  it("reports result and processing truncation and validates both limits", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "target.ts"), "export const target = true;");
+    writeFileSync(join(location.rootPath, "a.ts"), 'import "./target";');
+    writeFileSync(join(location.rootPath, "b.ts"), 'import "./target";');
+    indexWithDatabase(database!, location);
+
+    const byResults = findImpact(location, "target.ts", 1, 100);
+    expect(byResults.affectedFiles).toHaveLength(1);
+    expect(byResults.truncated).toBe(true);
+    const byProcessing = findImpact(location, "target.ts", 10, 1);
+    expect(byProcessing.processedRelations).toBe(1);
+    expect(byProcessing.truncated).toBe(true);
+    expect(() => findImpact(location, "target.ts", 0)).toThrow("Impact result limit must be a positive safe integer");
+    expect(() => findImpact(location, "target.ts", 10, 0)).toThrow("Impact processing limit must be a positive safe integer");
+    expect(() => findImpact(location, "missing.ts")).toThrow("File not found in memory index");
+  });
+});
 
 describe("getSymbolRelations", () => {
   it("returns incoming and outgoing symbol edges with source locations and evidence", () => {
