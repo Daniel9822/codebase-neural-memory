@@ -310,7 +310,7 @@ describe("indexWithDatabase", () => {
   it("resolves calls through imported named exports, including aliased bindings", () => {
     createProject();
     writeFileSync(join(location.rootPath, "main.ts"),
-      'import { helper as runHelper } from "./helper";\\nexport function caller() { runHelper(); }');
+      'import { helper as runHelper } from "./helper";\nexport function caller() { runHelper(); }');
     writeFileSync(join(location.rootPath, "helper.ts"),
       "export function helper() { return true; }");
 
@@ -332,7 +332,7 @@ describe("indexWithDatabase", () => {
   it("does not resolve imported calls when a local parameter shadows the import", () => {
     createProject();
     writeFileSync(join(location.rootPath, "main.ts"),
-      'import { helper as runHelper } from "./helper";\\nexport function caller(runHelper: () => void) { runHelper(); }');
+      'import { helper as runHelper } from "./helper";\nexport function caller(runHelper: () => void) { runHelper(); }');
     writeFileSync(join(location.rootPath, "helper.ts"),
       "export function helper() { return true; }");
 
@@ -344,7 +344,7 @@ describe("indexWithDatabase", () => {
   it("does not create cross-file calls to non-exported symbols", () => {
     createProject();
     writeFileSync(join(location.rootPath, "main.ts"),
-      'import { helper } from "./helper";\\nexport function caller() { helper(); }');
+      'import { helper } from "./helper";\nexport function caller() { helper(); }');
     writeFileSync(join(location.rootPath, "helper.ts"),
       "function helper() { return true; }");
 
