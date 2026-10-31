@@ -194,15 +194,25 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - **Limitations:** This records the Linux/Node 22 CI environment. Other operating systems are not claimed as verified by this run.
 ## 8. Phase 5 — Task context builder
 
-- [ ] A task description can be passed to the context builder without requiring an LLM.
-- [ ] Context can include relevant files, symbols, dependencies, memories, and tests when available.
-- [ ] Every included code fact has a source reference.
-- [ ] The builder deduplicates repeated entities and overlapping excerpts.
-- [ ] The builder respects configured item and output-size budgets.
-- [ ] If a budget is exceeded, lower-ranked context is omitted predictably.
-- [ ] The output explains why each major item was selected.
-- [ ] Missing, ambiguous, and stale information is explicitly marked.
-- [ ] A follow-up lookup can retrieve additional detail without rebuilding the whole context.
+- [x] A task description can be passed to the context builder without requiring an LLM (`buildTaskContext`; lexical anchors and retrieval are deterministic).
+- [x] Context can include relevant files, symbols, direct dependencies, memories, and tests when available (`tests/context.test.ts`).
+- [x] Every included code fact has a source reference (symbol path/line range; file/dependency/test path; memory source path or stable memory ID).
+- [x] The builder deduplicates repeated entities before ranking and budget application (`boundedItems`; context regression coverage). Overlapping excerpts are not emitted by this API, so excerpt-overlap deduplication is not applicable.
+- [x] The builder respects configured item and serialized-character budgets (`tests/context.test.ts`).
+- [x] If a budget is exceeded, lower-ranked context is omitted predictably (score-descending, source/title tie-break ordering).
+- [x] The output explains why each major item was selected through ranking `signals` (`tests/context.test.ts`).
+- [x] Missing, ambiguous, and stale information is explicitly marked (no symbol matches, unresolved/ambiguous imports, memory freshness, and stale/incomplete index warnings).
+- [x] A follow-up lookup can retrieve additional detail without rebuilding the whole context (`lookupTaskContextDetails`; reads only requested known source paths; `tests/context.test.ts`).
+
+### Phase 5 close-out verification
+
+- **Result:** PASS
+- **Verified merge commit:** `60fb6a20752a9c8f4ac0de3d456d20c01a8be166` (PR #35; task-context dependencies and incremental lookup).
+- **Post-merge CI:** [GitHub Actions #41231963768](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41231963768) — success.
+- **Commands passed in GitHub-hosted Ubuntu / Node.js 22:** `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke`.
+- **Coverage:** task-context ranking and source references, direct dependencies, test paths, memory lifecycle labels, unresolved imports, deduplication, bounded output, and incremental detail lookup.
+- **Follow-up hardening:** explicit stale/incomplete source-index warnings and a regression test are included in the follow-up change; this close-out record should be finalized only after its CI passes.
+- **Limitations:** retrieval is lexical/structural; it does not promise semantic completeness. The context API emits structured file details rather than text excerpts, so overlapping-excerpt handling is not applicable. The follow-up lookup is a core API; no separate CLI/MCP incremental-lookup command is exposed yet.
 
 ## 9. Phase 6 — MCP integration
 
