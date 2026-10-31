@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
@@ -66,6 +66,35 @@ describe("indexWithDatabase", () => {
 
     expect(summary.added).toBe(1);
     expect(indexedPaths).toEqual(["src/visible.ts"]);
+  });
+
+  it("supports additive custom exclusions without disabling mandatory safety exclusions", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "generated"), { recursive: true });
+    writeFileSync(join(location.rootPath, "generated", "artifact.ts"), "export const generated = true;");
+    writeFileSync(join(location.rootPath, "keep.ts"), "export const keep = true;");
+    writeFileSync(join(location.rootPath, ".env"), "SECRET=value");
+    writeFileSync(join(location.rootPath, "secret.key"), "private key");
+
+    const summary = indexWithDatabase(database!, location, false, ["generated/"]);
+    const indexedPaths = (database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>).map((row) => row.path);
+
+    expect(summary.added).toBe(1);
+    expect(indexedPaths).toEqual(["keep.ts"]);
+  });
+
+  it("skips file symlinks by default", () => {
+    createProject();
+    const outsidePath = join(temporaryDirectory, "outside.ts");
+    writeFileSync(outsidePath, "export const outside = true;");
+    symlinkSync(outsidePath, join(location.rootPath, "linked.ts"));
+    writeFileSync(join(location.rootPath, "normal.ts"), "export const normal = true;");
+
+    const summary = indexWithDatabase(database!, location);
+    const indexedPaths = (database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>).map((row) => row.path);
+
+    expect(summary.added).toBe(1);
+    expect(indexedPaths).toEqual(["normal.ts"]);
   });
 
   it("removes a file that was actually deleted from disk", () => {
