@@ -5,7 +5,7 @@ import { basename } from "node:path";
 import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
 import { indexProject } from "../core/indexer.js";
-import { explainSymbol, findDependencies, findImpact, getProjectMap, getProjectOverview, searchSymbols } from "../core/retrieval.js";
+import { explainSymbol, findDependencies, findImpact, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
 import { recallMemories, remember } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
@@ -108,6 +108,18 @@ program.command("explain <symbol>")
     const hits = explainSymbol(ensureInitialized(), symbol);
     if (hits.length === 0) console.log(`No definition found for ${symbol}.`);
     else console.log(JSON.stringify(hits, null, 2));
+  });
+
+program.command("relations <symbol>")
+  .description("Show incoming and outgoing symbol relationships with evidence.")
+  .option("--limit <number>", "Maximum relationships", parsePositiveInteger, 50)
+  .action((symbol: string, options: { limit: number }) => {
+    const relations = getSymbolRelations(ensureInitialized(), symbol, options.limit);
+    if (relations.length === 0) {
+      console.log(`No indexed relationships found for ${symbol}. Try \`cnm explain ${symbol}\` or run \`cnm index\`.`);
+      return;
+    }
+    console.log(JSON.stringify(relations, null, 2));
   });
 
 program.command("impact <file>")

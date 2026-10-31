@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { indexWithDatabase } from "../src/core/indexer.js";
-import { findDependencies } from "../src/core/retrieval.js";
+import { findDependencies, getSymbolRelations } from "../src/core/retrieval.js";
 
 let temporaryDirectory = "";
 let database: MemoryDatabase | undefined;
@@ -63,5 +63,63 @@ describe("findDependencies", () => {
 
     expect(() => findDependencies(location, "main.ts", 0)).toThrow("Dependency depth must be a positive safe integer");
     expect(() => findDependencies(location, "missing.ts")).toThrow("File not found in memory index");
+  });
+});
+
+
+describe("getSymbolRelations", () => {
+  it("returns incoming and outgoing symbol edges with source locations and evidence", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}");
+    writeFileSync(join(location.rootPath, "contract.ts"), "export interface Contract {}");
+    writeFileSync(join(location.rootPath, "worker.ts"),
+      'import { Base } from "./base";\nimport { Contract } from "./contract";\nexport class Worker extends Base implements Contract {}');
+    indexWithDatabase(database!, location);
+
+    expect(getSymbolRelations(location, "Worker")).toEqual([
+      {
+        direction: "outgoing", relation: "EXTENDS", symbolName: "Worker", symbolKind: "class",
+        symbolFilePath: "worker.ts", symbolStartLine: 3, symbolEndLine: 3,
+        relatedSymbolName: "Base", relatedSymbolKind: "class", relatedFilePath: "base.ts",
+        relatedStartLine: 1, relatedEndLine: 1, confidence: 1, provenance: "typescript-ast-heritage",
+      },
+      {
+        direction: "outgoing", relation: "IMPLEMENTS", symbolName: "Worker", symbolKind: "class",
+        symbolFilePath: "worker.ts", symbolStartLine: 3, symbolEndLine: 3,
+        relatedSymbolName: "Contract", relatedSymbolKind: "interface", relatedFilePath: "contract.ts",
+        relatedStartLine: 1, relatedEndLine: 1, confidence: 1, provenance: "typescript-ast-heritage",
+      },
+    ]);
+    expect(getSymbolRelations(location, "Base")).toEqual([
+      {
+        direction: "incoming", relation: "EXTENDS", symbolName: "Base", symbolKind: "class",
+        symbolFilePath: "base.ts", symbolStartLine: 1, symbolEndLine: 1,
+        relatedSymbolName: "Worker", relatedSymbolKind: "class", relatedFilePath: "worker.ts",
+        relatedStartLine: 3, relatedEndLine: 3, confidence: 1, provenance: "typescript-ast-heritage",
+      },
+    ]);
+  });
+
+  it("returns no results for unknown names and validates limits", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "plain.ts"), "export const value = true;");
+    indexWithDatabase(database!, location);
+    expect(getSymbolRelations(location, "Missing")).toEqual([]);
+    expect(() => getSymbolRelations(location, "value", 0)).toThrow("Relation limit must be a positive safe integer");
+  });
+
+  it("keeps same-named symbols scoped to their own files", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "one"), { recursive: true });
+    mkdirSync(join(location.rootPath, "two"), { recursive: true });
+    writeFileSync(join(location.rootPath, "one", "base.ts"), "export class Base {}");
+    writeFileSync(join(location.rootPath, "one", "child.ts"), 'import { Base } from "./base";\nexport class Child extends Base {}');
+    writeFileSync(join(location.rootPath, "two", "base.ts"), "export class Base {}");
+    indexWithDatabase(database!, location);
+
+    expect(getSymbolRelations(location, "Base")).toHaveLength(1);
+    expect(getSymbolRelations(location, "Base")[0]).toMatchObject({
+      direction: "incoming", symbolFilePath: "one/base.ts", relatedFilePath: "one/child.ts",
+    });
   });
 });
