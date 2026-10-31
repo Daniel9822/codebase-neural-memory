@@ -89,7 +89,7 @@ Exit condition: expected symbols, files, dependencies, and dependents are return
 
 ## Phase 4 — Explicit project memory lifecycle
 
-**Status:** Core lifecycle and file-content freshness are implemented in `main`; full phase closure remains pending Git commit/branch freshness (deferred to Phase 7) and the final end-to-end acceptance audit.
+**Status:** Complete and formally closed on 2026-10-31. The clean-checkout CI verification on merge commit `921be0d219e9ccbd151fa49008a691cee4287bcb` passed lockfile installation, typecheck, the full test suite, production build, and CLI/MCP smoke checks. Git commit/branch freshness is explicitly deferred to Phase 7 and is not a Phase 4 exit requirement; the verification record is in `docs/ACCEPTANCE_CRITERIA.md`.
 
 Tasks:
 - [x] Define memory categories and metadata.
