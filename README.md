@@ -90,7 +90,7 @@ CNM does not create a memory directory in the repository and does not modify `.g
 
 ## What is indexed
 
-Use `cnm dependencies <file> --depth <number>` to list direct imports (depth 1) or transitive dependencies up to the requested depth. Cycles are handled without repeating files.\n\nThe initial parser supports `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, and `.cjs` files. It extracts functions, classes, methods, interfaces, type aliases, enums, import declarations, and simple local function-call relationships.
+Use `cnm dependencies <file> --depth <number>` to list direct imports (depth 1) or transitive dependencies up to the requested depth. Cycles are handled without repeating files.\n\nThe project map lists resolved relative imports and explicitly labels relative imports that are unresolved or ambiguous; ambiguous imports are not assigned a guessed target. The initial parser supports `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, and `.cjs` files. It extracts functions, classes, methods, interfaces, type aliases, enums, import declarations, and simple local function-call relationships.
 
 Common generated/dependency folders and sensitive files such as `.env`, private keys, and certificate files are excluded. The `.gitignore` file is respected, and additional patterns can be supplied to `cnm index` with `--exclude`. Symlinks are skipped by default. Files larger than 1 MB are skipped by default.
 
