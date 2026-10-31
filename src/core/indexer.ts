@@ -81,7 +81,8 @@ function discoverFiles(root: string, extraExcludes: string[] = []): DiscoveryRes
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
     let entries: Dirent[];
     try {
-      entries = readdirSync(directory, { withFileTypes: true });
+      entries = readdirSync(directory, { withFileTypes: true })
+        .sort((a, b) => a.name.localeCompare(b.name));
     } catch (error) {
       failed += 1;
       errors.push((directoryPath || ".") + ": " + (error instanceof Error ? error.message : String(error)));
