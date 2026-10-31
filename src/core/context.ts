@@ -92,12 +92,12 @@ export function buildTaskContext(
   }
 
   const anchors = anchorsFor(normalizedTask);
+  const candidates: TaskContextItem[] = [];
+  const warnings: string[] = [];
   const indexFreshness = getIndexFreshness(location);
   if (indexFreshness.status !== "current") {
     warnings.push(`Indexed source is ${indexFreshness.status}; context may omit newer or unreadable files (added: ${indexFreshness.addedFiles}, changed: ${indexFreshness.changedFiles}, deleted: ${indexFreshness.deletedFiles}).`);
   }
-  const candidates: TaskContextItem[] = [];
-  const warnings: string[] = [];
   const symbols = searchSymbols(location, normalizedTask, symbolLimit);
   for (const symbol of symbols) {
     candidates.push({
