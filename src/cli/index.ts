@@ -67,7 +67,7 @@ program.command("index")
   });
 
 program.command("freshness")
-  .description("Check whether supported source files differ from the local index.")
+  .description("Check source-file hashes and Git revision/worktree state against the local index.")
   .action(() => {
     console.log(JSON.stringify(getIndexFreshness(ensureInitialized()), null, 2));
   });
