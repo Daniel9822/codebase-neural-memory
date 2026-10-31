@@ -169,16 +169,17 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 
 ## 7. Phase 4 — Memory lifecycle
 
-- [ ] A memory has a stable ID, category, title, content, status, and timestamps.
-- [ ] A memory can optionally reference a source path and Git commit.
-- [ ] Memory update is explicit and persists.
-- [ ] Memory deletion is explicit and scoped to the correct project.
-- [ ] Proposed, confirmed, obsolete, and rejected states have defined transitions.
-- [ ] An agent suggestion cannot become confirmed without an explicit approval action.
-- [ ] A source change can mark a related memory as requiring review without silently rewriting the decision.
-- [ ] Search excludes rejected memories by default.
-- [ ] Memory operations from one project cannot expose another project's content.
-
+- [x] A memory has a stable UUID, category, title, content, status, and timestamps (`tests/memories.test.ts`).
+- [x] A memory can optionally reference a source path and Git commit (`tests/memories.test.ts`).
+- [x] Memory update is explicit, partial, and persists (`tests/memories.test.ts`).
+- [x] Memory deletion is explicit and scoped to the correct project (`tests/memories.test.ts`).
+- [x] Proposed, confirmed, obsolete, and rejected states have defined, validated transitions; rejected is terminal (`tests/memories.test.ts`).
+- [x] A proposed suggestion cannot become confirmed without an explicit transition/approval action (`tests/memories.test.ts`).
+- [x] A changed or missing source file is reported as requiring review without silently rewriting memory content or status (`tests/memories.test.ts`).
+- [x] Search excludes rejected memories by default (`tests/memories.test.ts`).
+- [x] Memory operations from one project cannot expose or delete another project's content (`tests/memories.test.ts`).
+- [ ] Git commit/branch changes are compared against source provenance; storing an optional commit identifier is implemented, but commit freshness is deferred to Phase 7.
+- [ ] Author identity and richer provenance are retained where available.
 ## 8. Phase 5 — Task context builder
 
 - [ ] A task description can be passed to the context builder without requiring an LLM.

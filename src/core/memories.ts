@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
@@ -38,11 +38,13 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
     throw new Error("Memory source path must stay inside the project root");
   }
   if (!existsSync(absolutePath)) return null;
+  const canonicalRoot = realpathSync(location.rootPath);
   const canonicalPath = realpathSync(absolutePath);
-  const canonicalRelative = relative(location.rootPath, canonicalPath);
+  const canonicalRelative = relative(canonicalRoot, canonicalPath);
   if (canonicalRelative === ".." || canonicalRelative.startsWith(".." + sep) || isAbsolute(canonicalRelative)) {
     throw new Error("Memory source path must resolve inside the project root");
   }
+  if (!statSync(canonicalPath).isFile()) throw new Error("Memory source path must reference a file");
   return createHash("sha256").update(readFileSync(canonicalPath)).digest("hex");
 }
 
@@ -173,7 +175,7 @@ export interface MemorySourceFreshness {
   id: string;
   title: string;
   sourcePath: string;
-  status: "current" | "changed" | "missing" | "untracked";
+  status: "current" | "changed" | "missing" | "untracked" | "unsafe";
   requiresReview: boolean;
 }
 
@@ -184,10 +186,19 @@ export function inspectMemoryFreshness(location: ProjectLocation): MemorySourceF
     const rows = db.prepare("SELECT id, title, source_path AS sourcePath, source_hash AS sourceHash FROM memories WHERE status != 'rejected' AND source_path IS NOT NULL ORDER BY updated_at DESC, id")
       .all() as Array<{ id: string; title: string; sourcePath: string; sourceHash: string | null }>;
     return rows.map((row) => {
-      if (row.sourceHash === null) return { id: row.id, title: row.title, sourcePath: row.sourcePath, status: "untracked", requiresReview: false };
-      const currentHash = sourceFingerprint(location, row.sourcePath);
-      const status = currentHash === null ? "missing" : currentHash === row.sourceHash ? "current" : "changed";
-      return { id: row.id, title: row.title, sourcePath: row.sourcePath, status, requiresReview: status === "changed" || status === "missing" };
+      let currentHash: string | null;
+      try {
+        currentHash = sourceFingerprint(location, row.sourcePath);
+      } catch (error) {
+        if (error instanceof Error && error.message === "Memory source path must resolve inside the project root") {
+          return { id: row.id, title: row.title, sourcePath: row.sourcePath, status: "unsafe", requiresReview: true };
+        }
+        throw error;
+      }
+      if (currentHash === null) return { id: row.id, title: row.title, sourcePath: row.sourcePath, status: "missing", requiresReview: true };
+      if (row.sourceHash === null) return { id: row.id, title: row.title, sourcePath: row.sourcePath, status: "untracked", requiresReview: true };
+      const status = currentHash === row.sourceHash ? "current" : "changed";
+      return { id: row.id, title: row.title, sourcePath: row.sourcePath, status, requiresReview: status === "changed" };
     });
   } finally {
     db.close();

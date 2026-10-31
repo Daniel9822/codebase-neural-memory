@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { indexWithDatabase } from "../src/core/indexer.js";
@@ -137,6 +137,31 @@ describe("explicit memory lifecycle", () => {
     rmSync(join(location.rootPath, "src.ts"));
     expect(inspectMemoryFreshness(location)).toMatchObject([{ id, status: "missing", requiresReview: true }]);
     expect(recallMemories(location)[0]).toMatchObject({ id, status: "confirmed" });
+  });
+
+  it("requires review for legacy source references and flags symlink escapes safely", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "source.ts"), "export const value = 1;");
+    const id = remember(location, "Tracked decision", "Keep this boundary.", "decision", "source.ts");
+    database!.prepare("UPDATE memories SET source_hash = NULL WHERE id = ?").run(id);
+    expect(inspectMemoryFreshness(location)).toMatchObject([
+      { id, status: "untracked", requiresReview: true },
+    ]);
+
+    const outside = join(temporaryDirectory, "outside.ts");
+    writeFileSync(outside, "export const secret = true;");
+    rmSync(join(location.rootPath, "source.ts"));
+    symlinkSync(outside, join(location.rootPath, "source.ts"));
+    expect(inspectMemoryFreshness(location)).toMatchObject([
+      { id, status: "unsafe", requiresReview: true },
+    ]);
+    expect(recallMemories(location)[0]).toMatchObject({ id, status: "confirmed" });
+  });
+
+  it("rejects source paths that traverse outside the project root", () => {
+    createProject();
+    expect(() => remember(location, "Unsafe reference", "Do not accept traversal.", "decision", "../outside.ts"))
+      .toThrow("must stay inside the project root");
   });
 
   it("deletes memories only from the selected project's database", () => {
