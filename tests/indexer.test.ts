@@ -163,6 +163,36 @@ describe("indexWithDatabase", () => {
     expect(database!.prepare("SELECT name FROM symbols").all()).toEqual([{ name: "secondVersion" }]);
   });
 
+  it("records missing and ambiguous relative imports without guessing a target", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import "./missing";\nimport "./shared";');
+    writeFileSync(join(location.rootPath, "src", "shared.ts"), "export const shared = true;");
+    writeFileSync(join(location.rootPath, "src", "shared.tsx"), "export const sharedView = true;");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT kind FROM relations WHERE kind = 'IMPORTS'").all()).toEqual([]);
+    expect(database!.prepare("SELECT module_specifier, status, candidates_json FROM unresolved_imports ORDER BY module_specifier").all())
+      .toEqual([
+        { module_specifier: "./missing", status: "unresolved", candidates_json: "[]" },
+        { module_specifier: "./shared", status: "ambiguous", candidates_json: JSON.stringify(["src/shared.ts", "src/shared.tsx"]) },
+      ]);
+  });
+
+  it("removes unresolved import diagnostics when their source file is deleted", () => {
+    createProject();
+    const sourcePath = join(location.rootPath, "source.ts");
+    writeFileSync(sourcePath, 'import "./missing";');
+    indexWithDatabase(database!, location);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM unresolved_imports").get()).toEqual({ count: 1 });
+
+    rmSync(sourcePath);
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM unresolved_imports").get()).toEqual({ count: 0 });
+  });
+
   it("rebuilds a local import relation between indexed files", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });

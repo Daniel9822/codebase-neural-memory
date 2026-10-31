@@ -87,6 +87,16 @@ export function migrate(db: MemoryDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_relations_target ON relations(target_kind, target_id, kind);
     CREATE INDEX IF NOT EXISTS idx_relations_source ON relations(source_kind, source_id, kind);
 
+    CREATE TABLE IF NOT EXISTS unresolved_imports (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      module_specifier TEXT NOT NULL,
+      status TEXT NOT NULL CHECK(status IN ('unresolved', 'ambiguous')),
+      candidates_json TEXT NOT NULL DEFAULT '[]',
+      UNIQUE(source_file_id, module_specifier)
+    );
+    CREATE INDEX IF NOT EXISTS idx_unresolved_imports_source ON unresolved_imports(source_file_id);
+
     CREATE TABLE IF NOT EXISTS memories (
       id TEXT PRIMARY KEY,
       category TEXT NOT NULL,
@@ -102,7 +112,9 @@ export function migrate(db: MemoryDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_memories_status ON memories(status);
   `);
 
-  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, ?)`).run(new Date().toISOString());
+  const now = new Date().toISOString();
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (1, ?)`).run(now);
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (2, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {
