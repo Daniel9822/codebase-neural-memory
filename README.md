@@ -41,9 +41,11 @@ cnm impact "src/services/tournamentService.ts"
 cnm dependencies "src/services/tournamentService.ts" --depth 2
 cnm remember "Duplicate registration is prohibited" "A participant may only be registered once in an active tournament."
 cnm memories
+cnm freshness
+cnm file "src/services/tournamentService.ts"
 ```
 
-Run `cnm index` again after changing the code. Unchanged files are skipped by content hash; modified files are reparsed and deleted files are removed from the active index. Add project-specific exclusions with repeatable `--exclude` patterns, for example `cnm index --exclude "generated/" --exclude "*.fixture.ts"`. These patterns are additive and cannot disable mandatory safety exclusions.
+Run `cnm index` again after changing the code. Unchanged files are skipped by content hash; modified files are reparsed and deleted files are removed from the active index. Use `cnm freshness` to compare the working tree with the index without modifying it: the report distinguishes `not-indexed`, `current`, `stale`, and `incomplete`, and counts added, changed, and deleted files while listing skipped files and discovery errors. Add project-specific exclusions with repeatable `--exclude` patterns, for example `cnm index --exclude "generated/" --exclude "*.fixture.ts"`. These patterns are additive and cannot disable mandatory safety exclusions.
 
 ## MCP integration
 
@@ -60,6 +62,9 @@ Configure the client to launch `cnm mcp` with the repository as its working dire
 - `symbol_lookup`
 - `change_impact`
 - `memory_recall`
+- `index_freshness`
+- `dependency_graph`
+- `file_details`
 
 Example OpenCode configuration (adjust the executable path for your machine):
 
@@ -90,11 +95,11 @@ CNM does not create a memory directory in the repository and does not modify `.g
 
 ## What is indexed
 
-Use `cnm relations <symbol>` to inspect incoming and outgoing symbol relationships (such as `CALLS`, `EXTENDS`, and `IMPLEMENTS`) with file locations, provenance, and confidence. Use `--limit` to bound the result.
+Use `cnm relations <symbol>` to inspect incoming and outgoing symbol relationships (such as `CALLS`, `EXTENDS`, and `IMPLEMENTS`) with file locations, provenance, confidence, and index revision. Use `--limit` to bound the result. `cnm dependencies <file> --depth <number> --limit <number> --max-processed <number>` returns direct or transitive imports with edge evidence, depth, and the dependency chain; the JSON response reports whether either traversal budget truncated the result. Defaults are 100 unique results and 1,000 examined import edges. `cnm file <path>` returns indexed file metadata, symbols, resolved and unresolved imports, symbol relationships, and provenance. These details are read from the existing index; CNM does not infer additional entities for this view.
 
-Use `cnm dependencies <file> --depth <number>` to list direct imports (depth 1) or transitive dependencies up to the requested depth. Cycles are handled without repeating files.
+File and symbol nodes receive deterministic SHA-256 identifiers derived from their project-relative identity; these identifiers survive forced reindexing and line-only shifts. Internal SQLite row IDs remain implementation details.
 
-File and symbol nodes receive deterministic SHA-256 identifiers derived from their project-relative identity; these identifiers survive forced reindexing and line-only shifts. Internal SQLite row IDs remain implementation details.\n\nThe project map lists resolved relative imports and explicitly labels relative imports that are unresolved or ambiguous; ambiguous imports are not assigned a guessed target. The initial parser supports `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, and `.cjs` files. It extracts functions, classes, methods, interfaces, type aliases, enums, import declarations, simple local function-call relationships, and statically resolvable class/interface heritage relationships.
+The project map lists resolved relative imports and explicitly labels relative imports that are unresolved or ambiguous; ambiguous imports are not assigned a guessed target. Symbol search ranks exact names, name-term coverage, signature-term coverage, exported symbols, and FTS5 BM25 relevance, and returns the signals used for each result. Multi-term queries are tokenized and matched across names and signatures. If the SQLite build does not provide FTS5, the lexical LIKE fallback is used; unrelated SQLite errors are surfaced instead of being silently treated as a fallback condition. The initial parser supports `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, and `.cjs` files. It extracts functions, classes, methods, interfaces, type aliases, enums, import declarations, simple local function-call relationships, and statically resolvable class/interface heritage relationships.
 
 Common generated/dependency folders and sensitive files such as `.env`, private keys, and certificate files are excluded. The `.gitignore` file is respected, and additional patterns can be supplied to `cnm index` with `--exclude`. Symlinks are skipped by default. Files larger than 1 MB are skipped by default.
 
@@ -104,7 +109,7 @@ Common generated/dependency folders and sensitive files such as `.env`, private 
 - Class and interface `extends` / class `implements` relationships are recorded when the target is a unique local symbol or a uniquely resolved named import. Complex heritage expressions and unresolved or ambiguous targets are not inferred.
 - Call relationships are resolved within a file and across statically imported named exports (including aliased imports) when the import resolves to one indexed file and one exported symbol. Shadowed imports, default/namespace imports, re-exports, dynamic calls, and runtime-generated relationships are not inferred.
 - Dynamic imports, framework-specific dependency injection, reflection, and runtime-generated relationships are not inferred.
-- The index is structural, not a substitute for source code or tests.
+- The index is structural, not a substitute for source code or tests. `cnm freshness` is a read-only working-tree comparison, not Git commit/branch tracking or a background watcher; it uses the exclusion patterns persisted by the last index run. The MCP `index_freshness` tool returns the same report without changing the index.
 - Embeddings, semantic ranking, background file watching, and multi-developer synchronization are not part of this first milestone.
 
 ## Design principles

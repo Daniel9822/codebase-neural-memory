@@ -5,7 +5,7 @@ import { basename } from "node:path";
 import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
 import { getIndexFreshness, indexProject } from "../core/indexer.js";
-import { explainSymbol, findDependencies, findImpact, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
+import { explainSymbol, findDependencies, findImpact, getFileDetails, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
 import { recallMemories, remember } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
@@ -94,7 +94,7 @@ program.command("map")
   });
 
 program.command("search <query>")
-  .description("Search indexed functions, classes, interfaces, and types.")
+  .description("Search indexed symbols using exact-name, name-term, signature, export, and FTS5 ranking signals.")
   .option("--limit <number>", "Maximum results", parsePositiveInteger, 20)
   .action((query: string, options: { limit: number }) => {
     const hits = searchSymbols(ensureInitialized(), query, options.limit);
@@ -105,6 +105,7 @@ program.command("search <query>")
     for (const hit of hits) {
       console.log(`${hit.kind} ${hit.name} — ${hit.filePath}:${hit.startLine}-${hit.endLine}${hit.exported ? " [exported]" : ""}`);
       console.log(`  ${hit.signature}`);
+      console.log(`  score: ${hit.score.toFixed(2)}; method: ${hit.searchMethod}; signals: ${hit.rankingSignals.join(", ")}`);
     }
   });
 
@@ -139,9 +140,17 @@ program.command("impact <file>")
 program.command("dependencies <file>")
   .description("List files imported by the target, directly or up to a depth.")
   .option("--depth <number>", "Maximum dependency depth", parsePositiveInteger, 1)
-  .action((file: string, options: { depth: number }) => {
-    const dependencies = findDependencies(ensureInitialized(), file, options.depth);
-    console.log(JSON.stringify({ file, depth: options.depth, dependencies }, null, 2));
+  .option("--limit <number>", "Maximum unique dependency results", parsePositiveInteger, 100)
+  .option("--max-processed <number>", "Maximum import edges examined during traversal", parsePositiveInteger, 1000)
+  .action((file: string, options: { depth: number; limit: number; maxProcessed: number }) => {
+    const dependencies = findDependencies(ensureInitialized(), file, options.depth, options.limit, options.maxProcessed);
+    console.log(JSON.stringify(dependencies, null, 2));
+  });
+
+program.command("file <path>")
+  .description("Show indexed symbols, imports, references, and provenance for a source file.")
+  .action((file: string) => {
+    console.log(JSON.stringify(getFileDetails(ensureInitialized(), file), null, 2));
   });
 
 program.command("remember <title> <content>")

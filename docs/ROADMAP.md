@@ -69,16 +69,17 @@ Exit condition: graph rebuild is deterministic, stale edges are removed, and gra
 
 ## Phase 3 — Lexical and structural retrieval
 
-**Status:** Basic symbol search, map, reverse-import impact, tested exact/prefix lookup contracts, and a read-only source freshness report exist; retrieval quality and a labeled relevance corpus remain open.
+**Status:** Evidence-rich bounded dependency traversal, explainable lexical ranking, file-detail retrieval, labeled relevance fixtures, and read-only source freshness are implemented with regression coverage. Broader repository-scale relevance and performance evaluation remain open.
 
 Tasks:
-- Improve FTS query handling, ranking, limits, and empty-result guidance.
-- Add symbol detail and file/component detail retrieval.
-- Support direct and transitive dependency queries.
-- Explain why a result was selected.
+- [x] Improve FTS query handling, multi-term ranking, bounded candidates, and a narrowly scoped FTS5 fallback that does not swallow unrelated SQLite errors.
+- [x] Add file detail retrieval by reusing indexed metadata, symbols, imports, unresolved imports, relations, and provenance.
+- [x] Support direct and transitive dependency queries with evidence, depth, dependency chains, cycle protection, result limits, processing limits, and truncation reporting.
+- [x] Explain lexical ranking signals and dependency relation evidence.
 - Include source path, symbol kind, and line ranges.
 - [x] Detect stale or incomplete source state and communicate added, changed, deleted, skipped, and failed paths through `cnm freshness` and MCP `index_freshness`.
-- Build a test corpus with known expected retrieval results.
+- [x] Build a labeled test corpus with known expected lexical retrieval results (`tests/fixtures/retrieval-relevance.ts`).
+- [x] Add regression coverage for migration v6 → v7 and document `cnm freshness` / MCP `index_freshness`.
 
 Deliverable: fast, explainable lexical and graph-based retrieval without embeddings.
 

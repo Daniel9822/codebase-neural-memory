@@ -113,11 +113,14 @@ Phase 0 is complete only after results are recorded, including exact environment
 - [x] Partial lexical lookup returns relevant matches with stable limits (prefix search and bounded result count are covered by `tests/retrieval.test.ts`).
 - [x] Empty and punctuation-only queries return an empty result safely; invalid result limits are rejected (`tests/retrieval.test.ts`).
 - [x] Symbol retrieval results include file path, symbol kind, and line range when available (verified by exact and partial lookup fixtures).
-- [ ] Direct dependency lookup returns expected edges.
-- [ ] Transitive dependency lookup respects depth/size limits and cycles.
-- [ ] Retrieval explains the evidence or relation that caused a result to be included.
+- [x] Direct dependency lookup returns expected edges with relation provenance, confidence, and index revision (`tests/retrieval.test.ts`).
+- [x] Transitive dependency lookup returns depth and dependency chains, protects against cycles/duplicates, and reports result/processing truncation (`tests/retrieval.test.ts`).
+- [x] Symbol retrieval explains ranking signals (exact name, name-term coverage, signature-term coverage, export status, and FTS5 BM25); FTS fallback is restricted to FTS5-specific availability/query errors.
+- [x] File detail retrieval reuses indexed file metadata, symbols, resolved/unresolved imports, symbol relations, and provenance without creating inferred entities.
+- [x] A labeled lexical relevance fixture corpus asserts expected top results for representative exact, multi-term, and participant-registration queries (`tests/fixtures/retrieval-relevance.ts`).
 - [x] Retrieval identifies stale or incomplete index state (the freshness report compares source hashes and additions/deletions without mutating the index; incomplete discovery is surfaced separately).
-- [ ] Relevance tests use labeled expected results rather than subjective spot checks alone.
+- [x] Schema migration v6 → v7 adds persisted index exclusions with a `[]` default and is covered for existing data and repeat execution (`tests/migrations.test.ts`).
+- [x] Relevance tests use labeled expected results rather than subjective spot checks alone (`tests/fixtures/retrieval-relevance.ts` and `tests/retrieval.test.ts`).
 
 ## 7. Phase 4 — Memory lifecycle
 
@@ -194,7 +197,7 @@ Phase 0 is complete only after results are recorded, including exact environment
 - [ ] Windows, macOS, and Linux installation paths are tested.
 - [ ] npm package contents include all runtime files and exclude development-only artifacts.
 - [ ] Fresh installation and upgrade paths are documented.
-- [ ] Database migrations are tested from supported prior versions.
+- [x] Database migration v6 → v7 is tested against an existing v6 schema; migrations from other supported versions remain part of the release audit.
 - [ ] CLI help and documentation match actual commands.
 - [ ] Security, privacy, and exclusion behavior are documented accurately.
 - [ ] License and third-party dependency notices are included.

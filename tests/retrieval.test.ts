@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
-import { explainSymbol, findDependencies, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
+import { explainSymbol, findDependencies, getFileDetails, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
+import { retrievalRelevanceCases } from "./fixtures/retrieval-relevance.js";
 
 let temporaryDirectory = "";
 let database: MemoryDatabase | undefined;
@@ -48,6 +49,12 @@ describe("symbol retrieval contracts", () => {
       expect.objectContaining({ name: "calculateAverage", filePath: "totals.ts", startLine: 4, endLine: 6 }),
     ]));
     expect(searchSymbols(location, "calcul", 1)).toHaveLength(1);
+    expect(searchSymbols(location, "calculate average")).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: "calculateAverage", rankingSignals: expect.arrayContaining(["name-term-coverage"]), searchMethod: "fts5" }),
+    ]));
+    expect(searchSymbols(location, "calculateTotal")[0]).toMatchObject({
+      name: "calculateTotal", rankingSignals: expect.arrayContaining(["exact-name", "exported-symbol"]),
+    });
   });
 
   it("returns no results for empty or punctuation-only queries and rejects unsafe limits", () => {
@@ -70,9 +77,17 @@ describe("findDependencies", () => {
     writeFileSync(join(location.rootPath, "c.ts"), 'import "./a";\nexport const c = true;');
     indexWithDatabase(database!, location);
 
-    expect(findDependencies(location, "a.ts")).toEqual(["b.ts"]);
-    expect(findDependencies(location, "a.ts", 2)).toEqual(["b.ts", "c.ts"]);
-    expect(findDependencies(location, "a.ts", 10)).toEqual(["b.ts", "c.ts"]);
+    expect(findDependencies(location, "a.ts")).toMatchObject({
+      dependencies: [{ path: "b.ts", depth: 1, chain: ["a.ts", "b.ts"], evidence: {
+        relation: "IMPORTS", provenance: "typescript-ast", confidence: 1, indexRevision: 1,
+      } }],
+      truncated: false,
+    });
+    expect(findDependencies(location, "a.ts", 2).dependencies).toMatchObject([
+      { path: "b.ts", depth: 1, chain: ["a.ts", "b.ts"] },
+      { path: "c.ts", depth: 2, chain: ["a.ts", "b.ts", "c.ts"] },
+    ]);
+    expect(findDependencies(location, "a.ts", 10).dependencies.map((item) => item.path)).toEqual(["b.ts", "c.ts"]);
   });
 
   it("accepts paths with Windows separators and a leading ./", () => {
@@ -82,8 +97,8 @@ describe("findDependencies", () => {
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export const helper = true;");
     indexWithDatabase(database!, location);
 
-    expect(findDependencies(location, "src\\main.ts")).toEqual(["src/helper.ts"]);
-    expect(findDependencies(location, "./src/main.ts")).toEqual(["src/helper.ts"]);
+    expect(findDependencies(location, "src\\main.ts").dependencies.map((item) => item.path)).toEqual(["src/helper.ts"]);
+    expect(findDependencies(location, "./src/main.ts").dependencies.map((item) => item.path)).toEqual(["src/helper.ts"]);
   });
 
   it("rejects invalid depth and reports files outside the index", () => {
@@ -92,6 +107,8 @@ describe("findDependencies", () => {
     indexWithDatabase(database!, location);
 
     expect(() => findDependencies(location, "main.ts", 0)).toThrow("Dependency depth must be a positive safe integer");
+    expect(() => findDependencies(location, "main.ts", 1, 0)).toThrow("Dependency result limit must be a positive safe integer");
+    expect(() => findDependencies(location, "main.ts", 1, 10, 0)).toThrow("Dependency processing limit must be a positive safe integer");
     expect(() => findDependencies(location, "missing.ts")).toThrow("File not found in memory index");
   });
 });
@@ -233,5 +250,78 @@ describe("getIndexFreshness", () => {
     createProject();
     writeFileSync(join(location.rootPath, "main.ts"), "export const main = true;");
     expect(getIndexFreshness(location)).toMatchObject({ status: "not-indexed", checkedFiles: 0 });
+  });
+});
+
+
+describe("bounded dependency traversal and file details", () => {
+  it("reports truncation when result or processing budgets are reached", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "root.ts"), 'import "./a";\nimport "./b";');
+    writeFileSync(join(location.rootPath, "a.ts"), 'import "./leaf";');
+    writeFileSync(join(location.rootPath, "b.ts"), 'export const b = true;');
+    writeFileSync(join(location.rootPath, "leaf.ts"), "export const leaf = true;");
+    indexWithDatabase(database!, location);
+
+    const byResults = findDependencies(location, "root.ts", 3, 1, 100);
+    expect(byResults.dependencies).toHaveLength(1);
+    expect(byResults.truncated).toBe(true);
+    const byProcessing = findDependencies(location, "root.ts", 3, 10, 1);
+    expect(byProcessing.processedFiles).toBe(1);
+    expect(byProcessing.processedRelations).toBe(1);
+    expect(byProcessing.truncated).toBe(true);
+  });
+
+  it("returns only indexed file facts with imports, symbols, references, and provenance", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}");
+    writeFileSync(join(location.rootPath, "worker.ts"),
+      'import { Base } from "./base";\nexport class Worker extends Base {}');
+    indexWithDatabase(database!, location);
+
+    expect(getFileDetails(location, "base.ts").relations).toEqual([expect.objectContaining({
+      direction: "incoming", relation: "EXTENDS", sourceName: "Worker", targetName: "Base",
+    })]);
+    expect(getFileDetails(location, "worker.ts")).toMatchObject({
+      path: "worker.ts",
+      language: "typescript",
+      indexRevision: 1,
+      symbols: [{ name: "Worker", kind: "class", filePath: "worker.ts" }],
+      imports: [{ path: "base.ts", provenance: "typescript-ast", confidence: 1, indexRevision: 1 }],
+      relations: [{
+        direction: "outgoing", relation: "EXTENDS", sourceName: "Worker", targetName: "Base",
+        sourceFilePath: "worker.ts", targetFilePath: "base.ts", provenance: "typescript-ast-heritage",
+      }],
+    });
+  });
+});
+
+describe("labeled retrieval relevance corpus", () => {
+  it("places each labeled relevant symbol first for its fixture query", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "participants.ts"), `
+export function registerParticipant(participantId: string): boolean {
+  return participantId.length > 0;
+}
+export function unregisterParticipant(participantId: string): boolean {
+  return participantId.length === 0;
+}
+export function calculateTotal(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0);
+}
+export function calculateAverage(values: number[]): number {
+  return calculateTotal(values) / values.length;
+}
+`);
+    indexWithDatabase(database!, location);
+
+    expect(searchSymbols(location, "ticipant")[0]).toMatchObject({
+      name: "registerParticipant", searchMethod: "like-fallback",
+    });
+    for (const fixture of retrievalRelevanceCases) {
+      const results = searchSymbols(location, fixture.query, 10);
+      expect(results[0]?.name, fixture.query).toBe(fixture.expectedTop);
+      expect(results.some((result) => (fixture.relevant as readonly string[]).includes(result.name))).toBe(true);
+    }
   });
 });
