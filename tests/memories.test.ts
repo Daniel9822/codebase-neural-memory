@@ -76,9 +76,9 @@ describe("human-confirmed knowledge and parser-derived graph facts", () => {
 describe("explicit memory lifecycle", () => {
   it("stores optional source path and commit metadata and supports explicit updates", () => {
     createProject();
-    const id = remember(location, "Initial decision", "Use the adapter boundary.", "decision", "src/adapter.ts", "abc123");
+    const id = remember(location, "Initial decision", "Use the adapter boundary.", "decision", "src/adapter.ts", "abc123", "Ada Lovelace");
     expect(recallMemories(location)[0]).toMatchObject({
-      id, status: "confirmed", sourcePath: "src/adapter.ts", commitSha: "abc123",
+      id, status: "confirmed", sourcePath: "src/adapter.ts", commitSha: "abc123", author: "Ada Lovelace", updatedBy: "Ada Lovelace",
     });
 
     expect(updateMemory(location, id, {
@@ -87,6 +87,7 @@ describe("explicit memory lifecycle", () => {
       category: "architecture",
       sourcePath: "src/core/adapter.ts",
       commitSha: "def456",
+      author: "Grace Hopper",
     })).toBe(true);
     expect(recallMemories(location, "Revised decision")[0]).toMatchObject({
       id,
@@ -95,6 +96,8 @@ describe("explicit memory lifecycle", () => {
       category: "architecture",
       sourcePath: "src/core/adapter.ts",
       commitSha: "def456",
+      author: "Ada Lovelace",
+      updatedBy: "Grace Hopper",
       status: "confirmed",
     });
     expect(() => updateMemory(location, id, {})).toThrow("At least one memory field");
@@ -104,8 +107,8 @@ describe("explicit memory lifecycle", () => {
 
   it("requires explicit approval or rejection for proposed memories and enforces transitions", () => {
     createProject();
-    const proposed = proposeMemory(location, "Potential rule", "Review before adoption.", "decision");
-    expect(recallMemories(location)[0]).toMatchObject({ id: proposed, status: "proposed" });
+    const proposed = proposeMemory(location, "Potential rule", "Review before adoption.", "decision", undefined, undefined, "Project Maintainer");
+    expect(recallMemories(location)[0]).toMatchObject({ id: proposed, status: "proposed", author: "Project Maintainer", updatedBy: "Project Maintainer" });
 
     expect(() => transitionMemory(location, proposed, "obsolete")).toThrow("Invalid memory status transition");
     expect(transitionMemory(location, proposed, "confirmed")).toBe(true);
