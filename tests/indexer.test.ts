@@ -29,40 +29,6 @@ afterEach(() => {
   database = undefined;
   if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
   temporaryDirectory = "";
-  it("reports malformed files without aborting other files or replacing a valid index", () => {
-    createProject();
-    const validPath = join(location.rootPath, "valid.ts");
-    const brokenPath = join(location.rootPath, "broken.ts");
-    writeFileSync(validPath, "export function stable() { return true; }");
-    writeFileSync(brokenPath, "export function broken( {");
-
-    const first = indexWithDatabase(database!, location);
-    expect(first.added).toBe(1);
-    expect(first.failed).toBe(1);
-    expect(first.errors.join(" ")).toMatch(/broken\\.ts/);
-    expect(database!.prepare("SELECT name FROM symbols").all()).toEqual([{ name: "stable" }]);
-
-    writeFileSync(validPath, "export function stableChanged() { return true; }");
-    writeFileSync(brokenPath, "export function broken() { return true; }");
-    const recovered = indexWithDatabase(database!, location);
-    expect(recovered.added).toBe(1);
-    expect(recovered.updated).toBe(1);
-    expect(recovered.failed).toBe(0);
-    expect(database!.prepare("SELECT name FROM symbols ORDER BY name").all())
-      .toEqual([{ name: "broken" }, { name: "stableChanged" }]);
-  });
-
-  it("skips binary source files and reports them without indexing their contents", () => {
-    createProject();
-    writeFileSync(join(location.rootPath, "binary.ts"), Buffer.from([0, 1, 2, 3]));
-    writeFileSync(join(location.rootPath, "plain.ts"), "export const plain = true;");
-
-    const summary = indexWithDatabase(database!, location);
-    expect(summary.scanned).toBe(2);
-    expect(summary.skipped).toBe(1);
-    expect(summary.added).toBe(1);
-    expect(database!.prepare("SELECT path FROM files").all()).toEqual([{ path: "plain.ts" }]);
-  });
 });
 
 describe("indexWithDatabase", () => {
@@ -174,4 +140,39 @@ describe("indexWithDatabase", () => {
     expect(relationCount).toBe(1);
   });
 
+  it("reports malformed files without aborting other files or replacing a valid index", () => {
+    createProject();
+    const validPath = join(location.rootPath, "valid.ts");
+    const brokenPath = join(location.rootPath, "broken.ts");
+    writeFileSync(validPath, "export function stable() { return true; }");
+    writeFileSync(brokenPath, "export function broken( {");
+
+    const first = indexWithDatabase(database!, location);
+    expect(first.added).toBe(1);
+    expect(first.failed).toBe(1);
+    expect(first.errors.join(" ")).toMatch(/broken\.ts/);
+    expect(database!.prepare("SELECT name FROM symbols").all()).toEqual([{ name: "stable" }]);
+
+    writeFileSync(validPath, "export function stableChanged() { return true; }");
+    writeFileSync(brokenPath, "export function broken() { return true; }");
+    const recovered = indexWithDatabase(database!, location);
+    expect(recovered.added).toBe(1);
+    expect(recovered.updated).toBe(1);
+    expect(recovered.failed).toBe(0);
+    expect(database!.prepare("SELECT name FROM symbols ORDER BY name").all())
+      .toEqual([{ name: "broken" }, { name: "stableChanged" }]);
+  });
+
+  it("skips binary source files and reports their paths", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "binary.ts"), Buffer.from([0, 1, 2, 3]));
+    writeFileSync(join(location.rootPath, "plain.ts"), "export const plain = true;");
+
+    const summary = indexWithDatabase(database!, location);
+    expect(summary.scanned).toBe(2);
+    expect(summary.skipped).toBe(1);
+    expect(summary.skippedFiles).toEqual(["binary.ts: binary content"]);
+    expect(summary.added).toBe(1);
+    expect(database!.prepare("SELECT path FROM files").all()).toEqual([{ path: "plain.ts" }]);
+  });
 });
