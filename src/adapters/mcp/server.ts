@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
-import { recallMemories } from "../../core/memories.js";
+import { inspectMemoryFreshness, recallMemories } from "../../core/memories.js";
 import { getProjectMap, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails } from "../../core/retrieval.js";
 import { getIndexFreshness } from "../../core/indexer.js";
 import type { ProjectLocation } from "../../core/project.js";
@@ -67,6 +67,13 @@ export function startMcpServer(location: ProjectLocation): void {
       inputSchema: z.object({ path: z.string().min(1) }),
     }, async ({ path }) => ({
       content: [{ type: "text", text: JSON.stringify({ path, affectedFiles: findImpact(location, path) }, null, 2) }],
+    }));
+
+    server.registerTool("memory_freshness", {
+      description: "Inspect source files linked to project memories and report changes or missing files without changing memory status.",
+      inputSchema: z.object({}),
+    }, async () => ({
+      content: [{ type: "text", text: JSON.stringify(inspectMemoryFreshness(location), null, 2) }],
     }));
 
     server.registerTool("memory_recall", {
