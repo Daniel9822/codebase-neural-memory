@@ -87,6 +87,24 @@ For each client, record:
 
 Do not record repository source contents, personal paths, secrets, or private memory text in public issue/PR evidence. Redact absolute home-directory paths.
 
+## Manual client execution evidence
+
+**Execution date:** 2026-10-31  
+**Target workspace:** the local `codebase-neural-memory` repository (absolute user-specific path intentionally redacted).  
+**Platform evidence:** Windows PowerShell was used for setup; the exact Windows edition and Node.js version were not captured.  
+**Version metadata:** exact VS Code, GitHub Copilot extension, OpenCode, and Node.js versions were not included in the execution report and remain to be recorded. Do not infer them from the successful calls.
+
+| Client | Configuration / discovery | Real calls observed | Result |
+|---|---|---|---|
+| VS Code + GitHub Copilot Agent | Workspace `.vscode/mcp.json`; `MCP: List Servers` showed `codebase-memory` running | `project_overview({})`; `symbol_lookup({"query":"createMcpServer"})` | Both successful |
+| OpenCode | Workspace `opencode.json`; local stdio server `codebase-memory` connected | `project_overview({})`; `symbol_lookup({"query":"createMcpServer"})` | Both successful |
+
+Both clients returned the same indexed workspace metrics: 25 files, 135 symbols, 171 relations, index revision 1, last indexed at `2026-10-31T22:08:46.961Z`. Both located the exported function `createMcpServer(location: ProjectLocation): McpServer` at lines 12–102 using FTS5. Copilot reported the file as `server.ts`; OpenCode reported the repository-relative path `src/adapters/mcp/server.ts`.
+
+These are manual end-to-end client calls, not simulated SDK calls. The test used the CNM repository itself as the target workspace; it validates client startup, discovery, workspace binding, and tool invocation, but does not replace the separate automated two-project isolation tests from Block 3.
+
+**Remaining evidence gap:** capture the exact client and Node.js versions, then append them here. No client version is claimed without that observation.
+
 ## Troubleshooting
 
 - **Server does not start:** verify the `cnm` executable is on the environment `PATH` inherited by the client.
