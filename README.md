@@ -90,7 +90,7 @@ CNM does not create a memory directory in the repository and does not modify `.g
 
 ## What is indexed
 
-Use `cnm dependencies <file> --depth <number>` to list direct imports (depth 1) or transitive dependencies up to the requested depth. Cycles are handled without repeating files.
+Use `cnm relations <symbol>` to inspect incoming and outgoing symbol relationships (such as `CALLS`, `EXTENDS`, and `IMPLEMENTS`) with file locations, provenance, and confidence. Use `--limit` to bound the result.\n\nUse `cnm dependencies <file> --depth <number>` to list direct imports (depth 1) or transitive dependencies up to the requested depth. Cycles are handled without repeating files.
 
 The project map lists resolved relative imports and explicitly labels relative imports that are unresolved or ambiguous; ambiguous imports are not assigned a guessed target. The initial parser supports `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, and `.cjs` files. It extracts functions, classes, methods, interfaces, type aliases, enums, import declarations, simple local function-call relationships, and statically resolvable class/interface heritage relationships.
 
