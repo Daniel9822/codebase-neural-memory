@@ -141,7 +141,7 @@ program.command("dependencies <file>")
   .description("List files imported by the target, directly or up to a depth.")
   .option("--depth <number>", "Maximum dependency depth", parsePositiveInteger, 1)
   .option("--limit <number>", "Maximum unique dependency results", parsePositiveInteger, 100)
-  .option("--max-processed <number>", "Maximum files expanded during traversal", parsePositiveInteger, 1000)
+  .option("--max-processed <number>", "Maximum import edges examined during traversal", parsePositiveInteger, 1000)
   .action((file: string, options: { depth: number; limit: number; maxProcessed: number }) => {
     const dependencies = findDependencies(ensureInitialized(), file, options.depth, options.limit, options.maxProcessed);
     console.log(JSON.stringify(dependencies, null, 2));
