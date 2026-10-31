@@ -276,25 +276,25 @@ export function findDependencies(
     const dependencies: DependencyHit[] = [];
     let processedFiles = 0;
     let truncated = false;
-    const selectImports = db.prepare(`
-      SELECT target.id, target.path, r.provenance, r.confidence, r.index_revision AS indexRevision
-      FROM relations r
-      JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
-      WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
-      ORDER BY target.path
-      LIMIT ?
-    `);
     while (queue.length > 0) {
       if (processedFiles >= maxProcessed) { truncated = true; break; }
       const current = queue.shift()!;
       processedFiles += 1;
       if (current.depth >= maxDepth) continue;
       const remaining = maxResults - dependencies.length;
-      const imports = selectImports.all(current.id, Math.max(1, remaining + 1)) as Array<{
+      const visitedIds = [...visited];
+      const imports = db.prepare(`
+        SELECT target.id, target.path, r.provenance, r.confidence, r.index_revision AS indexRevision
+        FROM relations r
+        JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
+        WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
+          AND target.id NOT IN (${visitedIds.map(() => "?").join(", ")})
+        ORDER BY target.path
+        LIMIT ?
+      `).all(current.id, ...visitedIds, Math.max(1, remaining + 1)) as Array<{
         id: number; path: string; provenance: string; confidence: number; indexRevision: number;
       }>;
       for (const item of imports) {
-        if (visited.has(item.id)) continue;
         if (dependencies.length >= maxResults) { truncated = true; break; }
         visited.add(item.id);
         const chain = [...current.chain, item.path];
