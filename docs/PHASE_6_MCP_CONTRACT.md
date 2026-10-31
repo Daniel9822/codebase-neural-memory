@@ -1,6 +1,6 @@
 # Phase 6 — MCP Contract
 
-**Status:** Blocks 1–3 are implemented and CI-verified on 2026-10-31. CI run [41239258583](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41239258583) passed all 86 tests across 10 test files, typecheck, build, and smoke. Blocks 4–5 remain open. This document records the implemented contract; it does not claim that Phase 6 integration acceptance has passed.
+**Status:** Blocks 1–3 are implemented and CI-verified on 2026-10-31. CI run [41239258583](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41239258583) passed all 86 tests across 10 test files, typecheck, build, and smoke. Block 4 real-client calls were manually verified in VS Code/GitHub Copilot and OpenCode on 2026-10-31; exact client and Node.js versions remain unrecorded. Block 5 regression and formal close-out remain open. This document records the implemented contract and observed evidence; it does not claim Phase 6 is closed.
 
 ## Source of truth
 
@@ -77,8 +77,8 @@ The ten handlers call overview, freshness, map, search, graph, file-detail, cont
 | Bounded freshness and map reports | Exact/over/empty/incomplete discovery boundaries, totals, truncation, nested map caps, and invalid path errors are tested | Verified in CI run 41239258583 |
 | Repeat calls, EOF, and reconnection | In-memory protocol test plus real CLI stdio process EOF/restart test | Verified in tests |
 | Two-project process isolation | Two concurrent MCP servers tested with distinct indexed files and memories; no cross-project reads observed | Verified in CI run 41239370942 |
-| OpenCode end-to-end | Workspace-scoped config template and manual real-client runbook added; actual client invocation still requires execution in an OpenCode installation | Pending execution |
-| VS Code end-to-end | Workspace-scoped stdio config template and manual real-client runbook added; actual client invocation still requires execution in VS Code | Pending execution |
+| OpenCode end-to-end | Installed OpenCode client connected to the workspace-scoped stdio server and successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; exact client/Node versions not recorded |
+| VS Code end-to-end | VS Code MCP server showed Running; GitHub Copilot Agent successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; exact client/Node versions not recorded |
 
 ## Maintenance rule
 
