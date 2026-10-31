@@ -1,6 +1,6 @@
 # Phase 6 — MCP Contract
 
-**Status:** Blocks 1–3 are implemented and CI-verified on 2026-10-31. CI run [41239258583](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41239258583) passed all 86 tests across 10 test files, typecheck, build, and smoke. Block 4 real-client calls were manually verified in VS Code/GitHub Copilot and OpenCode on 2026-10-31. VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 are recorded; the Copilot extension identifier/version remains unverified. Block 5 regression and formal close-out remain open. This document records the implemented contract and observed evidence; it does not claim Phase 6 is closed.
+**Status:** Blocks 1–3 are implemented and CI-verified on 2026-10-31. CI run [41239258583](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41239258583) passed all 86 tests across 10 test files, typecheck, build, and smoke. Block 4 real-client calls were manually verified in VS Code/GitHub Copilot and OpenCode on 2026-10-31. VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 are recorded; the Copilot extension identifier/version remains unverified. Block 5 regression and close-out are complete: clean-checkout default-branch CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) passed on merge commit `f3c74147ce6b9cad2100156a644c404b965d6f6a`. Phase 5's default-branch close-out is verified by the same run. Phase 6 remains formally open only because the exact GitHub Copilot extension identifier/version is unverified.
 
 ## Source of truth
 
@@ -79,7 +79,16 @@ The ten handlers call overview, freshness, map, search, graph, file-detail, cont
 | Two-project process isolation | Two concurrent MCP servers tested with distinct indexed files and memories; no cross-project reads observed | Verified in CI run 41239370942 |
 | OpenCode end-to-end | Installed OpenCode client connected to the workspace-scoped stdio server and successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; OpenCode 1.19.5, Node.js v22.12.0 |
 | VS Code end-to-end | VS Code MCP server showed Running; GitHub Copilot Agent successfully called `project_overview({})` and `symbol_lookup({query: "createMcpServer"})`; see `docs/CLIENT_INTEGRATION.md` | Manually verified 2026-10-31; VS Code 1.144.0 (x64), Node.js v22.12.0; Copilot extension version not identified |
+| Clean-checkout regression | Default-branch CI ran lockfile install, typecheck, full tests, build, and CLI/MCP smoke on merge commit `f3c74147ce6b9cad2100156a644c404b965d6f6a` | Passed in CI run 41250061815 |
 
 ## Maintenance rule
 
 When changing `src/adapters/mcp/server.ts`, update this contract and the linked README, architecture, product specification, roadmap, and acceptance criteria in the same change. Add or update adapter tests before claiming a protocol behavior is verified.
+
+## Regression close-out
+
+- **Default branch:** `main` at merge commit `f3c74147ce6b9cad2100156a644c404b965d6f6a`.
+- **CI:** [run 41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815) — success; `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` passed on GitHub-hosted Ubuntu / Node.js 22.
+- **Diff review:** Phase 6 PRs #42, #43, #45, and #46 reviewed. Changes are within the intended MCP adapter/core/tests, client config templates/tests, and documentation scope.
+- **Client evidence:** OpenCode and VS Code/Copilot manual calls and known version limitations are recorded in `docs/CLIENT_INTEGRATION.md`.
+- **Remaining Phase 6 gap:** exact GitHub Copilot extension identifier/version remains unverified; do not infer it from VS Code version or from the filtered extension listing.
