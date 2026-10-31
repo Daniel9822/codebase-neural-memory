@@ -138,7 +138,21 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
     node.forEachChild(collectShadowedNames);
   };
 
-  visit(sourceFile);
+  const collectImportedBindings = (node: ts.Node): void => {
+    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier) &&
+      node.importClause?.namedBindings && ts.isNamedImports(node.importClause.namedBindings)) {
+      for (const element of node.importClause.namedBindings.elements) {
+        importedBindings.set(element.name.text, {
+          moduleSpecifier: node.moduleSpecifier.text,
+          importedName: element.propertyName?.text ?? element.name.text,
+        });
+      }
+    }
+    node.forEachChild(collectImportedBindings);
+  };
+
+  collectImportedBindings(sourceFile);
   collectShadowedNames(sourceFile);
+  visit(sourceFile);
   return { symbols, imports: [...imports], calls };
 }
