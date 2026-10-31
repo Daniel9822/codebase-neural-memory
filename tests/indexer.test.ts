@@ -332,7 +332,7 @@ describe("indexWithDatabase", () => {
   it("resolves each imported binding against its own module when names overlap", () => {
     createProject();
     writeFileSync(join(location.rootPath, "main.ts"),
-      'import { shared as callFirst } from "./first";\\nimport { shared as callSecond } from "./second";\\nexport function caller() { callFirst(); callSecond(); }');
+      'import { shared as callFirst } from "./first";\nimport { shared as callSecond } from "./second";\nexport function caller() { callFirst(); callSecond(); }');
     writeFileSync(join(location.rootPath, "first.ts"), "export function shared() { return 1; }");
     writeFileSync(join(location.rootPath, "second.ts"), "export function shared() { return 2; }");
 
