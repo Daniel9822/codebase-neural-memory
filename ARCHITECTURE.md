@@ -53,7 +53,7 @@ The task-context builder accepts a natural-language task and returns determinist
 MCP exposes ten read-only tools through the TypeScript SDK v2 and stdio transport:
 
 - `project_overview` — local repository/index summary.
-- `index_freshness` — read-only source-file and Git commit/branch/working-tree versus index freshness report.
+- `index_freshness` — read-only source-file and Git commit/branch/working-tree versus index freshness report. Each successful index records its Git snapshot; freshness compares the current `HEAD`, branch, and porcelain working-tree hash and still performs a deterministic source scan.
 - `project_map` — indexed files and locally resolved imports.
 - `symbol_lookup` — bounded lexical symbol search with ranking signals.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
