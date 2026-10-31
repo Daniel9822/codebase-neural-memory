@@ -307,6 +307,52 @@ describe("indexWithDatabase", () => {
   });
 
 
+  it("resolves calls through imported named exports, including aliased bindings", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"),
+      'import { helper as runHelper } from "./helper";\\nexport function caller() { runHelper(); }');
+    writeFileSync(join(location.rootPath, "helper.ts"),
+      "export function helper() { return true; }");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare(`
+      SELECT source.name AS caller, target.name AS callee, r.provenance
+      FROM relations r
+      JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
+      JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
+      WHERE r.kind = 'CALLS'
+    `).all()).toEqual([{
+      caller: "caller",
+      callee: "helper",
+      provenance: "typescript-ast-import-binding",
+    }]);
+  });
+
+  it("does not resolve imported calls when a local parameter shadows the import", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"),
+      'import { helper as runHelper } from "./helper";\\nexport function caller(runHelper: () => void) { runHelper(); }');
+    writeFileSync(join(location.rootPath, "helper.ts"),
+      "export function helper() { return true; }");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT kind FROM relations WHERE kind = 'CALLS'").all()).toEqual([]);
+  });
+
+  it("does not create cross-file calls to non-exported symbols", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"),
+      'import { helper } from "./helper";\\nexport function caller() { helper(); }');
+    writeFileSync(join(location.rootPath, "helper.ts"),
+      "function helper() { return true; }");
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT kind FROM relations WHERE kind = 'CALLS'").all()).toEqual([]);
+  });
+
   it("rolls back the entire indexing run when relation rebuilding fails", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
