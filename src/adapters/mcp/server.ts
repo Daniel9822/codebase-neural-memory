@@ -44,7 +44,7 @@ export function startMcpServer(location: ProjectLocation): void {
         path: z.string().min(1),
         depth: z.number().int().min(1).max(20).optional(),
         limit: z.number().int().min(1).max(100).optional(),
-        maxProcessed: z.number().int().min(1).max(1000).optional(),
+        maxProcessed: z.number().int().min(1).max(10000).optional(),
       }),
     }, async ({ path, depth, limit, maxProcessed }) => ({
       content: [{ type: "text", text: JSON.stringify(
