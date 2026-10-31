@@ -150,3 +150,14 @@ npm run build
 ## License
 
 MIT. See [LICENSE](LICENSE).
+
+
+## Task context
+
+Build a deterministic, bounded context bundle for a task from the local index and project memories:
+
+```sh
+cnm context "Fix authentication token refresh and update tests" --max-items 20 --max-characters 12000
+```
+
+The JSON response includes lexical anchors, ranked symbols/files/memories/test paths, source references, lifecycle and freshness warnings, budget usage, and follow-up prompts. Memory statuses are not collapsed: proposed and obsolete records are labeled and accompanied by warnings. The MCP adapter exposes the same capability as `task_context`. Retrieval remains lexical/structural and does not claim semantic completeness.
