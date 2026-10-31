@@ -26,9 +26,6 @@ function escapeLikePattern(value: string): string {
   return value.replace(/[\\%_]/g, (character) => `\\${character}`);
 }
 
-function isFtsUnavailable(error: unknown): boolean {");
-}
-
 function isFtsUnavailable(error: unknown): boolean {
   if (!(error instanceof Error)) return false;
   return /no such module:\s*fts5|fts5:\s*(?:syntax error|unknown special query)|malformed MATCH expression/i.test(error.message);
