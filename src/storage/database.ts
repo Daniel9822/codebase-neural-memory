@@ -29,7 +29,8 @@ export function migrate(db: MemoryDatabase): void {
       name TEXT NOT NULL,
       created_at TEXT NOT NULL,
       last_indexed_at TEXT,
-      indexed_commit TEXT
+      indexed_commit TEXT,
+      index_revision INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE IF NOT EXISTS files (
@@ -96,6 +97,7 @@ export function migrate(db: MemoryDatabase): void {
       kind TEXT NOT NULL,
       confidence REAL NOT NULL DEFAULT 1.0,
       provenance TEXT NOT NULL,
+      index_revision INTEGER NOT NULL DEFAULT 0,
       UNIQUE(source_kind, source_id, target_kind, target_id, kind)
     );
     CREATE INDEX IF NOT EXISTS idx_relations_target ON relations(target_kind, target_id, kind);
@@ -172,6 +174,16 @@ export function migrate(db: MemoryDatabase): void {
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_files_stable_id ON files(stable_id) WHERE stable_id IS NOT NULL");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_symbols_stable_id ON symbols(stable_id) WHERE stable_id IS NOT NULL");
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (5, ?)`).run(now);
+
+  const projectColumns = db.prepare("PRAGMA table_info(projects)").all() as Array<{ name: string }>;
+  if (!projectColumns.some((column) => column.name === "index_revision")) {
+    db.exec("ALTER TABLE projects ADD COLUMN index_revision INTEGER NOT NULL DEFAULT 0");
+  }
+  const relationColumns = db.prepare("PRAGMA table_info(relations)").all() as Array<{ name: string }>;
+  if (!relationColumns.some((column) => column.name === "index_revision")) {
+    db.exec("ALTER TABLE relations ADD COLUMN index_revision INTEGER NOT NULL DEFAULT 0");
+  }
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (6, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {
