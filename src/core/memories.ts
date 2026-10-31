@@ -201,7 +201,7 @@ export function inspectMemoryFreshness(location: ProjectLocation): MemorySourceF
       try {
         currentHash = sourceFingerprint(location, row.sourcePath);
       } catch (error) {
-        if (error instanceof Error && error.message === "Memory source path must resolve inside the project root") {
+        if (error instanceof Error && (error.message === "Memory source path must resolve inside the project root" || error.message === "Memory source path must reference a file")) {
           return { id: row.id, title: row.title, sourcePath: row.sourcePath, status: "unsafe", requiresReview: true };
         }
         throw error;

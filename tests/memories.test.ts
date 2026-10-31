@@ -161,6 +161,20 @@ describe("explicit memory lifecycle", () => {
     expect(recallMemories(location)[0]).toMatchObject({ id, status: "confirmed" });
   });
 
+  it("marks a source reference replaced by a directory as unsafe and requiring review", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "source.ts"), "export const value = 1;");
+    const id = remember(location, "Directory-replaced source", "Review this source before reuse.", "decision", "source.ts");
+
+    rmSync(join(location.rootPath, "source.ts"));
+    mkdirSync(join(location.rootPath, "source.ts"));
+
+    expect(inspectMemoryFreshness(location)).toMatchObject([
+      { id, status: "unsafe", requiresReview: true },
+    ]);
+    expect(recallMemories(location)[0]).toMatchObject({ id, status: "confirmed" });
+  });
+
   it("rejects source paths that traverse outside the project root", () => {
     createProject();
     expect(() => remember(location, "Unsafe reference", "Do not accept traversal.", "decision", "../outside.ts"))
