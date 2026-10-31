@@ -29,31 +29,7 @@ afterEach(() => {
   database = undefined;
   if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
   temporaryDirectory = "";
-  it("keeps summary counters consistent with discovered files and persisted index rows", () => {
-    createProject();
-    writeFileSync(join(location.rootPath, "valid.ts"), "export function valid() { return true; }");
-    writeFileSync(join(location.rootPath, "binary.ts"), Buffer.from([0, 1, 2, 3]));
-    writeFileSync(join(location.rootPath, "broken.ts"), "export function broken( {");
-    writeFileSync(join(location.rootPath, "large.ts"), "export const large = true;\\n// " + "x".repeat(1_000_001));
 
-    const summary = indexWithDatabase(database!, location);
-    const persistedSymbols = (database!.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
-    const persistedRelations = (database!.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
-    const persistedFiles = (database!.prepare("SELECT COUNT(*) AS count FROM files").get() as { count: number }).count;
-
-    expect(summary.scanned).toBe(4);
-    expect(summary.added + summary.updated + summary.unchanged).toBe(persistedFiles);
-    expect(summary.skipped).toBe(2);
-    expect(summary.failed).toBe(1);
-    expect(summary.symbols).toBe(persistedSymbols);
-    expect(summary.relations).toBe(persistedRelations);
-    expect(summary.errors.join(" ")).toMatch(/broken\\.ts/);
-    expect(summary.skippedFiles).toHaveLength(2);
-    expect(summary.skippedFiles).toEqual(expect.arrayContaining([
-      "binary.ts: binary content",
-      "large.ts: exceeds 1000000 bytes",
-    ]));
-  });
 
 });
 
@@ -279,4 +255,30 @@ describe("indexWithDatabase", () => {
     expect(database!.prepare("SELECT name FROM symbols").all()).toEqual([{ name: "stable" }]);
   });
 
+
+  it("keeps summary counters consistent with discovered files and persisted index rows", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "valid.ts"), "export function valid() { return true; }");
+    writeFileSync(join(location.rootPath, "binary.ts"), Buffer.from([0, 1, 2, 3]));
+    writeFileSync(join(location.rootPath, "broken.ts"), "export function broken( {");
+    writeFileSync(join(location.rootPath, "large.ts"), "export const large = true;\\n// " + "x".repeat(1_000_001));
+
+    const summary = indexWithDatabase(database!, location);
+    const persistedSymbols = (database!.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
+    const persistedRelations = (database!.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
+    const persistedFiles = (database!.prepare("SELECT COUNT(*) AS count FROM files").get() as { count: number }).count;
+
+    expect(summary.scanned).toBe(4);
+    expect(summary.added + summary.updated + summary.unchanged).toBe(persistedFiles);
+    expect(summary.skipped).toBe(2);
+    expect(summary.failed).toBe(1);
+    expect(summary.symbols).toBe(persistedSymbols);
+    expect(summary.relations).toBe(persistedRelations);
+    expect(summary.errors.join(" ")).toMatch(/broken\\.ts/);
+    expect(summary.skippedFiles).toHaveLength(2);
+    expect(summary.skippedFiles).toEqual(expect.arrayContaining([
+      "binary.ts: binary content",
+      "large.ts: exceeds 1000000 bytes",
+    ]));
+  });
 });
