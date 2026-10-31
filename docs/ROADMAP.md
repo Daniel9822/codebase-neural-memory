@@ -157,7 +157,7 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 - [x] Exercise repeated calls, in-memory close/reconnect, real CLI stdio EOF shutdown, and process reconnection.
 - [x] Verify that read calls do not alter repository source files, index records, or durable memories.
 
-**Deliverable:** focused SDK in-memory and real stdio MCP adapter tests, independent of the existing general smoke script. CI evidence: [run 41238188647](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41238188647) passed before the final additional core-error assertion; the final branch head is being revalidated.
+**Deliverable:** focused SDK in-memory and real stdio MCP adapter tests, independent of the existing general smoke script. CI evidence: [run 41238294195](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41238294195) passed all 82 tests across 9 test files, typecheck, build, and smoke.
 
 ### Block 3 — Limits, paths, and project isolation
 
