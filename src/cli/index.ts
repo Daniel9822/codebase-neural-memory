@@ -6,7 +6,7 @@ import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
 import { getIndexFreshness, indexProject } from "../core/indexer.js";
 import { explainSymbol, findDependencies, findImpact, getFileDetails, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
-import { deleteMemory, proposeMemory, recallMemories, remember, transitionMemory, updateMemory, type MemoryStatus } from "../core/memories.js";
+import { deleteMemory, inspectMemoryFreshness, proposeMemory, recallMemories, remember, transitionMemory, updateMemory, type MemoryStatus } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
 
@@ -202,6 +202,12 @@ memory.command("transition <id> <status>")
     const changed = transitionMemory(ensureInitialized(), id, status as MemoryStatus);
     if (!changed) throw new Error(`Memory not found or transition was not applied: ${id}`);
     console.log(`Memory ${id} is now ${status}.`);
+  });
+
+memory.command("freshness")
+  .description("Check whether source files linked to memories have changed or disappeared.")
+  .action(() => {
+    console.log(JSON.stringify(inspectMemoryFreshness(ensureInitialized()), null, 2));
   });
 
 memory.command("delete <id>")
