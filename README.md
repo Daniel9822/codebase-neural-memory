@@ -88,7 +88,7 @@ The server uses stdio and exposes ten read-only tools:
 - `memory_freshness` — source-file freshness for linked memories.
 - `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
 
-The MCP process is bound to the repository resolved from its working directory. Configure the MCP client with an explicit repository `cwd`; do not rely on whichever directory the client happens to inherit. For the exact argument schemas, defaults, limits, project-binding behavior, and known error-handling verification gaps, see [the Phase 6 MCP contract](docs/PHASE_6_MCP_CONTRACT.md).
+The MCP process is bound to the repository resolved from its working directory. Configure the MCP client with an explicit repository `cwd`; do not rely on whichever directory the client happens to inherit. For the exact argument schemas, defaults, limits, bounded freshness/map report metadata, project-binding behavior, and known verification gaps, see [the Phase 6 MCP contract](docs/PHASE_6_MCP_CONTRACT.md).
 
 Example OpenCode configuration (replace the path with the absolute path to the repository and adjust the executable path for your machine):
 
