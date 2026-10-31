@@ -29,7 +29,7 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 |---|---|---|---|
 | `project_overview` | No arguments | — | `getProjectOverview(location)` |
 | `index_freshness` | No arguments | 200 skipped-file details and 200 error details; totals and truncation flags | `getIndexFreshness(location)` |
-| `project_map` | `limit`: optional integer, 1–200 | 80 files; 200 imports and 200 unresolved imports per file; totals and truncation flags | `getProjectMapReport(location, limit)` |
+| `project_map` | `limit`: optional integer, 1–200 | 80 files; 200 imports and 200 unresolved imports per file; 200 candidate paths per unresolved import; totals and truncation flags | `getProjectMapReport(location, limit)` |
 | `symbol_lookup` | `query`: non-empty string; `limit`: optional integer, 1–50 | `limit`: 20 | `searchSymbols(location, query, limit)` |
 | `dependency_graph` | `path`: non-empty string; `depth`: optional integer, 1–20; `limit`: optional integer, 1–100; `maxProcessed`: optional integer, 1–10,000 | `depth`: 1; `limit`: 100; `maxProcessed`: 1,000 | `findDependencies(location, path, depth, limit, maxProcessed)` |
 | `file_details` | `path`: non-empty string; `limit`: optional integer, 1–500 | 100 per collection | `getFileDetails(location, path, limit)` |
@@ -40,9 +40,9 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 
 ### Result and truncation behavior
 
-- `project_map` returns a report with total indexed files, a top-level truncation flag, and per-file totals/truncation flags for resolved and unresolved imports. Nested import collections are capped at 200 per file.
+- `project_map` returns a report with total indexed files, a top-level truncation flag, and per-file totals/truncation flags for resolved and unresolved imports. Nested import collections are capped at 200 per file, and each unresolved import candidate list is capped at 200 paths.
 - `index_freshness` retains finite summary counters and caps `skippedFiles` and `errors` independently at 200 each. `totals` reports the full counts and `truncated` reports whether either detail list was shortened.
-- `memory_freshness` accepts `limit` from 1 to 500 (default 100) and returns `records`, `total`, `limit`, and `truncated`.
+- `memory_freshness` accepts `limit` from 1 to 500 (default 100) and returns `records`, `total`, `limit`, and `truncated`; the database query and source hashing are also limited to the requested record count.
 - `symbol_lookup` is capped at 50 results by the MCP schema.
 - `dependency_graph` has independent depth, unique-result, and processed-edge budgets. The core traversal also protects against cycles and reports its traversal/truncation metadata.
 - `file_details` applies the supplied limit independently to its returned collections; the core response includes collection totals and truncation indicators.
