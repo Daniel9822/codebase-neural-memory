@@ -209,7 +209,7 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 ### Regression evidence
 
 - `tests/context.test.ts` includes both relevant `tests/auth.test.ts` and unrelated `tests/billing.test.ts`; the auth task includes only the relevant path candidate.
-- Budget tests assert `usedCharacters === JSON.stringify(items).length`, exact-fit inclusion, and exclusion when the limit is one character too small.
+- Budget tests assert `usedCharacters === JSON.stringify(items).length`, exact-fit inclusion, and exclusion of a candidate that no longer fits; a smaller later candidate may still use the remaining budget.
 - Existing regression coverage exercises source references, dependencies, memories, unresolved imports, stale index state, deduplication, item limits, truncation, and incremental lookup.
 
 ### Phase 5 close-out verification
