@@ -197,8 +197,11 @@ describe("Git-aware indexing and freshness", () => {
       files: database!.prepare("SELECT path, stable_id, content_hash FROM files ORDER BY path").all(),
       symbols: database!.prepare("SELECT f.path, s.stable_id, s.name, s.kind, s.signature, s.start_line, s.end_line, s.exported FROM symbols s JOIN files f ON f.id = s.file_id ORDER BY f.path, s.name").all(),
       imports: database!.prepare("SELECT f.path, i.module_specifier FROM file_imports i JOIN files f ON f.id = i.file_id ORDER BY f.path, i.module_specifier").all(),
+      calls: database!.prepare("SELECT f.path, c.caller_name, c.callee_name, c.module_specifier, c.imported_symbol_name FROM symbol_calls c JOIN files f ON f.id = c.file_id ORDER BY f.path, c.caller_name, c.callee_name").all(),
+      heritage: database!.prepare("SELECT f.path, h.owner_name, h.relation_kind, h.target_name, h.module_specifier, h.imported_name FROM symbol_heritage h JOIN files f ON f.id = h.file_id ORDER BY f.path, h.owner_name, h.relation_kind, h.target_name").all(),
       relations: database!.prepare("SELECT r.source_kind, CASE r.source_kind WHEN 'file' THEN (SELECT stable_id FROM files WHERE id = r.source_id) ELSE (SELECT stable_id FROM symbols WHERE id = r.source_id) END AS source_stable_id, r.target_kind, CASE r.target_kind WHEN 'file' THEN (SELECT stable_id FROM files WHERE id = r.target_id) ELSE (SELECT stable_id FROM symbols WHERE id = r.target_id) END AS target_stable_id, r.kind, r.confidence, r.provenance FROM relations r ORDER BY r.kind, source_stable_id, target_stable_id").all(),
       unresolved: database!.prepare("SELECT f.path, u.module_specifier, u.status, u.candidates_json FROM unresolved_imports u JOIN files f ON f.id = u.source_file_id ORDER BY f.path, u.module_specifier").all(),
+      fts: database!.prepare("SELECT name, signature, file_path, kind FROM symbols_fts ORDER BY file_path, name, signature").all(),
     });
     const afterIncremental = logicalSnapshot();
     indexWithDatabase(database!, location, true);
