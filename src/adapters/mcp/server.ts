@@ -83,7 +83,7 @@ export function startMcpServer(location: ProjectLocation): void {
     }));
 
     server.registerTool("memory_recall", {
-      description: "Retrieve confirmed local project decisions and notes.",
+      description: "Retrieve non-rejected local project memories, including proposed, confirmed, and obsolete entries. Each result includes its lifecycle status; callers must distinguish statuses before using memories as confirmed context.",
       inputSchema: z.object({ query: z.string().optional(), limit: z.number().int().min(1).max(50).optional() }),
     }, async ({ query, limit }) => ({
       content: [{ type: "text", text: JSON.stringify(recallMemories(location, query ?? "", limit ?? 20), null, 2) }],
