@@ -203,7 +203,7 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
  
 ## Phase 7 — Git awareness and automatic freshness
 
-**Status:** Complete and formally closed on 2026-10-31. PR [#48](https://github.com/Daniel9822/codebase-neural-memory/pull/48) adds Git-aware index snapshots, dirty/branch/commit freshness, memory commit-ancestry review, deterministic reconciliation, and regression coverage. Clean-checkout CI run [41253305201](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253305201) passed on head `fd7fbac9f67f503a2a46bc393a110effa24e9e30`.
+**Status:** Implementation and PR-head acceptance checks complete; formal phase closure awaits merge and successful default-branch CI. PR [#48](https://github.com/Daniel9822/codebase-neural-memory/pull/48) adds Git-aware index snapshots, dirty/branch/commit freshness, memory commit-ancestry review, deterministic reconciliation, and regression coverage. Clean-checkout CI run [41253305201](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253305201) passed on the code head `fd7fbac9f67f503a2a46bc393a110effa24e9e30`.
 
 Tasks:
 - [x] Record the indexed Git commit and relevant working-tree state when Git metadata is available (schema migration v10).
@@ -222,7 +222,7 @@ Exit condition: controlled Git changes and missed watcher events converge to the
 ### Phase 7 verification evidence
 
 - **Implementation:** PR [#48](https://github.com/Daniel9822/codebase-neural-memory/pull/48); schema migration v10.
-- **CI:** [GitHub Actions #41253305201](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253305201) — success on the PR head; clean checkout, `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all passed.
+- **PR-head CI:** [GitHub Actions #41253305201](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253305201) — success on the code head; clean checkout, `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all passed. A default-branch verification is still required for formal closure.
 - **Git state coverage:** initial commit/branch capture, clean and dirty worktrees, source edits, empty commits, branch changes with identical source hashes, rename/deletion reconciliation, non-Git folders, and memory commit ancestry/ahead/divergence.
 - **Convergence:** incremental indexing and forced reindex were compared using logical file, symbol, import, call, heritage, relation, unresolved-import, and FTS snapshots after rename/deletion and branch-switch scenarios.
 - **Consistency design:** freshness always performs a deterministic scan; no background watcher is needed for correctness and none is implemented.
