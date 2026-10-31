@@ -31,6 +31,11 @@ interface IgnoreScope {
 interface DiscoveryResult {
   files: DiscoveredFile[];
   presentPaths: Set<string>;
+  protectedDirectories: Set<string>;
+  scanned: number;
+  skipped: number;
+  failed: number;
+  errors: string[];
 }
 
 function loadIgnoreRules(directory: string, isRoot = false): IgnoreScope {
@@ -57,12 +62,27 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
 function discoverFiles(root: string): DiscoveryResult {
   const output: DiscoveredFile[] = [];
   const presentPaths = new Set<string>();
+  const protectedDirectories = new Set<string>();
+  const errors: string[] = [];
+  let scanned = 0;
+  let skipped = 0;
+  let failed = 0;
   const rootScope = loadIgnoreRules(root, true);
   const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
+    const directoryPath = relative(root, directory).replaceAll("\\\\", "/");
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
-    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+    let entries;
+    try {
+      entries = readdirSync(directory, { withFileTypes: true });
+    } catch (error) {
+      failed += 1;
+      errors.push(directoryPath || "." + ": " + (error instanceof Error ? error.message : String(error)));
+      protectedDirectories.add(directoryPath);
+      return;
+    }
+    for (const entry of entries) {
       const absolutePath = join(directory, entry.name);
-      const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
+      const relativePath = relative(root, absolutePath).replaceAll("\\\\", "/");
       if (isIgnored(absolutePath, scopes)) continue;
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
@@ -70,28 +90,33 @@ function discoverFiles(root: string): DiscoveryResult {
         continue;
       }
       if (!entry.isFile() || !isSupportedSourceFile(relativePath)) continue;
-      // Track existing source files even when they are skipped by the size limit.
-      // They must not be mistaken for deleted files during index reconciliation.
       presentPaths.add(relativePath);
-      const stat = statSync(absolutePath);
-      if (stat.size > MAX_FILE_BYTES) continue;
-      const source = readFileSync(absolutePath, "utf8");
-      output.push({
-        relativePath,
-        size: stat.size,
-        mtime: stat.mtime,
-        hash: createHash("sha256").update(source).digest("hex"),
-        source,
-      });
+      scanned += 1;
+      try {
+        const stat = statSync(absolutePath);
+        if (stat.size > MAX_FILE_BYTES) { skipped += 1; continue; }
+        const content = readFileSync(absolutePath);
+        if (content.includes(0)) { skipped += 1; continue; }
+        const source = content.toString("utf8");
+        output.push({
+          relativePath,
+          size: stat.size,
+          mtime: stat.mtime,
+          hash: createHash("sha256").update(content).digest("hex"),
+          source,
+        });
+      } catch (error) {
+        failed += 1;
+        errors.push(relativePath + ": " + (error instanceof Error ? error.message : String(error)));
+      }
     }
   };
   walk(root, [rootScope]);
   return {
     files: output.sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
-    presentPaths,
+    presentPaths, protectedDirectories, scanned, skipped, failed, errors,
   };
 }
-
 function languageForExtension(extension: string): string {
   return [".js", ".jsx", ".mjs", ".cjs"].includes(extension) ? "javascript" : "typescript";
 }
@@ -175,13 +200,18 @@ export function indexProject(location: ProjectLocation, force = false): IndexSum
 }
 
 export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation, force = false): IndexSummary {
-  const { files: discovered, presentPaths } = discoverFiles(location.rootPath);
+  const discovery = discoverFiles(location.rootPath);
+  const { files: discovered, presentPaths } = discovery;
   return db.transaction(() => {
     const existing = db.prepare("SELECT id, path, content_hash FROM files").all() as Array<{
       id: number; path: string; content_hash: string;
     }>;
     const existingByPath = new Map(existing.map((file) => [file.path, file]));
-    const summary: IndexSummary = { scanned: discovered.length, added: 0, updated: 0, unchanged: 0, deleted: 0, symbols: 0, relations: 0 };
+    const summary: IndexSummary = {
+      scanned: discovery.scanned, added: 0, updated: 0, unchanged: 0, deleted: 0,
+      symbols: 0, relations: 0, skipped: discovery.skipped, failed: discovery.failed,
+      errors: [...discovery.errors],
+    };
 
     const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; path: string; content_hash: string }) => {
       const extension = extname(file.relativePath).toLowerCase();
@@ -220,9 +250,14 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
         summary.unchanged += 1;
         continue;
       }
-      updateFile(file, oldFile);
-      if (oldFile) summary.updated += 1;
-      else summary.added += 1;
+      try {
+        updateFile(file, oldFile);
+        if (oldFile) summary.updated += 1;
+        else summary.added += 1;
+      } catch (error) {
+        summary.failed += 1;
+        summary.errors.push(file.relativePath + ": " + (error instanceof Error ? error.message : String(error)));
+      }
     }
 
     const removeFile = db.transaction((fileId: number) => {
@@ -230,7 +265,10 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
       db.prepare("DELETE FROM files WHERE id = ?").run(fileId);
     });
     for (const file of existing) {
-      if (!presentPaths.has(file.path)) {
+      const isProtected = [...discovery.protectedDirectories].some((directory) =>
+        directory === "" || file.path === directory || file.path.startsWith(directory + "/"),
+      );
+      if (!presentPaths.has(file.path) && !isProtected) {
         removeFile(file.id);
         summary.deleted += 1;
       }
