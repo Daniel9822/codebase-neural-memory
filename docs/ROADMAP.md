@@ -176,11 +176,11 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ### Block 4 — Real MCP client compatibility
 
-- [x] Add an OpenCode local-server configuration template with explicit workspace-relative \`cwd\` (\`examples/opencode.mcp.json\`).
+- [x] Add an OpenCode local-server configuration template with explicit workspace-relative `cwd` (`examples/opencode.mcp.json`).
 - [x] Verify OpenCode discovery and real tool calls in an installed OpenCode client (manual evidence recorded in `docs/CLIENT_INTEGRATION.md`).
-- [x] Add a VS Code workspace stdio configuration template with explicit \`\${workspaceFolder}\` binding (\`examples/vscode.mcp.json\`).
+- [x] Add a VS Code workspace stdio configuration template with explicit `${workspaceFolder}` binding (`examples/vscode.mcp.json`).
 - [x] Verify VS Code discovery and real tool calls in an installed VS Code/Copilot client (manual evidence recorded in `docs/CLIENT_INTEGRATION.md`).
-- [x] Document reproducible setup, verification prompts, evidence requirements, and troubleshooting (\`docs/CLIENT_INTEGRATION.md\`).
+- [x] Document reproducible setup, verification prompts, evidence requirements, and troubleshooting (`docs/CLIENT_INTEGRATION.md`).
 - [x] Record client configurations, observed tool results, execution date, and known platform limitations in `docs/CLIENT_INTEGRATION.md`.
 - [ ] Capture the exact VS Code, GitHub Copilot extension, OpenCode, and Node.js versions; these were not included in the initial manual test report.
 
