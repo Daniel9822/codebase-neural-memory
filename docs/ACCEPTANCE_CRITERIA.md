@@ -120,7 +120,7 @@ Phase 0 is complete only after results are recorded, including exact environment
 - [x] A labeled lexical relevance fixture corpus asserts expected top results for representative exact, multi-term, and participant-registration queries (`tests/fixtures/retrieval-relevance.ts`).
 - [x] Retrieval identifies stale or incomplete index state (the freshness report compares source hashes and additions/deletions without mutating the index; incomplete discovery is surfaced separately).
 - [x] Schema migration v6 → v7 adds persisted index exclusions with a `[]` default and is covered for existing data and repeat execution (`tests/migrations.test.ts`).
-- [ ] Relevance tests use labeled expected results rather than subjective spot checks alone.
+- [x] Relevance tests use labeled expected results rather than subjective spot checks alone (`tests/fixtures/retrieval-relevance.ts` and `tests/retrieval.test.ts`).
 
 ## 7. Phase 4 — Memory lifecycle
 
