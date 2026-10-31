@@ -97,8 +97,8 @@ describe("findDependencies", () => {
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export const helper = true;");
     indexWithDatabase(database!, location);
 
-    expect(findDependencies(location, "src\\main.ts")).toEqual(["src/helper.ts"]);
-    expect(findDependencies(location, "./src/main.ts")).toEqual(["src/helper.ts"]);
+    expect(findDependencies(location, "src\\main.ts").dependencies.map((item) => item.path)).toEqual(["src/helper.ts"]);
+    expect(findDependencies(location, "./src/main.ts").dependencies.map((item) => item.path)).toEqual(["src/helper.ts"]);
   });
 
   it("rejects invalid depth and reports files outside the index", () => {
