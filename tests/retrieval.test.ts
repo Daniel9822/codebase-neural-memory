@@ -81,7 +81,7 @@ describe("getSymbolRelations", () => {
         direction: "outgoing", relation: "EXTENDS", symbolName: "Worker", symbolKind: "class",
         symbolFilePath: "worker.ts", symbolStartLine: 3, symbolEndLine: 3,
         relatedSymbolName: "Base", relatedSymbolKind: "class", relatedFilePath: "base.ts",
-        relatedStartLine: 1, relatedEndLine: 1, confidence: 1, provenance: "typescript-ast-heritage",
+        relatedStartLine: 1, relatedEndLine: 1, confidence: 1, provenance: "typescript-ast-heritage", indexRevision: 1,
       },
       {
         direction: "outgoing", relation: "IMPLEMENTS", symbolName: "Worker", symbolKind: "class",
@@ -98,6 +98,36 @@ describe("getSymbolRelations", () => {
         relatedStartLine: 3, relatedEndLine: 3, confidence: 1, provenance: "typescript-ast-heritage",
       },
     ]);
+  });
+
+
+  it("advances the project revision and exposes it on graph relations", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}");
+    writeFileSync(join(location.rootPath, "child.ts"), 'import { Base } from "./base";\nexport class Child extends Base {}');
+
+    indexWithDatabase(database!, location);
+    expect(database!.prepare("SELECT DISTINCT index_revision FROM relations").all()).toEqual([{ index_revision: 1 }]);
+    expect(getSymbolRelations(location, "Child")[0]).toMatchObject({ indexRevision: 1 });
+
+    indexWithDatabase(database!, location);
+    expect(database!.prepare("SELECT DISTINCT index_revision FROM relations").all()).toEqual([{ index_revision: 2 }]);
+    expect(getSymbolRelations(location, "Child")[0]).toMatchObject({ indexRevision: 2 });
+    expect(database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id)).toEqual({ index_revision: 2 });
+  });
+
+  it("rolls back the revision and previous graph when relation rebuilding fails", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}");
+    writeFileSync(join(location.rootPath, "child.ts"), 'import { Base } from "./base";\nexport class Child extends Base {}');
+    indexWithDatabase(database!, location);
+    const before = database!.prepare("SELECT id, index_revision FROM relations ORDER BY id").all();
+    writeFileSync(join(location.rootPath, "child.ts"), 'import { Base } from "./base";\nexport class Child extends Base { changed() {} }');
+    database!.exec("CREATE TRIGGER reject_relation_insert BEFORE INSERT ON relations BEGIN SELECT RAISE(ABORT, 'forced relation failure'); END;");
+
+    expect(() => indexWithDatabase(database!, location)).toThrow("forced relation failure");
+    expect(database!.prepare("SELECT id, index_revision FROM relations ORDER BY id").all()).toEqual(before);
+    expect(database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id)).toEqual({ index_revision: 1 });
   });
 
   it("returns no results for unknown names and validates limits", () => {
