@@ -66,7 +66,7 @@ Every milestone must preserve these rules:
 - [ ] Symbol search returns expected symbols and source line ranges.
 - [ ] Explain returns matching symbol definitions or a clear no-result response.
 - [ ] Project map lists indexed files and only relationships that the resolver has actually established.
-- [ ] Impact returns known reverse dependents for fixture imports.
+- [x] Impact returns known reverse dependents for fixture imports, including transitive dependents; traversal is bounded by result and relation-processing budgets, reports truncation/processing metrics, and is covered for cycles, duplicates, missing targets, and invalid limits (`tests/retrieval.test.ts`; CLI/MCP smoke coverage in `scripts/phase-3-smoke.mjs`; PR #29).
 - [ ] Remember persists a note across separate CLI invocations.
 - [ ] Memories can be filtered and are scoped to the current project.
 
@@ -151,6 +151,17 @@ The retrieval feature checklist above records implemented behavior and its focus
 - **No-mutation check:** SHA-256 hashes of fixture source files before and after CLI/MCP read operations matched. The smoke fixture is created in a temporary directory and removed afterward.
 - **Diff review:** PR #26 changes only the smoke script, npm script declaration, and CI workflow; no application source files were changed.
 - **Limitations:** This records the Linux/Node 22 CI environment. Other operating systems and repository-scale performance/relevance benchmarks remain outside this Phase 3 verification; benchmark work belongs to Phase 8.
+
+### Phase 3 reverse-impact follow-up verification
+
+- **Result:** PASS
+- **Merged PR:** [#29 — bounded and verified reverse impact retrieval](https://github.com/Daniel9822/codebase-neural-memory/pull/29)
+- **Verified merge commit:** `000c4d7f0041e680f5c431097fb58b9dbd83a1a3`
+- **CI run:** [GitHub Actions #41186793246](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41186793246) — `success`.
+- **Commands passed:** `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke`.
+- **Reverse-impact behavior:** `findImpact` enforces configurable result and relation-processing limits, validates bounds, and returns `truncated`, `processedFiles`, `processedRelations`, and effective limits.
+- **Regression coverage:** direct and transitive reverse dependents, cycles, duplicate paths, result and processing truncation, missing targets, and invalid limits in `tests/retrieval.test.ts`.
+- **CLI/MCP smoke:** exercises `cnm impact` and MCP `change_impact`; MCP output is parsed as JSON and its affected paths and truncation flag are asserted. The full smoke suite passed in the post-merge CI run.
 
 Phase 3 is formally closed on the verified commit above.
 
