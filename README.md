@@ -38,6 +38,7 @@ cnm map
 cnm search "registerParticipant"
 cnm explain "TournamentService"
 cnm impact "src/services/tournamentService.ts"
+cnm dependencies "src/services/tournamentService.ts" --depth 2
 cnm remember "Duplicate registration is prohibited" "A participant may only be registered once in an active tournament."
 cnm memories
 ```
@@ -89,7 +90,7 @@ CNM does not create a memory directory in the repository and does not modify `.g
 
 ## What is indexed
 
-The initial parser supports `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, and `.cjs` files. It extracts functions, classes, methods, interfaces, type aliases, enums, import declarations, and simple local function-call relationships.
+Use `cnm dependencies <file> --depth <number>` to list direct imports (depth 1) or transitive dependencies up to the requested depth. Cycles are handled without repeating files.\n\nThe initial parser supports `.ts`, `.tsx`, `.js`, `.jsx`, `.mts`, `.cts`, `.mjs`, and `.cjs` files. It extracts functions, classes, methods, interfaces, type aliases, enums, import declarations, and simple local function-call relationships.
 
 Common generated/dependency folders and sensitive files such as `.env`, private keys, and certificate files are excluded. The `.gitignore` file is respected, and additional patterns can be supplied to `cnm index` with `--exclude`. Symlinks are skipped by default. Files larger than 1 MB are skipped by default.
 

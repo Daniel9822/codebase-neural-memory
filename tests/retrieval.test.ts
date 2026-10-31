@@ -1,0 +1,67 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
+import type { ProjectLocation } from "../src/core/project.js";
+import { indexWithDatabase } from "../src/core/indexer.js";
+import { findDependencies } from "../src/core/retrieval.js";
+
+let temporaryDirectory = "";
+let database: MemoryDatabase | undefined;
+let location: ProjectLocation;
+
+function createProject(): void {
+  temporaryDirectory = mkdtempSync(join(tmpdir(), "cnm-dependencies-test-"));
+  const rootPath = join(temporaryDirectory, "repository");
+  mkdirSync(rootPath, { recursive: true });
+  location = {
+    id: "dependencies-test-project",
+    rootPath,
+    dataDirectory: join(temporaryDirectory, "data"),
+    databasePath: join(temporaryDirectory, "data", "memory.sqlite"),
+  };
+  database = openDatabase(location);
+  ensureProject(database, location);
+}
+
+afterEach(() => {
+  database?.close();
+  database = undefined;
+  if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
+  temporaryDirectory = "";
+});
+
+describe("findDependencies", () => {
+  it("returns direct and transitive imports up to the requested depth without looping on cycles", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "a.ts"), 'import "./b";\nexport const a = true;');
+    writeFileSync(join(location.rootPath, "b.ts"), 'import "./c";\nexport const b = true;');
+    writeFileSync(join(location.rootPath, "c.ts"), 'import "./a";\nexport const c = true;');
+    indexWithDatabase(database!, location);
+
+    expect(findDependencies(location, "a.ts")).toEqual(["b.ts"]);
+    expect(findDependencies(location, "a.ts", 2)).toEqual(["b.ts", "c.ts"]);
+    expect(findDependencies(location, "a.ts", 10)).toEqual(["b.ts", "c.ts"]);
+  });
+
+  it("accepts paths with Windows separators and a leading ./", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"), 'import "./helper";');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export const helper = true;");
+    indexWithDatabase(database!, location);
+
+    expect(findDependencies(location, "src\\main.ts")).toEqual(["src/helper.ts"]);
+    expect(findDependencies(location, "./src/main.ts")).toEqual(["src/helper.ts"]);
+  });
+
+  it("rejects invalid depth and reports files outside the index", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"), "export const main = true;");
+    indexWithDatabase(database!, location);
+
+    expect(() => findDependencies(location, "main.ts", 0)).toThrow("Dependency depth must be a positive safe integer");
+    expect(() => findDependencies(location, "missing.ts")).toThrow("File not found in memory index");
+  });
+});

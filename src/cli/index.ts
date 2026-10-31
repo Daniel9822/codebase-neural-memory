@@ -5,7 +5,7 @@ import { basename } from "node:path";
 import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
 import { indexProject } from "../core/indexer.js";
-import { explainSymbol, findImpact, getProjectMap, getProjectOverview, searchSymbols } from "../core/retrieval.js";
+import { explainSymbol, findDependencies, findImpact, getProjectMap, getProjectOverview, searchSymbols } from "../core/retrieval.js";
 import { recallMemories, remember } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
@@ -111,6 +111,15 @@ program.command("impact <file>")
   .action((file: string) => {
     const affected = findImpact(ensureInitialized(), file);
     console.log(JSON.stringify({ file, affectedFiles: affected }, null, 2));
+  });
+
+
+program.command("dependencies <file>")
+  .description("List files imported by the target, directly or up to a depth.")
+  .option("--depth <number>", "Maximum dependency depth", parsePositiveInteger, 1)
+  .action((file: string, options: { depth: number }) => {
+    const dependencies = findDependencies(ensureInitialized(), file, options.depth);
+    console.log(JSON.stringify({ file, depth: options.depth, dependencies }, null, 2));
   });
 
 program.command("remember <title> <content>")
