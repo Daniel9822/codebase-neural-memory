@@ -1,6 +1,7 @@
 import { getFileDetails, searchSymbols } from "./retrieval.js";
 import { inspectMemoryFreshness, recallMemories } from "./memories.js";
 import type { ProjectLocation } from "./project.js";
+import { openDatabase } from "../storage/database.js";
 
 export interface TaskContextOptions {
   maxItems?: number;
@@ -105,6 +106,33 @@ export function buildTaskContext(
     } catch {
       warnings.push(`Could not load indexed details for ${symbol.filePath}; the index may have changed.`);
     }
+  }
+
+  // Test files often contain imports but no declarations, so symbol search alone cannot discover them.
+  const testDb = openDatabase(location);
+  let testPaths: string[];
+  try {
+    testPaths = (testDb.prepare(`
+      SELECT path FROM files
+      WHERE lower(path) LIKE '%test%' OR lower(path) LIKE '%spec%'
+      ORDER BY path LIMIT 500
+    `).all() as Array<{ path: string }>).map((row) => row.path)
+      .filter((path) => /(^|[/\\\\])tests?([/\\\\.-]|$)|\\.(test|spec)\\.[cm]?[jt]sx?$/i.test(path));
+  } finally {
+    testDb.close();
+  }
+  for (const path of testPaths) {
+    const pathText = path.toLocaleLowerCase();
+    const matchingAnchors = anchors.filter((anchor) => pathText.includes(anchor));
+    const score = 12 + matchingAnchors.length * 8;
+    candidates.push({
+      kind: "test",
+      title: `Test source: ${path}`,
+      source: path,
+      score,
+      signals: ["test-path", ...(matchingAnchors.length ? ["task-anchor-in-path"] : [])],
+      detail: { matchingAnchors },
+    });
   }
 
   const memories = recallMemories(location, normalizedTask, memoryLimit);
