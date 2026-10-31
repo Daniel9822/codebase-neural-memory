@@ -277,6 +277,8 @@ Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code ins
 
 ## 10. Phase 7 — Git awareness and freshness
 
+**Implementation status:** All listed acceptance behaviors pass on PR #48. Formal phase closure awaits merge and a successful default-branch clean-checkout CI run.
+
 - [x] The index records the source commit, branch, dirty flag, working-tree status hash, and changed-path count when Git metadata is available (migration v10; `tests/git-awareness.test.ts`).
 - [x] Dirty working-tree changes are detected by the Git porcelain snapshot and supported-file content hashes.
 - [x] Commit and branch changes are reported as stale even when supported source-file hashes are unchanged (`tests/git-awareness.test.ts`).
