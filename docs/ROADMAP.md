@@ -239,6 +239,7 @@ Tasks:
 - [x] Record SQLite database size and process peak RSS.
 - [x] Evaluate symbol retrieval precision@5, recall@5, MRR, and top-1 accuracy against ten labeled queries.
 - [ ] Compare agent tasks with and without CNM under controlled, comparable conditions.
+- [ ] Repeat the same benchmark suite on Linux, Windows, and macOS; the matrix is added, but cross-platform results are not yet verified.
 - [ ] Add regression thresholds only after repeated stable measurements across supported platforms.
 - [ ] Profile before adding caches or parallelism.
 
