@@ -9,6 +9,8 @@ const MAX_SEARCH_RESULTS = 1_000;
 const MAX_DEPENDENCY_RESULTS = 5_000;
 const MAX_DEPENDENCY_PROCESSED = 10_000;
 const MAX_DEPENDENCY_DEPTH = 100;
+const DEFAULT_FILE_DETAIL_LIMIT = 100;
+const MAX_FILE_DETAIL_LIMIT = 500;
 
 interface RankedSearchHit extends SearchHit {
   score: number;
@@ -18,6 +20,10 @@ interface RankedSearchHit extends SearchHit {
 
 function tokenizeQuery(query: string): string[] {
   return [...new Set(query.match(/[\p{L}\p{N}_$]+/gu) ?? [])];
+}
+
+function escapeLikePattern(value: string): string {
+  return value.replace(/[\\%_]/g, "\\\\function isFtsUnavailable(error: unknown): boolean {");
 }
 
 function isFtsUnavailable(error: unknown): boolean {
@@ -99,12 +105,12 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
         ORDER BY ftsRank, f.path, s.start_line, s.name
         LIMIT ?
       `).all(ftsQuery, candidateLimit) as Array<SearchHit & { ftsRank: number }>;
-      const fallbackParameters = tokens.flatMap((token) => [`%${token}%`, `%${token}%`]);
+      const fallbackParameters = tokens.flatMap((token) => [`%${escapeLikePattern(token)}%`, `%${escapeLikePattern(token)}%`]);
       const fallbackRows = db.prepare(`
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
-        WHERE ${tokens.map(() => "(s.name LIKE ? OR s.signature LIKE ?)").join(" OR ")}
+        WHERE ${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")}
         ORDER BY f.path, s.start_line, s.name
         LIMIT ?
       `).all(...fallbackParameters, candidateLimit) as SearchHit[];
@@ -117,12 +123,12 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
       return rankSearchCandidates([...combined.values()], tokens, limit);
     } catch (error) {
       if (!isFtsUnavailable(error)) throw error;
-      const parameters = tokens.flatMap((token) => [`%${token}%`, `%${token}%`]);
+      const parameters = tokens.flatMap((token) => [`%${escapeLikePattern(token)}%`, `%${escapeLikePattern(token)}%`]);
       const rows = db.prepare(`
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
-        WHERE ${tokens.map(() => "(s.name LIKE ? OR s.signature LIKE ?)").join(" OR ")}
+        WHERE ${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")}
         ORDER BY f.path, s.start_line, s.name
         LIMIT ?
       `).all(...parameters, candidateLimit) as SearchHit[];
@@ -243,6 +249,9 @@ export interface DependencyHit {
   path: string;
   depth: number;
   chain: string[];
+  /** Evidence for each adjacent file pair in `chain`, in traversal order. */
+  chainEvidence: DependencyEvidence[];
+  /** Evidence for the final edge (same value as the last chainEvidence item). */
   evidence: DependencyEvidence;
 }
 
@@ -278,8 +287,8 @@ export function findDependencies(
     const target = db.prepare("SELECT id FROM files WHERE path = ?").get(normalized) as { id: number } | undefined;
     if (!target) throw new Error(`File not found in memory index: ${normalized}. Run cnm index.`);
 
-    const queue: Array<{ id: number; path: string; depth: number; chain: string[] }> = [
-      { id: target.id, path: normalized, depth: 0, chain: [normalized] },
+    const queue: Array<{ id: number; path: string; depth: number; chain: string[]; chainEvidence: DependencyEvidence[] }> = [
+      { id: target.id, path: normalized, depth: 0, chain: [normalized], chainEvidence: [] },
     ];
     const visited = new Set<number>([target.id]);
     const dependencies: DependencyHit[] = [];
@@ -307,18 +316,21 @@ export function findDependencies(
         if (dependencies.length >= maxResults) { truncated = true; break; }
         visited.add(item.id);
         const chain = [...current.chain, item.path];
+        const evidence: DependencyEvidence = {
+          relation: "IMPORTS",
+          provenance: item.provenance,
+          confidence: item.confidence,
+          indexRevision: item.indexRevision,
+        };
+        const chainEvidence = [...current.chainEvidence, evidence];
         dependencies.push({
           path: item.path,
           depth: current.depth + 1,
           chain,
-          evidence: {
-            relation: "IMPORTS",
-            provenance: item.provenance,
-            confidence: item.confidence,
-            indexRevision: item.indexRevision,
-          },
+          chainEvidence,
+          evidence,
         });
-        queue.push({ id: item.id, path: item.path, depth: current.depth + 1, chain });
+        queue.push({ id: item.id, path: item.path, depth: current.depth + 1, chain, chainEvidence });
       }
       if (truncated) break;
     }
@@ -361,9 +373,19 @@ export interface FileDetails {
   imports: Array<{ path: string; provenance: string; confidence: number; indexRevision: number }>;
   unresolvedImports: Array<{ specifier: string; status: string; candidates: string[] }>;
   relations: FileDetailRelation[];
+  limits: { perCollection: number };
+  totals: { symbols: number; imports: number; unresolvedImports: number; relations: number };
+  truncated: { symbols: boolean; imports: boolean; unresolvedImports: boolean; relations: boolean };
 }
 
-export function getFileDetails(location: ProjectLocation, filePath: string): FileDetails {
+export function getFileDetails(
+  location: ProjectLocation,
+  filePath: string,
+  limit = DEFAULT_FILE_DETAIL_LIMIT,
+): FileDetails {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_FILE_DETAIL_LIMIT) {
+    throw new Error("File detail limit must be a positive safe integer no greater than 500.");
+  }
   const normalized = filePath.replaceAll("\\", "/").replace(/^\.\//, "");
   const db = openDatabase(location);
   try {
@@ -373,22 +395,31 @@ export function getFileDetails(location: ProjectLocation, filePath: string): Fil
     `).get(normalized) as { id: number; stableId: string; path: string; language: string; extension: string; contentHash: string; indexedAt: string } | undefined;
     if (!file) throw new Error(`File not found in memory index: ${normalized}. Run cnm index.`);
     const project = db.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number };
+    const totals = {
+      symbols: (db.prepare("SELECT COUNT(*) AS count FROM symbols WHERE file_id = ?").get(file.id) as { count: number }).count,
+      imports: (db.prepare("SELECT COUNT(*) AS count FROM relations WHERE source_kind = 'file' AND source_id = ? AND kind = 'IMPORTS'").get(file.id) as { count: number }).count,
+      unresolvedImports: (db.prepare("SELECT COUNT(*) AS count FROM unresolved_imports WHERE source_file_id = ?").get(file.id) as { count: number }).count,
+      relations: (db.prepare(`SELECT COUNT(*) AS count FROM relations r
+        JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
+        JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
+        WHERE source.file_id = ? OR target.file_id = ?`).get(file.id, file.id) as { count: number }).count,
+    };
     const symbols = db.prepare(`
       SELECT s.stable_id AS stableId, s.name, s.kind, s.signature, f.path AS filePath,
         s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
       FROM symbols s JOIN files f ON f.id = s.file_id
       WHERE s.file_id = ? ORDER BY s.start_line, s.name, s.kind
-    `).all(file.id) as FileDetailSymbol[];
+    `).all(file.id, limit) as FileDetailSymbol[];
     const imports = db.prepare(`
       SELECT target.path, r.provenance, r.confidence, r.index_revision AS indexRevision
       FROM relations r JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
       WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
       ORDER BY target.path
-    `).all(file.id) as FileDetails["imports"];
+    `).all(file.id, limit) as FileDetails["imports"];
     const unresolvedImports = db.prepare(`
       SELECT module_specifier AS specifier, status, candidates_json AS candidatesJson
-      FROM unresolved_imports WHERE source_file_id = ? ORDER BY module_specifier
-    `).all(file.id).map((row: any) => ({
+      FROM unresolved_imports WHERE source_file_id = ? ORDER BY module_specifier LIMIT ?
+    `).all(file.id, limit).map((row: any) => ({
       specifier: row.specifier as string,
       status: row.status as string,
       candidates: JSON.parse(row.candidatesJson as string) as string[],
@@ -408,11 +439,20 @@ export function getFileDetails(location: ProjectLocation, filePath: string): Fil
       JOIN files target_file ON target_file.id = target.file_id
       WHERE source.file_id = ? OR target.file_id = ?
       ORDER BY relation, sourceFilePath, sourceStartLine, targetFilePath, targetStartLine
-    `).all(file.id, file.id, file.id) as FileDetailRelation[];
+      LIMIT ?
+    `).all(file.id, file.id, file.id, limit) as FileDetailRelation[];
     return {
       path: file.path, stableId: file.stableId, language: file.language, extension: file.extension,
       contentHash: file.contentHash, indexedAt: file.indexedAt, indexRevision: project.index_revision,
       symbols, imports, unresolvedImports, relations,
+      limits: { perCollection: limit },
+      totals,
+      truncated: {
+        symbols: totals.symbols > symbols.length,
+        imports: totals.imports > imports.length,
+        unresolvedImports: totals.unresolvedImports > unresolvedImports.length,
+        relations: totals.relations > relations.length,
+      },
     };
   } finally {
     db.close();
