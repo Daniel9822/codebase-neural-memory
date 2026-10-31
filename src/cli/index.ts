@@ -80,6 +80,10 @@ program.command("map")
     for (const row of rows) {
       console.log(`\n${row.path}`);
       for (const dependency of row.imports) console.log(`  └─ imports ${dependency}`);
+      for (const item of row.unresolvedImports) {
+        const detail = item.status === "ambiguous" ? ` (candidates: ${item.candidates.join(", ")})` : "";
+        console.log(`  └─ ${item.status} import ${item.specifier}${detail}`);
+      }
     }
   });
 
