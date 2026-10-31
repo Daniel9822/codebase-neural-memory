@@ -268,6 +268,7 @@ describe("bounded dependency traversal and file details", () => {
     expect(byResults.truncated).toBe(true);
     const byProcessing = findDependencies(location, "root.ts", 3, 10, 1);
     expect(byProcessing.processedFiles).toBe(1);
+    expect(byProcessing.processedRelations).toBe(1);
     expect(byProcessing.truncated).toBe(true);
   });
 
