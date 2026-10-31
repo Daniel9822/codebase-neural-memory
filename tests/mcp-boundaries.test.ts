@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InMemoryTransport, LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/server";
@@ -108,17 +108,32 @@ describe("MCP bounded output and project isolation", () => {
     writeFileSync(join(root, "entry.ts"), importLines.join("\n") + "\nexport const total = 205;\n");
     indexWithDatabase(databases[0]!, location);
 
+    const unreadableDirectories: string[] = [];
     for (let i = 0; i < 205; i += 1) {
-      symlinkSync(join(root, "entry.ts"), join(root, `skipped-${String(i).padStart(3, "0")}.ts`));
+      const blocked = join(root, `blocked-${String(i).padStart(3, "0")}`);
+      mkdirSync(blocked);
+      chmodSync(blocked, 0);
+      unreadableDirectories.push(blocked);
+      if (i < 200) symlinkSync(join(root, "entry.ts"), join(root, `skipped-${String(i).padStart(3, "0")}.ts`));
       remember(location, `Linked memory ${i}`, "Boundary fixture", "decision", "entry.ts");
     }
 
     const client = await connect(location);
-    const freshness = await client.call("index_freshness");
-    expect(freshness.totals.skippedFiles).toBe(205);
-    expect(freshness.skippedFiles).toHaveLength(200);
-    expect(freshness.truncated.skippedFiles).toBe(true);
-    expect(freshness.truncated.errors).toBe(false);
+    const exactFreshness = await client.call("index_freshness");
+    expect(exactFreshness.totals.skippedFiles).toBe(200);
+    expect(exactFreshness.skippedFiles).toHaveLength(200);
+    expect(exactFreshness.truncated.skippedFiles).toBe(false);
+    expect(exactFreshness.totals.errors).toBe(205);
+    expect(exactFreshness.errors).toHaveLength(200);
+    expect(exactFreshness.truncated.errors).toBe(true);
+    for (let i = 200; i < 205; i += 1) {
+      symlinkSync(join(root, "entry.ts"), join(root, `skipped-${String(i).padStart(3, "0")}.ts`));
+    }
+    const overLimitFreshness = await client.call("index_freshness");
+    expect(overLimitFreshness.totals.skippedFiles).toBe(205);
+    expect(overLimitFreshness.skippedFiles).toHaveLength(200);
+    expect(overLimitFreshness.truncated.skippedFiles).toBe(true);
+    for (const blocked of unreadableDirectories) chmodSync(blocked, 0o700);
 
     const memories = await client.call("memory_freshness", { limit: 100 });
     expect(memories.total).toBe(205);
@@ -189,6 +204,25 @@ describe("MCP bounded output and project isolation", () => {
       const result = response.result as { isError?: boolean } | undefined;
       expect(Boolean(response.error) || result?.isError === true, path).toBe(true);
     }
+  });
+
+
+  it("returns empty, non-truncated reports for an empty initialized project", async () => {
+    const { location } = createProject("empty");
+    const client = await connect(location);
+    const [freshness, memories, map] = await Promise.all([
+      client.call("index_freshness"),
+      client.call("memory_freshness"),
+      client.call("project_map"),
+    ]);
+    expect(freshness.skippedFiles).toEqual([]);
+    expect(freshness.errors).toEqual([]);
+    expect(memories.records).toEqual([]);
+    expect(memories.total).toBe(0);
+    expect(memories.truncated).toBe(false);
+    expect(map.files).toEqual([]);
+    expect(map.totalFiles).toBe(0);
+    expect(map.truncated).toBe(false);
   });
 
 });
