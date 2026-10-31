@@ -96,15 +96,15 @@ Phase 0 is complete only after results are recorded, including exact environment
 ## 5. Phase 2 — Knowledge graph
 
 - [x] Every node has a stable identifier within the project and a documented node type (file and symbol IDs are deterministic SHA-256 hashes; node types are `file` and `symbol`).
-- [ ] Every relation is directed and has a documented relation type.
-- [ ] Every inferred relation records its provenance and confidence.
+- [x] Every relation is directed and has a documented relation type (verified for IMPORTS, CALLS, EXTENDS, and IMPLEMENTS in indexer and retrieval fixtures).
+- [x] Every inferred relation records its provenance and confidence (asserted for imports, imported calls, extends, and implements).
 - [ ] Human-confirmed knowledge is distinguishable from parser-derived facts.
-- [ ] Rebuilding relations twice from unchanged source produces no duplicate edges.
-- [ ] Changing or deleting a source removes or invalidates affected old edges.
-- [ ] Forward and reverse traversal return expected neighbors on graph fixtures.
-- [ ] Transitive traversal handles cycles without infinite loops.
-- [ ] Unresolved or ambiguous imports are reported as unresolved instead of guessed.
-- [ ] Cross-file symbol edges are created only when static evidence supports the resolution.
+- [x] Rebuilding relations twice from unchanged source produces no duplicate edges (forced-reindex fixture compares stable node identities and relation metadata).
+- [x] Changing or deleting a source removes or invalidates affected old edges (covered by source-change and file-deletion regression tests).
+- [x] Forward and reverse traversal return expected neighbors on graph fixtures (dependency and symbol-relation retrieval tests).
+- [x] Transitive traversal handles cycles without infinite loops (dependency traversal fixture).
+- [x] Unresolved or ambiguous imports are reported as unresolved instead of guessed (relative, tsconfig alias, and package export fixtures).
+- [x] Cross-file symbol edges are created only when static evidence supports the resolution (named exports, aliases, shadowing, non-exported symbols, and ambiguous heritage fixtures).
 
 ## 6. Phase 3 — Retrieval
 
