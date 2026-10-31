@@ -3,6 +3,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
+import { compareGitCommits, getGitSnapshot, type GitCommitRelationship } from "./git.js";
 
 export type MemoryStatus = "proposed" | "confirmed" | "obsolete" | "rejected";
 
@@ -185,37 +186,55 @@ export function deleteMemory(location: ProjectLocation, id: string): boolean {
 export interface MemorySourceFreshness {
   id: string;
   title: string;
-  sourcePath: string;
-  status: "current" | "changed" | "missing" | "untracked" | "unsafe";
+  sourcePath: string | null;
+  status: "not-linked" | "current" | "changed" | "missing" | "untracked" | "unsafe";
   requiresReview: boolean;
+  commitSha: string | null;
+  commitStatus: GitCommitRelationship;
+  commitRequiresReview: boolean;
 }
 
-/** Inspect source-backed memories without changing their lifecycle status or content. */
+/** Inspect source and Git provenance without changing memory content or lifecycle status. */
 export function inspectMemoryFreshness(location: ProjectLocation, limit?: number): MemorySourceFreshness[] {
   if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) {
     throw new Error("Memory freshness limit must be a positive safe integer no greater than 500");
   }
   const db = openDatabase(location);
   try {
-    const sql = "SELECT id, title, source_path AS sourcePath, source_hash AS sourceHash FROM memories WHERE status != 'rejected' AND source_path IS NOT NULL ORDER BY updated_at DESC, id" +
+    const sql = "SELECT id, title, source_path AS sourcePath, source_hash AS sourceHash, commit_sha AS commitSha FROM memories WHERE status != 'rejected' AND (source_path IS NOT NULL OR commit_sha IS NOT NULL) ORDER BY updated_at DESC, id" +
       (limit === undefined ? "" : " LIMIT ?");
     const rows = (limit === undefined ? db.prepare(sql).all() : db.prepare(sql).all(limit)) as Array<{
-      id: string; title: string; sourcePath: string; sourceHash: string | null;
+      id: string; title: string; sourcePath: string | null; sourceHash: string | null; commitSha: string | null;
     }>;
+    const git = getGitSnapshot(location.rootPath);
     return rows.map((row) => {
+      const commitStatus = compareGitCommits(location.rootPath, row.commitSha, git.available ? git.commit : null);
+      const commitRequiresReview = commitStatus !== "not-referenced" && commitStatus !== "current";
+      const base = {
+        id: row.id,
+        title: row.title,
+        sourcePath: row.sourcePath,
+        commitSha: row.commitSha,
+        commitStatus,
+        commitRequiresReview,
+      };
+      if (row.sourcePath === null) {
+        return { ...base, status: "not-linked", requiresReview: commitRequiresReview };
+      }
+
       let currentHash: string | null;
       try {
         currentHash = sourceFingerprint(location, row.sourcePath);
       } catch (error) {
         if (error instanceof Error && (error.message === "Memory source path must resolve inside the project root" || error.message === "Memory source path must reference a file")) {
-          return { id: row.id, title: row.title, sourcePath: row.sourcePath, status: "unsafe", requiresReview: true };
+          return { ...base, status: "unsafe", requiresReview: true };
         }
         throw error;
       }
-      if (currentHash === null) return { id: row.id, title: row.title, sourcePath: row.sourcePath, status: "missing", requiresReview: true };
-      if (row.sourceHash === null) return { id: row.id, title: row.title, sourcePath: row.sourcePath, status: "untracked", requiresReview: true };
+      if (currentHash === null) return { ...base, status: "missing", requiresReview: true };
+      if (row.sourceHash === null) return { ...base, status: "untracked", requiresReview: true };
       const status = currentHash === row.sourceHash ? "current" : "changed";
-      return { id: row.id, title: row.title, sourcePath: row.sourcePath, status, requiresReview: status === "changed" };
+      return { ...base, status, requiresReview: status === "changed" || commitRequiresReview };
     });
   } finally {
     db.close();
@@ -237,7 +256,7 @@ export function getMemoryFreshnessReport(location: ProjectLocation, limit = 100)
   const db = openDatabase(location);
   let total: number;
   try {
-    total = (db.prepare("SELECT COUNT(*) AS count FROM memories WHERE status != 'rejected' AND source_path IS NOT NULL").get() as { count: number }).count;
+    total = (db.prepare("SELECT COUNT(*) AS count FROM memories WHERE status != 'rejected' AND (source_path IS NOT NULL OR commit_sha IS NOT NULL)").get() as { count: number }).count;
   } finally {
     db.close();
   }
