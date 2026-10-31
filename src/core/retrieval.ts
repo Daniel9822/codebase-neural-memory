@@ -96,10 +96,19 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
         ORDER BY ftsRank, f.path, s.start_line, s.name
         LIMIT ?
       `).all(ftsQuery, candidateLimit) as Array<SearchHit & { ftsRank: number }>;
-      return rankSearchCandidates(rows, tokens, "fts5", limit);
+      if (rows.length > 0) return rankSearchCandidates(rows, tokens, "fts5", limit);
+      const fallbackParameters = tokens.flatMap((token) => [`%${token}%`, `%${token}%`]);
+      const fallbackRows = db.prepare(`
+        SELECT s.name, s.kind, s.signature, f.path AS filePath,
+          s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
+        FROM symbols s JOIN files f ON f.id = s.file_id
+        WHERE ${tokens.map(() => "(s.name LIKE ? OR s.signature LIKE ?)").join(" OR ")}
+        ORDER BY f.path, s.start_line, s.name
+        LIMIT ?
+      `).all(...fallbackParameters, candidateLimit) as SearchHit[];
+      return rankSearchCandidates(fallbackRows, tokens, "like-fallback", limit);
     } catch (error) {
       if (!isFtsUnavailable(error)) throw error;
-      const conditions = tokens.flatMap(() => ["s.name LIKE ?", "s.signature LIKE ?"]);
       const parameters = tokens.flatMap((token) => [`%${token}%`, `%${token}%`]);
       const rows = db.prepare(`
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
@@ -109,7 +118,6 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
         ORDER BY f.path, s.start_line, s.name
         LIMIT ?
       `).all(...parameters, candidateLimit) as SearchHit[];
-      void conditions;
       return rankSearchCandidates(rows, tokens, "like-fallback", limit);
     }
   } finally {
@@ -305,7 +313,7 @@ export function findDependencies(
       }
       if (truncated) break;
     }
-    if (queue.length > 0) truncated = true;
+    if (queue.some((item) => item.depth < maxDepth)) truncated = true;
     return { file: normalized, maxDepth, dependencies, truncated, processedFiles, limits: { maxResults, maxProcessed } };
   } finally {
     db.close();
