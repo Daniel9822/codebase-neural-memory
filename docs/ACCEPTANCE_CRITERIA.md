@@ -178,7 +178,7 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - [x] A changed or missing source file is reported as requiring review without silently rewriting memory content or status (`tests/memories.test.ts`).
 - [x] Search excludes rejected memories by default (`tests/memories.test.ts`).
 - [x] Memory operations from one project cannot expose or delete another project's content (`tests/memories.test.ts`).
-- [ ] Git commit/branch changes are compared against source provenance; storing an optional commit identifier is implemented, but commit freshness is deferred to Phase 7.
+- [x] Optional memory `commitSha` references are compared with current Git `HEAD` ancestry (`current`, `ancestor`, `ahead`, `diverged`, `unknown`, `unavailable`); non-current/unavailable references require review without mutating memory lifecycle (`tests/git-awareness.test.ts`).
 - [x] Optional author identity is retained separately from the identity of the latest updater; attribution is explicit and never inferred from external accounts (`tests/memories.test.ts`, migration v9).
 
 ### Phase 4 close-out verification (required before declaring the phase closed)
@@ -190,7 +190,7 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 - **Environment:** GitHub-hosted `ubuntu-latest`, Node.js 22, npm; clean checkout of `main`.
 - **Commands passed, in workflow order:** `npm ci --no-audit --no-fund`; `npm run typecheck`; `npm test`; `npm run build`; `npm run smoke`.
 - **Coverage represented by the verification:** database migration and memory tests, plus CLI/MCP smoke coverage for memory lifecycle, freshness inspection, explicit author attribution, and updater attribution.
-- **Deferred scope:** comparing referenced Git commits/branches with the current repository state is explicitly deferred to Phase 7. The Phase 4 deliverable includes optional Git commit metadata and file-content SHA-256 freshness; Git-aware commit/branch freshness is not required for Phase 4 closure.
+- **Follow-up delivery:** Git commit ancestry comparison was deferred at the original Phase 4 close-out and is now delivered by Phase 7 PR #48. It remains read-only and does not change memory lifecycle state.
 - **Limitations:** This records the Linux/Node 22 CI environment. Other operating systems are not claimed as verified by this run.
 ## 8. Phase 5 — Task context builder
 
@@ -285,6 +285,7 @@ Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code ins
 - [ ] A clean reindex and incremental reconciliation converge to equivalent logical state across all controlled Git transitions.
 - [x] Worktree, submodule, and repository-move identity/storage behavior is documented; submodule isolation inside a parent scan is explicitly not claimed.
 - [x] The existing CLI `cnm freshness` and MCP `index_freshness` report indexed/current commit, branch, dirty state, and whether each changed.
+- [x] Memory freshness compares recorded commits with current Git ancestry, includes commit-only memories, and requires review for non-current or unavailable provenance (`tests/git-awareness.test.ts`).
 
 ## 11. Phase 8 — Evaluation and performance
 
