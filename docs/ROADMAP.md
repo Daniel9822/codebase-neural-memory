@@ -182,9 +182,10 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 - [x] Verify VS Code discovery and real tool calls in an installed VS Code/Copilot client (manual evidence recorded in `docs/CLIENT_INTEGRATION.md`).
 - [x] Document reproducible setup, verification prompts, evidence requirements, and troubleshooting (`docs/CLIENT_INTEGRATION.md`).
 - [x] Record client configurations, observed tool results, execution date, and known platform limitations in `docs/CLIENT_INTEGRATION.md`.
-- [ ] Capture the exact VS Code, GitHub Copilot extension, OpenCode, and Node.js versions; these were not included in the initial manual test report.
+- [x] Record VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 from local CLI output.
+- [ ] Identify and record the exact GitHub Copilot extension identifier/version; the filtered extension-list command returned no matching lines.
 
-**Evidence:** VS Code/Copilot and OpenCode each connected to `codebase-memory` and successfully invoked `project_overview` and `symbol_lookup` against the same local CNM workspace on 2026-10-31. Both returned 25 files, 135 symbols, 171 relations, index revision 1, and located `createMcpServer` at lines 12–102. Exact client/Node versions remain outstanding.
+**Evidence:** VS Code/Copilot and OpenCode each connected to `codebase-memory` and successfully invoked `project_overview` and `symbol_lookup` against the same local CNM workspace on 2026-10-31. Both returned 25 files, 135 symbols, 171 relations, index revision 1, and located `createMcpServer` at lines 12–102. Versions recorded: VS Code 1.144.0 (x64), OpenCode 1.19.5, Node.js v22.12.0. Exact Copilot extension identity/version remains unverified.
 
 **Deliverable:** two independently verified client integrations; simulated protocol calls do not count as client evidence.
 
