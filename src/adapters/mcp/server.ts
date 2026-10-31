@@ -53,10 +53,13 @@ export function startMcpServer(location: ProjectLocation): void {
     }));
 
     server.registerTool("file_details", {
-      description: "Return indexed file metadata, symbols, resolved and unresolved imports, symbol relationships, and relation provenance.",
-      inputSchema: z.object({ path: z.string().min(1) }),
-    }, async ({ path }) => ({
-      content: [{ type: "text", text: JSON.stringify(getFileDetails(location, path), null, 2) }],
+      description: "Return bounded indexed file metadata, symbols, resolved and unresolved imports, symbol relationships, and relation provenance.",
+      inputSchema: z.object({
+        path: z.string().min(1),
+        limit: z.number().int().min(1).max(500).optional(),
+      }),
+    }, async ({ path, limit }) => ({
+      content: [{ type: "text", text: JSON.stringify(getFileDetails(location, path, limit ?? 100), null, 2) }],
     }));
 
     server.registerTool("change_impact", {
