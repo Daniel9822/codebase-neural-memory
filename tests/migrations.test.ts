@@ -41,7 +41,7 @@ describe("database migrations", () => {
       id: "legacy-project", index_revision: 6, index_excludes_json: "[]",
     });
     expect(database.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
-      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 },
+      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 },
     ]);
   });
 
