@@ -436,7 +436,12 @@ export interface IndexFreshness {
   deletedFiles: number;
   skippedFiles: string[];
   errors: string[];
+  limits: { detailItems: number };
+  totals: { skippedFiles: number; errors: number };
+  truncated: { skippedFiles: boolean; errors: boolean };
 }
+
+const MAX_FRESHNESS_DETAIL_ITEMS = 200;
 
 export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
   const db = openDatabase(location);
@@ -447,7 +452,7 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
     if (!project) throw new Error("This repository has not been initialized. Run `cnm init` first.");
     if (!project.last_indexed_at) {
       return { status: "not-indexed", indexRevision: project.index_revision, checkedFiles: 0, addedFiles: 0,
-        changedFiles: 0, deletedFiles: 0, skippedFiles: [], errors: [] };
+        changedFiles: 0, deletedFiles: 0, skippedFiles: [], errors: [], limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS }, totals: { skippedFiles: 0, errors: 0 }, truncated: { skippedFiles: false, errors: false } };
     }
     const excludes = JSON.parse(project.index_excludes_json) as string[];
     const discovery = discoverFiles(location.rootPath, excludes);
@@ -474,8 +479,14 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
       indexRevision: project.index_revision,
       checkedFiles: discovery.scanned,
       addedFiles, changedFiles, deletedFiles,
-      skippedFiles: discovery.skippedFiles,
-      errors: discovery.errors,
+      skippedFiles: discovery.skippedFiles.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
+      errors: discovery.errors.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
+      limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS },
+      totals: { skippedFiles: discovery.skippedFiles.length, errors: discovery.errors.length },
+      truncated: {
+        skippedFiles: discovery.skippedFiles.length > MAX_FRESHNESS_DETAIL_ITEMS,
+        errors: discovery.errors.length > MAX_FRESHNESS_DETAIL_ITEMS,
+      },
     };
   } finally {
     db.close();
