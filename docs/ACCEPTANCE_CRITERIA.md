@@ -236,12 +236,14 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 
 ### Block 2 — Adapter protocol tests
 
-- [ ] Tests use the real server/SDK and an appropriate MCP transport.
-- [ ] Discovery returns exactly ten tools with the expected schemas.
-- [ ] At least one valid call is tested for every registered tool.
-- [ ] Invalid arguments are rejected and the observed protocol error envelope (including `isError`) is asserted.
-- [ ] Repeated calls, EOF/shutdown, and reconnection are tested.
-- [ ] Read calls do not mutate repository source files or durable memory records.
+- [x] Tests use the real server/SDK with in-memory transport and the real CLI stdio process.
+- [x] Discovery returns exactly ten tools with the expected schemas.
+- [x] At least one valid call is tested for every registered tool.
+- [x] Zod-invalid arguments and core handler exceptions are rejected with the observed MCP error envelope (`isError: true`).
+- [x] Repeated calls, EOF/shutdown, and reconnection are tested, including a restarted stdio process.
+- [x] Read calls do not mutate repository source files, index records, or durable memory records.
+
+**Evidence:** CI run [41238294195](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41238294195) passed all 82 tests across 9 test files, `npm run typecheck`, `npm run build`, and `npm run smoke`.
 
 ### Block 3 — Limits, paths, and isolation
 

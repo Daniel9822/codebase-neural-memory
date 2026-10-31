@@ -150,14 +150,14 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ### Block 2 — Adapter-specific protocol tests
 
-- [ ] Use the real MCP server and the installed SDK with an in-memory transport where supported.
-- [ ] Discover exactly ten tools and assert their published input schemas.
-- [ ] Execute at least one valid call for every tool.
-- [ ] Assert invalid inputs and the actual protocol error envelope, including `isError` behavior.
-- [ ] Exercise repeated calls, clean shutdown/EOF, and reconnect behavior.
-- [ ] Verify that read calls do not alter repository source files or create/update/delete durable memories.
+- [x] Use the real MCP server and installed SDK with its in-memory transport.
+- [x] Discover exactly ten tools and assert their published input schemas.
+- [x] Execute at least one valid call for every tool.
+- [x] Assert invalid Zod inputs and thrown core errors return the observed MCP error envelope (`isError: true`).
+- [x] Exercise repeated calls, in-memory close/reconnect, real CLI stdio EOF shutdown, and process reconnection.
+- [x] Verify that read calls do not alter repository source files, index records, or durable memories.
 
-**Deliverable:** focused MCP adapter tests independent of the existing general smoke script.
+**Deliverable:** focused SDK in-memory and real stdio MCP adapter tests, independent of the existing general smoke script. CI evidence: [run 41238294195](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41238294195) passed all 82 tests across 9 test files, typecheck, build, and smoke.
 
 ### Block 3 — Limits, paths, and project isolation
 
