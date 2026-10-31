@@ -117,7 +117,7 @@ export function buildTaskContext(
       WHERE lower(path) LIKE '%test%' OR lower(path) LIKE '%spec%'
       ORDER BY path LIMIT 500
     `).all() as Array<{ path: string }>).map((row) => row.path)
-      .filter((path) => /(^|[/\\\\])tests?([/\\\\.-]|$)|\\.(test|spec)\\.[cm]?[jt]sx?$/i.test(path));
+      .filter((path) => /(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path));
   } finally {
     testDb.close();
   }
