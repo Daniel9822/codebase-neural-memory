@@ -214,11 +214,13 @@ Repository-scale benchmarks, larger precision/recall studies, and performance ba
 
 ### Phase 5 close-out verification
 
-- **Status:** Pending final close-out PR merge and its post-merge CI; do not mark Phase 5 formally closed before both are verified.
+- **Status:** Final close-out PR merged; merge-commit/default-branch CI verification remains. Do not mark Phase 5 formally closed until that run is verified.
 - **Merged freshness baseline:** PR [#36](https://github.com/Daniel9822/codebase-neural-memory/pull/36), merge commit `992fcd3c2aebc8029b3ca2f24a3c3e76aeba1bb6`.
 - **Post-merge CI for PR #36:** [GitHub Actions #41233040729](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41233040729) — success; `npm ci`, typecheck, tests, build, and smoke all completed successfully.
 - **Environment:** GitHub-hosted Ubuntu, Node.js 22.
-- **Final close-out PR:** includes test relevance filtering, exact serialized-array budget semantics, and regression fixtures; merge SHA and post-merge CI result must be appended after merge.
+- **Final close-out PR:** [#37](https://github.com/Daniel9822/codebase-neural-memory/pull/37) merged into `main` at `f4f5aa6612de5aafdf4423095251030ac862b12b`; it includes test relevance filtering, exact serialized-array budget semantics, and regression fixtures.
+- **PR verification:** [GitHub Actions #41233795736](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41233795736) — success; install, typecheck, tests, build, and smoke steps all completed successfully on the final PR head.
+- **Remaining verification:** record a successful workflow run for the merge commit/default branch before closing Phase 5.
 - **Limitations:** retrieval is lexical/structural and does not promise semantic completeness. The API emits structured file details rather than text excerpts. Incremental lookup is core API only; no dedicated CLI/MCP lookup command is exposed.
 
 ## 9. Phase 6 — MCP integration
