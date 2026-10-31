@@ -85,7 +85,7 @@ export function createMcpServer(location: ProjectLocation): McpServer {
     }));
 
     server.registerTool("memory_freshness", {
-      description: "Inspect source files linked to project memories and report changes or missing files without changing memory status.",
+      description: "Inspect source-file fingerprints and referenced Git commit ancestry for project memories without changing memory status.",
       inputSchema: z.object({ limit: z.number().int().min(1).max(500).optional() }),
     }, async ({ limit }) => ({
       content: [{ type: "text", text: JSON.stringify(getMemoryFreshnessReport(location, limit ?? 100), null, 2) }],
