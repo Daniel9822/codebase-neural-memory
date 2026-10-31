@@ -26,6 +26,7 @@ interface DiscoveredFile {
 interface IgnoreScope {
   directory: string;
   rules: ReturnType<typeof ignore>;
+  mandatoryRules?: ReturnType<typeof ignore>;
 }
 
 interface DiscoveryResult {
@@ -41,10 +42,12 @@ interface DiscoveryResult {
 
 function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: string[] = []): IgnoreScope {
   const rules = ignore();
+  let mandatoryRules: ReturnType<typeof ignore> | undefined;
   if (isRoot) {
-    rules.add(DEFAULT_EXCLUDES);
-    rules.add([".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx"]);
-    // User patterns are additive: they cannot remove mandatory safety exclusions.
+    mandatoryRules = ignore().add(DEFAULT_EXCLUDES).add([".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx"]);
+    if (extraExcludes.some((pattern) => pattern.trimStart().startsWith("!"))) {
+      throw new Error("Custom exclusion patterns cannot use negation (leading '!').");
+    }
     rules.add(extraExcludes);
   }
   try {
@@ -52,12 +55,13 @@ function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: strin
   } catch {
     // A missing .gitignore is normal.
   }
-  return { directory, rules };
+  return { directory, rules, mandatoryRules };
 }
 
 function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
-  return scopes.some(({ directory, rules }) => {
+  return scopes.some(({ directory, rules, mandatoryRules }) => {
     const scopedPath = relative(directory, absolutePath).replaceAll("\\", "/");
+    if (mandatoryRules && (mandatoryRules.ignores(scopedPath) || mandatoryRules.ignores(scopedPath + "/"))) return true;
     return rules.ignores(scopedPath) || rules.ignores(scopedPath + "/");
   });
 }
