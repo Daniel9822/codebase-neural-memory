@@ -94,6 +94,9 @@ describe("indexWithDatabase", () => {
     const indexedPaths = (database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>).map((row) => row.path);
 
     expect(summary.added).toBe(1);
+    expect(summary.scanned).toBe(2);
+    expect(summary.skipped).toBe(1);
+    expect(summary.skippedFiles).toEqual(["linked.ts: symbolic link"]);
     expect(indexedPaths).toEqual(["normal.ts"]);
   });
 

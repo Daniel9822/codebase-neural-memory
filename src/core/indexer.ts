@@ -92,7 +92,14 @@ function discoverFiles(root: string, extraExcludes: string[] = []): DiscoveryRes
       const absolutePath = join(directory, entry.name);
       const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
       if (isIgnored(absolutePath, scopes)) continue;
-      if (entry.isSymbolicLink()) continue;
+      if (entry.isSymbolicLink()) {
+        if (isSupportedSourceFile(relativePath)) {
+          scanned += 1;
+          skipped += 1;
+          skippedFiles.push(relativePath + ": symbolic link");
+        }
+        continue;
+      }
       if (entry.isDirectory()) {
         walk(absolutePath, scopes);
         continue;
