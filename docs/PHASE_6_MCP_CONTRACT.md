@@ -1,6 +1,6 @@
 # Phase 6 — MCP Contract
 
-**Status:** Blocks 1 and 2 are implemented and CI-verified. Block 3 implementation is in progress on `phase6-block3-limits-isolation`; it adds bounded freshness and project-map report APIs. Blocks 3–5 remain open pending tests, CI, and client evidence. This document records the implemented contract; it does not claim that Phase 6 integration acceptance has passed.
+**Status:** Blocks 1–3 are implemented and CI-verified on 2026-10-31. CI run [41239258583](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41239258583) passed all 86 tests across 10 test files, typecheck, build, and smoke. Blocks 4–5 remain open. This document records the implemented contract; it does not claim that Phase 6 integration acceptance has passed.
 
 ## Source of truth
 
@@ -73,8 +73,8 @@ The ten handlers call overview, freshness, map, search, graph, file-detail, cont
 | Client-visible defaults and bounds | Source inspection of Zod schemas and handler defaults | Documented |
 | Core function mapping | Source inspection of handler calls | Documented |
 | MCP protocol error envelope | Adapter tests assert `isError: true` for Zod validation and core missing-path errors | Verified in tests |
-| All ten valid calls and invalid arguments | SDK in-memory tests discover all ten schemas and call all ten handlers; invalid Zod/core errors are asserted | Verified in tests |
-| Repeat calls, EOF, and reconnection | In-memory protocol test plus real CLI stdio process EOF/restart test | Verified in tests |\n| Two-project process isolation | Project identity is path-derived; MCP-specific two-process proof not present in the reviewed tests | Pending |
+| All ten valid calls and invalid arguments | SDK in-memory tests discover all ten schemas and call all ten handlers; invalid Zod/core errors are asserted | Verified in tests |\n| Bounded freshness and map reports | Exact/over/empty/incomplete discovery boundaries, totals, truncation, nested map caps, and invalid path errors are tested | Verified in CI run 41239258583 |
+| Repeat calls, EOF, and reconnection | In-memory protocol test plus real CLI stdio process EOF/restart test | Verified in tests |\n| Two-project process isolation | Two concurrent MCP servers tested with distinct indexed files and memories; no cross-project reads observed | Verified in tests |
 | OpenCode end-to-end | Not evidenced by the reviewed source/docs | Pending |
 | Second real MCP client | Not evidenced by the reviewed source/docs | Pending |
 
