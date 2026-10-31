@@ -79,7 +79,7 @@ function databaseBytes(path: string): number {
 
 function peakRssBytes(): number {
   const maximum = process.resourceUsage().maxRSS;
-  return Math.round(maximum * (process.platform === "win32" ? 1 : 1024));
+  return Math.round(maximum * 1024);
 }
 
 function mean(values: number[]): number {
