@@ -136,7 +136,7 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
 
 ## Phase 6 — MCP adapter and agent workflow
 
-**Status:** Blocks 1–3 are implemented and CI-verified. Block 4's real OpenCode and VS Code/Copilot discovery and tool calls were manually verified on 2026-10-31 against the local CNM repository; exact client and Node.js versions remain to be recorded. Block 5 regression and formal close-out remain pending. Phase 5's merge-commit/default-branch verification is still a prerequisite and must not be silently treated as complete.
+**Status:** Blocks 1–3 are implemented and CI-verified. Block 4's real OpenCode and VS Code/Copilot discovery and tool calls were manually verified on 2026-10-31 against the local CNM repository. VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0 are recorded; the Copilot extension identifier/version remains unverified. Block 5 regression and formal close-out remain pending. Phase 5's merge-commit/default-branch verification is still a prerequisite and must not be silently treated as complete.
 
 ### Block 1 — Audit and MCP contract
 
