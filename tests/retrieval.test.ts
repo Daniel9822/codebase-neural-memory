@@ -95,7 +95,7 @@ describe("getSymbolRelations", () => {
         direction: "incoming", relation: "EXTENDS", symbolName: "Base", symbolKind: "class",
         symbolFilePath: "base.ts", symbolStartLine: 1, symbolEndLine: 1,
         relatedSymbolName: "Worker", relatedSymbolKind: "class", relatedFilePath: "worker.ts",
-        relatedStartLine: 3, relatedEndLine: 3, confidence: 1, provenance: "typescript-ast-heritage",
+        relatedStartLine: 3, relatedEndLine: 3, confidence: 1, provenance: "typescript-ast-heritage", indexRevision: 1,
       },
     ]);
   });
