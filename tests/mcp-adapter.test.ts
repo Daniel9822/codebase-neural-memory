@@ -164,7 +164,7 @@ describe("MCP adapter protocol contract", () => {
       const response = await client.request("tools/call", { name, arguments: args });
       expect(response.error, name).toBeUndefined();
       const result = response.result as { content?: Array<{ type: string; text?: string }>; isError?: boolean };
-      expect(result.isError, name).not.toBe(true);
+      expect(result.isError, `${name}: ${JSON.stringify(result)}`).not.toBe(true);
       expect(result.content?.some((item) => item.type === "text" && typeof item.text === "string"), name).toBe(true);
       expect(() => JSON.parse(result.content![0]!.text!)).not.toThrow();
     }
