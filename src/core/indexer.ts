@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync, statSync, type Dirent } from "node:fs";
 import { extname, join, relative, dirname, posix } from "node:path";
 import ignore from "ignore";
 import type { ProjectLocation } from "./project.js";
@@ -73,7 +73,7 @@ function discoverFiles(root: string): DiscoveryResult {
   const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
     const directoryPath = relative(root, directory).replaceAll("\\", "/");
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
-    let entries;
+    let entries: Dirent[];
     try {
       entries = readdirSync(directory, { withFileTypes: true });
     } catch (error) {
@@ -84,7 +84,7 @@ function discoverFiles(root: string): DiscoveryResult {
     }
     for (const entry of entries) {
       const absolutePath = join(directory, entry.name);
-      const relativePath = relative(root, absolutePath).replaceAll("\\\\", "/");
+      const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
       if (isIgnored(absolutePath, scopes)) continue;
       if (entry.isSymbolicLink()) continue;
       if (entry.isDirectory()) {
