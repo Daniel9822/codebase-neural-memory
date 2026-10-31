@@ -78,7 +78,7 @@ describe("findDependencies", () => {
 
     expect(findDependencies(location, "a.ts")).toMatchObject({
       dependencies: [{ path: "b.ts", depth: 1, chain: ["a.ts", "b.ts"], evidence: {
-        relation: "IMPORTS", provenance: "typescript-ast-import", confidence: 1, indexRevision: 1,
+        relation: "IMPORTS", provenance: "typescript-ast", confidence: 1, indexRevision: 1,
       } }],
       truncated: false,
     });
@@ -282,7 +282,7 @@ describe("bounded dependency traversal and file details", () => {
       language: "typescript",
       indexRevision: 1,
       symbols: [{ name: "Worker", kind: "class", filePath: "worker.ts" }],
-      imports: [{ path: "base.ts", provenance: "typescript-ast-import", confidence: 1, indexRevision: 1 }],
+      imports: [{ path: "base.ts", provenance: "typescript-ast", confidence: 1, indexRevision: 1 }],
       relations: [{
         direction: "outgoing", relation: "EXTENDS", sourceName: "Worker", targetName: "Base",
         sourceFilePath: "worker.ts", targetFilePath: "base.ts", provenance: "typescript-ast-heritage",
