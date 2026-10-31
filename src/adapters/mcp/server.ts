@@ -3,6 +3,7 @@ import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 import { recallMemories } from "../../core/memories.js";
 import { getProjectMap, getProjectOverview, searchSymbols, findImpact } from "../../core/retrieval.js";
+import { getIndexFreshness } from "../../core/indexer.js";
 import type { ProjectLocation } from "../../core/project.js";
 
 export function startMcpServer(location: ProjectLocation): void {
@@ -14,6 +15,13 @@ export function startMcpServer(location: ProjectLocation): void {
       inputSchema: z.object({}),
     }, async () => ({
       content: [{ type: "text", text: JSON.stringify(getProjectOverview(location), null, 2) }],
+    }));
+
+    server.registerTool("index_freshness", {
+      description: "Compare supported working-tree source files with the local index without modifying it.",
+      inputSchema: z.object({}),
+    }, async () => ({
+      content: [{ type: "text", text: JSON.stringify(getIndexFreshness(location), null, 2) }],
     }));
 
     server.registerTool("project_map", {
