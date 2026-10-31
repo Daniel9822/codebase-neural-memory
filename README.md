@@ -99,14 +99,14 @@ Example OpenCode configuration (replace the path with the absolute path to the r
     "codebase-memory": {
       "type": "local",
       "command": ["cnm", "mcp"],
-      "cwd": "/absolute/path/to/codebase-neural-memory",
+      "cwd": ".",
       "enabled": true
     }
   }
 }
 ```
 
-The project must be initialized before the MCP server starts. If the process is launched from another repository, it will bind to that repository's local project identity instead; see the contract for the resolution rules and limitations.
+The project must be initialized before the MCP server starts. If the process is launched from another repository, it will bind to that repository's local project identity instead; see the contract for the resolution rules and limitations. For a complete OpenCode and VS Code setup, including workspace-scoped configuration templates and real-client verification steps, see [MCP client integration](docs/CLIENT_INTEGRATION.md).
 
 ## Where data is stored
 
