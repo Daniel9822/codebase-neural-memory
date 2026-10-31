@@ -4,6 +4,7 @@ import * as z from "zod/v4";
 import { inspectMemoryFreshness, recallMemories } from "../../core/memories.js";
 import { getProjectMap, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails } from "../../core/retrieval.js";
 import { getIndexFreshness } from "../../core/indexer.js";
+import { buildTaskContext } from "../../core/context.js";
 import type { ProjectLocation } from "../../core/project.js";
 
 export function startMcpServer(location: ProjectLocation): void {
@@ -73,6 +74,13 @@ export function startMcpServer(location: ProjectLocation): void {
       content: [{ type: "text", text: JSON.stringify(
         findImpact(location, path, limit ?? 100, maxProcessed ?? 1000), null, 2,
       ) }],
+    }));
+
+    server.registerTool("task_context", {
+      description: "Build deterministic, bounded task context from indexed symbols, file relationships, local memories, and matching test paths. Results include ranking signals, lifecycle status, source references, and freshness warnings.",
+      inputSchema: z.object({ task: z.string().min(1), maxItems: z.number().int().min(1).max(100).optional(), maxCharacters: z.number().int().min(100).max(50000).optional() }),
+    }, async ({ task, maxItems, maxCharacters }) => ({
+      content: [{ type: "text", text: JSON.stringify(buildTaskContext(location, task, { maxItems, maxCharacters }), null, 2) }],
     }));
 
     server.registerTool("memory_freshness", {
