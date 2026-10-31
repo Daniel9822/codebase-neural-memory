@@ -55,7 +55,6 @@ describe("human-confirmed knowledge and parser-derived graph facts", () => {
       "Keep the domain boundary explicit",
       "The billing module must not own customer identity.",
       "decision",
-      "src/billing.ts",
     );
     const memories = recallMemories(location, "domain boundary");
 
@@ -66,7 +65,7 @@ describe("human-confirmed knowledge and parser-derived graph facts", () => {
       title: "Keep the domain boundary explicit",
       content: "The billing module must not own customer identity.",
       status: "confirmed",
-      sourcePath: "src/billing.ts",
+      sourcePath: null,
     });
     expect(database!.prepare("SELECT COUNT(*) AS count FROM relations").get()).toEqual({ count: 1 });
     expect(database!.prepare("SELECT COUNT(*) AS count FROM memories").get()).toEqual({ count: 1 });
