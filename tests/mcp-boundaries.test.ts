@@ -123,7 +123,8 @@ describe("MCP bounded output and project isolation", () => {
     const memories = await client.call("memory_freshness", { limit: 100 });
     expect(memories.total).toBe(205);
     expect(memories.records).toHaveLength(100);
-    expect(memories.truncated).toBe(true);\n    const completeMemories = await client.call("memory_freshness", { limit: 500 });\n    expect(completeMemories.records).toHaveLength(205);\n    expect(completeMemories.truncated).toBe(false);
+    expect(memories.truncated).toBe(true);
+    const completeMemories = await client.call("memory_freshness", { limit: 500 });\n    expect(completeMemories.records).toHaveLength(205);\n    expect(completeMemories.truncated).toBe(false);
 
     const map = await client.call("project_map", { limit: 10 });
     expect(map.totalFiles).toBe(206);
