@@ -4,7 +4,7 @@ import { mkdirSync } from "node:fs";
 import { basename } from "node:path";
 import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
-import { indexProject } from "../core/indexer.js";
+import { getIndexFreshness, indexProject } from "../core/indexer.js";
 import { explainSymbol, findDependencies, findImpact, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
 import { recallMemories, remember } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
@@ -63,6 +63,12 @@ program.command("index")
       console.log("Files requiring attention:");
       for (const error of result.errors) console.log("  - " + error);
     }
+  });
+
+program.command("freshness")
+  .description("Check whether supported source files differ from the local index.")
+  .action(() => {
+    console.log(JSON.stringify(getIndexFreshness(ensureInitialized()), null, 2));
   });
 
 program.command("status")
