@@ -22,7 +22,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "smoke": "node scripts/phase-3-smoke.mjs"
+    "smoke": "node scripts/phase-3-smoke.mjs",
+    "benchmark": "tsx scripts/benchmark.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/server": "^2.3.1",

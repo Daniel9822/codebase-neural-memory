@@ -203,7 +203,7 @@ Exit condition: focused fixtures prove relevant tests are included, unrelated te
  
 ## Phase 7 — Git awareness and automatic freshness
 
-**Status:** Implementation and PR-head acceptance checks complete; formal phase closure awaits merge and successful default-branch CI. PR [#48](https://github.com/Daniel9822/codebase-neural-memory/pull/48) adds Git-aware index snapshots, dirty/branch/commit freshness, memory commit-ancestry review, deterministic reconciliation, and regression coverage. Clean-checkout CI run [41253305201](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253305201) passed on the code head `fd7fbac9f67f503a2a46bc393a110effa24e9e30`.
+**Status:** Complete and formally closed on 2026-10-31. PR [#48](https://github.com/Daniel9822/codebase-neural-memory/pull/48) merged as `c6e2d742be3df8b1e697d354a81463ae92ef7590`; default-branch clean-checkout CI run [41253963500](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253963500) passed. Git-aware index snapshots, commit/branch/worktree freshness, memory commit-ancestry review, and deterministic reconciliation are now in `main`.
 
 Tasks:
 - [x] Record the indexed Git commit and relevant working-tree state when Git metadata is available (schema migration v10).
@@ -222,7 +222,7 @@ Exit condition: controlled Git changes and missed watcher events converge to the
 ### Phase 7 verification evidence
 
 - **Implementation:** PR [#48](https://github.com/Daniel9822/codebase-neural-memory/pull/48); schema migration v10.
-- **PR-head CI:** [GitHub Actions #41253305201](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253305201) — success on the code head; clean checkout, `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all passed. A default-branch verification is still required for formal closure.
+- **Default-branch CI:** [GitHub Actions #41253963500](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41253963500) — success on merge commit `c6e2d742be3df8b1e697d354a81463ae92ef7590`; clean checkout, `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke` all passed.
 - **Git state coverage:** initial commit/branch capture, clean and dirty worktrees, source edits, empty commits, branch changes with identical source hashes, rename/deletion reconciliation, non-Git folders, and memory commit ancestry/ahead/divergence.
 - **Convergence:** incremental indexing and forced reindex were compared using logical file, symbol, import, call, heritage, relation, unresolved-import, and FTS snapshots after rename/deletion and branch-switch scenarios.
 - **Consistency design:** freshness always performs a deterministic scan; no background watcher is needed for correctness and none is implemented.
@@ -230,18 +230,19 @@ Exit condition: controlled Git changes and missed watcher events converge to the
 
 ## Phase 8 — Quality, performance, and evaluation
 
-**Status:** Planned; begin collecting baseline measurements during earlier phases.
+**Status:** In progress. PR [#49](https://github.com/Daniel9822/codebase-neural-memory/pull/49) adds a deterministic synthetic benchmark harness, runs it in CI, and records an initial Linux baseline in [`docs/PHASE_8_BENCHMARKS.md`](PHASE_8_BENCHMARKS.md). Real-repository coverage, cross-platform repetition, and controlled agent comparisons remain open.
 
 Tasks:
-- Build fixture repositories of increasing size and complexity.
-- Add end-to-end tests for real repository layouts.
-- Measure initial indexing, incremental indexing, query latency, database size, and memory use.
-- Evaluate retrieval precision and recall against labeled tasks.
-- Compare agent tasks with and without CNM under comparable conditions.
-- Add regression thresholds only after stable measurements exist.
-- Profile before adding caches or parallelism.
+- [x] Generate deterministic small, medium, and large repository fixtures (26, 101, and 301 source files).
+- [x] Add an end-to-end benchmark case for the checked-out CNM repository; additional independent repositories remain open.
+- [x] Measure initial, unchanged incremental, and changed incremental indexing; record search, graph, and freshness latency.
+- [x] Record SQLite database size and process peak RSS.
+- [x] Evaluate symbol retrieval precision@5, recall@5, MRR, and top-1 accuracy against ten labeled queries.
+- [ ] Compare agent tasks with and without CNM under controlled, comparable conditions.
+- [ ] Add regression thresholds only after repeated stable measurements across supported platforms.
+- [ ] Profile before adding caches or parallelism.
 
-Deliverable: reproducible evaluation suite and evidence-based performance improvements.
+Deliverable: reproducible evaluation suite and evidence-based performance improvements. Initial synthetic baseline methodology and results are recorded in `docs/PHASE_8_BENCHMARKS.md`.
 
 Exit condition: documented benchmarks, stable regression tests, and no known data-integrity failures in the supported scenarios.
 
