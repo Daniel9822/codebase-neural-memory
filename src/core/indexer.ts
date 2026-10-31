@@ -357,26 +357,6 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     }
   }
 
-  const heritageRows = db.prepare("SELECT file_id, owner_name, relation_kind, target_name, module_specifier, imported_name FROM symbol_heritage").all() as Array<{
-    file_id: number; owner_name: string; relation_kind: "EXTENDS" | "IMPLEMENTS";
-    target_name: string; module_specifier: string | null; imported_name: string | null;
-  }>;
-  for (const heritage of heritageRows) {
-    const sourceId = symbolMap.get(`${heritage.file_id}:${heritage.owner_name}`);
-    if (sourceId === undefined) continue;
-    let targetId: number | null | undefined;
-    if (heritage.module_specifier && heritage.imported_name) {
-      const targetFiles = resolvedImportTargets.get(`${heritage.file_id}:${heritage.module_specifier}`) ?? [];
-      if (targetFiles.length !== 1) continue;
-      targetId = exportedNames.get(`${targetFiles[0]}:${heritage.imported_name}`);
-    } else {
-      targetId = shortNames.get(`${heritage.file_id}:${heritage.target_name}`);
-    }
-    if (targetId !== undefined && targetId !== null && targetId !== sourceId) {
-      insertRelation.run("symbol", sourceId, "symbol", targetId, heritage.relation_kind, 1, "typescript-ast-heritage");
-    }
-  }
-
   const calls = db.prepare("SELECT file_id, caller_name, callee_name, module_specifier, imported_symbol_name FROM symbol_calls").all() as Array<{
     file_id: number;
     caller_name: string;
@@ -397,6 +377,26 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     if (symbol.exported) {
       const exportedKey = `${symbol.file_id}:${symbol.name}`;
       exportedNames.set(exportedKey, exportedNames.has(exportedKey) ? null : symbol.id);
+    }
+  }
+
+  const heritageRows = db.prepare("SELECT file_id, owner_name, relation_kind, target_name, module_specifier, imported_name FROM symbol_heritage").all() as Array<{
+    file_id: number; owner_name: string; relation_kind: "EXTENDS" | "IMPLEMENTS";
+    target_name: string; module_specifier: string | null; imported_name: string | null;
+  }>;
+  for (const heritage of heritageRows) {
+    const sourceId = symbolMap.get(`${heritage.file_id}:${heritage.owner_name}`);
+    if (sourceId === undefined) continue;
+    let targetId: number | null | undefined;
+    if (heritage.module_specifier && heritage.imported_name) {
+      const targetFiles = resolvedImportTargets.get(`${heritage.file_id}:${heritage.module_specifier}`) ?? [];
+      if (targetFiles.length !== 1) continue;
+      targetId = exportedNames.get(`${targetFiles[0]}:${heritage.imported_name}`);
+    } else {
+      targetId = shortNames.get(`${heritage.file_id}:${heritage.target_name}`);
+    }
+    if (targetId !== undefined && targetId !== null && targetId !== sourceId) {
+      insertRelation.run("symbol", sourceId, "symbol", targetId, heritage.relation_kind, 1, "typescript-ast-heritage");
     }
   }
 
