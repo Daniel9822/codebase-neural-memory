@@ -200,7 +200,10 @@ describe("getIndexFreshness", () => {
       status: "stale", indexRevision: beforeRevision, addedFiles: 1, changedFiles: 1, deletedFiles: 1,
     });
     expect(database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id)).toEqual({ index_revision: beforeRevision });
-    expect(database!.prepare("SELECT name FROM symbols WHERE name = 'before'").all()).toHaveLength(1);
+    expect(database!.prepare("SELECT path, content_hash FROM files WHERE path = 'changed.ts'").all()).toHaveLength(1);
+    expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([
+      { path: "changed.ts" }, { path: "deleted.ts" },
+    ]);
   });
 
   it("honors persisted custom exclusions and reports a current index", () => {
