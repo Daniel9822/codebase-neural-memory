@@ -7,7 +7,7 @@ const DEFAULT_DEPENDENCY_PROCESSED = 1_000;
 const MAX_SEARCH_CANDIDATES = 1_000;
 const MAX_SEARCH_RESULTS = 1_000;
 const MAX_DEPENDENCY_RESULTS = 5_000;
-const MAX_DEPENDENCY_PROCESSED = 1_000;
+const MAX_DEPENDENCY_PROCESSED = 10_000;
 const MAX_DEPENDENCY_DEPTH = 100;
 
 interface RankedSearchHit extends SearchHit {
@@ -252,6 +252,7 @@ export interface DependencyResult {
   dependencies: DependencyHit[];
   truncated: boolean;
   processedFiles: number;
+  processedRelations: number;
   limits: { maxResults: number; maxProcessed: number };
 }
 
@@ -269,7 +270,7 @@ export function findDependencies(
     throw new Error("Dependency result limit must be a positive safe integer no greater than 5000.");
   }
   if (!Number.isSafeInteger(maxProcessed) || maxProcessed < 1 || maxProcessed > MAX_DEPENDENCY_PROCESSED) {
-    throw new Error("Dependency processing limit must be a positive safe integer no greater than 1000.");
+    throw new Error("Dependency processing limit must be a positive safe integer no greater than 10000.");
   }
   const db = openDatabase(location);
   try {
@@ -283,26 +284,27 @@ export function findDependencies(
     const visited = new Set<number>([target.id]);
     const dependencies: DependencyHit[] = [];
     let processedFiles = 0;
+    let processedRelations = 0;
     let truncated = false;
     while (queue.length > 0) {
-      if (processedFiles >= maxProcessed) { truncated = true; break; }
       const current = queue.shift()!;
       processedFiles += 1;
       if (current.depth >= maxDepth) continue;
       const remaining = maxResults - dependencies.length;
-      const visitedIds = [...visited];
       const imports = db.prepare(`
         SELECT target.id, target.path, r.provenance, r.confidence, r.index_revision AS indexRevision
         FROM relations r
         JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
         WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
-          AND target.id NOT IN (${visitedIds.map(() => "?").join(", ")})
         ORDER BY target.path
         LIMIT ?
-      `).all(current.id, ...visitedIds, Math.max(1, remaining + 1)) as Array<{
+      `).all(current.id, Math.max(1, maxProcessed - processedRelations + 1)) as Array<{
         id: number; path: string; provenance: string; confidence: number; indexRevision: number;
       }>;
       for (const item of imports) {
+        if (processedRelations >= maxProcessed) { truncated = true; break; }
+        processedRelations += 1;
+        if (visited.has(item.id)) continue;
         if (dependencies.length >= maxResults) { truncated = true; break; }
         visited.add(item.id);
         const chain = [...current.chain, item.path];
@@ -322,7 +324,7 @@ export function findDependencies(
       if (truncated) break;
     }
     if (queue.some((item) => item.depth < maxDepth)) truncated = true;
-    return { file: normalized, maxDepth, dependencies, truncated, processedFiles, limits: { maxResults, maxProcessed } };
+    return { file: normalized, maxDepth, dependencies, truncated, processedFiles, processedRelations, limits: { maxResults, maxProcessed } };
   } finally {
     db.close();
   }
