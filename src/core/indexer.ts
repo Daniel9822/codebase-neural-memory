@@ -156,8 +156,13 @@ function rebuildRelations(db: MemoryDatabase): number {
     VALUES (?, ?, ?, ?, ?, ?, ?)
   `);
 
-  const resolveImport = (sourcePath: string, specifier: string): number | undefined => {
-    if (!specifier.startsWith(".")) return undefined;
+  db.prepare("DELETE FROM unresolved_imports").run();
+  const insertUnresolved = db.prepare(`
+    INSERT INTO unresolved_imports(source_file_id, module_specifier, status, candidates_json)
+    VALUES (?, ?, ?, ?)
+  `);
+  const resolveImportCandidates = (sourcePath: string, specifier: string): Array<{ id: number; path: string }> => {
+    if (!specifier.startsWith(".")) return [];
     const base = posix.normalize(posix.join(posix.dirname(sourcePath), specifier));
     const extension = posix.extname(base);
     const aliases = extension === ".js" ? [base.replace(/\.js$/, ".ts"), base.replace(/\.js$/, ".tsx")]
@@ -168,20 +173,27 @@ function rebuildRelations(db: MemoryDatabase): number {
       ? [base, ...aliases]
       : [base, ...[".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"].map((ext) => base + ext),
         ...["index.ts", "index.tsx", "index.js", "index.jsx"].map((file) => `${base}/${file}`)];
-    for (const candidate of candidates) {
-      const found = byPath.get(candidate);
-      if (found !== undefined) return found;
-    }
-    return undefined;
+    return [...new Set(candidates)].flatMap((candidate) => {
+      const id = byPath.get(candidate);
+      return id === undefined ? [] : [{ id, path: candidate }];
+    });
   };
 
-  const imports = db.prepare("SELECT file_id, module_specifier FROM file_imports").all() as Array<{ file_id: number; module_specifier: string }>;
+  const imports = db.prepare("SELECT file_id, module_specifier FROM file_imports ORDER BY file_id, module_specifier").all() as Array<{ file_id: number; module_specifier: string }>;
   for (const item of imports) {
     const sourcePath = fileById.get(item.file_id);
-    if (!sourcePath) continue;
-    const targetId = resolveImport(sourcePath, item.module_specifier);
-    if (targetId !== undefined && targetId !== item.file_id) {
-      insertRelation.run("file", item.file_id, "file", targetId, "IMPORTS", 1, "typescript-ast");
+    if (!sourcePath || !item.module_specifier.startsWith(".")) continue;
+    const candidates = resolveImportCandidates(sourcePath, item.module_specifier)
+      .filter((candidate) => candidate.id !== item.file_id);
+    if (candidates.length === 1) {
+      insertRelation.run("file", item.file_id, "file", candidates[0].id, "IMPORTS", 1, "typescript-ast");
+    } else {
+      insertUnresolved.run(
+        item.file_id,
+        item.module_specifier,
+        candidates.length === 0 ? "unresolved" : "ambiguous",
+        JSON.stringify(candidates.map((candidate) => candidate.path).sort((a, b) => a.localeCompare(b))),
+      );
     }
   }
 
