@@ -108,29 +108,29 @@ Exit condition: memory CRUD, lifecycle transitions, source traceability, and sta
 
 ## Phase 5 — Task-oriented context builder
 
-**Status:** In progress. Initial deterministic context API, CLI command, and MCP tool are implemented; acceptance tests and budget/relevance review are pending.
+**Status:** Implementation complete; final close-out awaits this PR's post-merge verification.
 
 Tasks:
-- [x] Accept a natural-language task description as input.
-- [x] Extract lexical anchors deterministically without requiring an LLM.
-- [x] Retrieve matching symbols, indexed file details/relations, local memories, and test-path candidates.
-- [x] Rank candidates using explainable signals.
-- [x] Apply configurable item and serialized-character budgets.
-- [x] Deduplicate repeated source-file candidates.
-- [x] Return structured output with source references, lifecycle statuses, and freshness warnings.
-- [x] Provide follow-up retrieval prompts for deeper details.
-- Extract useful lexical anchors without requiring an LLM.
-- Retrieve matching symbols, files, graph neighbors, memories, and tests.
-- Rank candidates using explainable signals.
-- Apply configurable item and token/character budgets.
-- Deduplicate overlapping information.
-- Return compact structured output and source references.
-- Mark missing, ambiguous, or stale knowledge.
-- Allow follow-up retrieval for deeper details.
+- [x] Accept a natural-language task description and extract deterministic lexical anchors without an LLM.
+- [x] Retrieve matching symbols, file details, direct dependencies, relevant test-path candidates, and lifecycle-labeled memories.
+- [x] Rank candidates using explainable signals and retain source references.
+- [x] Deduplicate candidates and enforce configurable item and serialized-character budgets.
+- [x] Restrict repository-wide test-path candidates to paths matching at least one task anchor; unrelated test files are excluded.
+- [x] Define `maxCharacters` as the exact JavaScript string length of `JSON.stringify(items)`, including array delimiters, commas, quotes, and serialized item fields. The task, anchors, warnings, follow-up prompts, and budget metadata are outside this limit.
+- [x] Mark missing, ambiguous, and stale information, including stale/incomplete source-index state.
+- [x] Support incremental detail lookup for source paths already represented in context.
 
-Deliverable: deterministic task-context API that can be used by a client or an LLM.
+Deliverable: deterministic, bounded, source-backed task context for clients and coding agents.
 
-Exit condition: context fixtures show relevant information is selected, irrelevant material is limited, provenance is included, and size budgets are respected.
+Exit condition: focused fixtures prove relevant tests are included, unrelated tests are excluded, the serialized item budget is exact at and below its boundary, and the complete CI workflow passes on the merged result.
+
+### Phase 5 verification evidence
+
+- **Previously merged feature baseline:** PR [#36 — stale source-index warnings](https://github.com/Daniel9822/codebase-neural-memory/pull/36), merge commit `992fcd3c2aebc8029b3ca2f24a3c3e76aeba1bb6`.
+- **Post-merge CI:** [GitHub Actions #41233040729](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41233040729) — success.
+- **Verified commands:** `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke`; every workflow step completed successfully on GitHub-hosted Ubuntu / Node.js 22.
+- **Final relevance/budget close-out:** implemented and regression-tested in PR pending merge; record its merge SHA and post-merge CI here before changing status to formally closed.
+- **Limitations:** retrieval remains lexical/structural and does not promise semantic completeness. Context items are structured file details, not text excerpts. Incremental lookup remains a core API; no separate CLI/MCP incremental-lookup command is exposed.
 
 ## Phase 6 — MCP adapter and agent workflow
 
