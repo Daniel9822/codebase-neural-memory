@@ -31,7 +31,7 @@ try {
   assert.match(runCli(["search", "alpha"]), /alpha/);
   assert.match(runCli(["dependencies", "a.ts", "--depth", "2"]), /b\.ts/);
   assert.match(runCli(["file", "a.ts", "--limit", "1"]), /"path": "a\.ts"/);
-  assert.match(runCli(["freshness"]), /"stale": false/);
+  assert.match(runCli(["freshness"]), /"status": "current"/);
 
   mcp = spawn(process.execPath, [cli, "mcp"], { cwd: repo, stdio: ["pipe", "pipe", "pipe"] });
   const lines = createInterface({ input: mcp.stdout });
@@ -84,7 +84,7 @@ try {
   const details = await request("tools/call", { name: "file_details", arguments: { path: "a.ts", limit: 1 } });
   assert.match(details.content.map((item) => item.text ?? "").join("\n"), /a\.ts/);
   const freshness = await request("tools/call", { name: "index_freshness", arguments: {} });
-  assert.match(freshness.content.map((item) => item.text ?? "").join("\n"), /"stale": false/);
+  assert.match(freshness.content.map((item) => item.text ?? "").join("\n"), /"status": "current"/);
   assert.deepEqual([digest(aPath), digest(bPath)], originalHashes, "CLI/MCP read operations modified repository source files");
   console.log("Phase 3 CLI/MCP smoke checks passed; source files remained unchanged.");
 } finally {
