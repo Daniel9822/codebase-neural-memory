@@ -378,7 +378,7 @@ describe("indexWithDatabase", () => {
     writeFileSync(join(location.rootPath, "contracts.ts"), "export interface Contract {}");
     writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}");
     writeFileSync(join(location.rootPath, "worker.ts"),
-      'import { Base as Parent } from "./base";\\nimport { Contract } from "./contracts";\\nclass LocalBase {}\\nexport class Worker extends Parent implements Contract {}\\nexport class LocalWorker extends LocalBase {}');
+      'import { Base as Parent } from "./base";\nimport { Contract } from "./contracts";\nclass LocalBase {}\nexport class Worker extends Parent implements Contract {}\nexport class LocalWorker extends LocalBase {}');
 
     indexWithDatabase(database!, location);
 
@@ -405,7 +405,7 @@ describe("indexWithDatabase", () => {
   it("does not guess heritage targets for ambiguous or non-exported imported symbols", () => {
     createProject();
     writeFileSync(join(location.rootPath, "worker.ts"),
-      'import { Base } from "./base";\\nexport class Worker extends Base {}');
+      'import { Base } from "./base";\nexport class Worker extends Base {}');
     writeFileSync(join(location.rootPath, "base.ts"), "class Base {}");
     writeFileSync(join(location.rootPath, "base.tsx"), "export class Base {}");
 
