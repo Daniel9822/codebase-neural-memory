@@ -1,4 +1,6 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
+import { existsSync, readFileSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
 
@@ -12,6 +14,7 @@ export interface MemoryRecord {
   status: MemoryStatus;
   sourcePath: string | null;
   commitSha: string | null;
+  sourceHash: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -22,6 +25,20 @@ export interface MemoryUpdate {
   content?: string;
   sourcePath?: string | null;
   commitSha?: string | null;
+}
+
+
+function sourceFingerprint(location: ProjectLocation, sourcePath: string | null | undefined): string | null {
+  if (sourcePath == null) return null;
+  const normalized = sourcePath.replaceAll("\\", "/");
+  if (isAbsolute(normalized)) throw new Error("Memory source path must be relative to the project root");
+  const absolutePath = resolve(location.rootPath, normalized);
+  const relativePath = relative(location.rootPath, absolutePath);
+  if (relativePath === ".." || relativePath.startsWith(".." + sep) || isAbsolute(relativePath)) {
+    throw new Error("Memory source path must stay inside the project root");
+  }
+  if (!existsSync(absolutePath)) return null;
+  return createHash("sha256").update(readFileSync(absolutePath)).digest("hex");
 }
 
 function requireText(value: string, field: string): string {
@@ -48,9 +65,9 @@ function createMemory(
   try {
     const id = randomUUID();
     const now = new Date().toISOString();
-    db.prepare(`INSERT INTO memories(id, category, title, content, status, source_path, commit_sha, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`)
-      .run(id, normalizedCategory, normalizedTitle, normalizedContent, status, normalizedSource, normalizedCommit, now, now);
+    db.prepare(`INSERT INTO memories(id, category, title, content, status, source_path, commit_sha, source_hash, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`)
+      .run(id, normalizedCategory, normalizedTitle, normalizedContent, status, normalizedSource, normalizedCommit, sourceFingerprint(location, normalizedSource), now, now);
     return id;
   } finally {
     db.close();
@@ -89,8 +106,11 @@ export function updateMemory(location: ProjectLocation, id: string, patch: Memor
   if (patch.title !== undefined) { fields.push("title = ?"); values.push(requireText(patch.title, "title")); }
   if (patch.content !== undefined) { fields.push("content = ?"); values.push(requireText(patch.content, "content")); }
   if (patch.sourcePath !== undefined) {
+    const normalizedSource = patch.sourcePath === null ? null : requireText(patch.sourcePath, "source path");
     fields.push("source_path = ?");
-    values.push(patch.sourcePath === null ? null : requireText(patch.sourcePath, "source path"));
+    values.push(normalizedSource);
+    fields.push("source_hash = ?");
+    values.push(sourceFingerprint(location, normalizedSource));
   }
   if (patch.commitSha !== undefined) {
     fields.push("commit_sha = ?");
@@ -144,6 +164,31 @@ export function deleteMemory(location: ProjectLocation, id: string): boolean {
   }
 }
 
+export interface MemorySourceFreshness {
+  id: string;
+  title: string;
+  sourcePath: string;
+  status: "current" | "changed" | "missing" | "untracked";
+  requiresReview: boolean;
+}
+
+/** Inspect source-backed memories without changing their lifecycle status or content. */
+export function inspectMemoryFreshness(location: ProjectLocation): MemorySourceFreshness[] {
+  const db = openDatabase(location);
+  try {
+    const rows = db.prepare("SELECT id, title, source_path AS sourcePath, source_hash AS sourceHash FROM memories WHERE status != 'rejected' AND source_path IS NOT NULL ORDER BY updated_at DESC, id")
+      .all() as Array<{ id: string; title: string; sourcePath: string; sourceHash: string | null }>;
+    return rows.map((row) => {
+      if (row.sourceHash === null) return { id: row.id, title: row.title, sourcePath: row.sourcePath, status: "untracked", requiresReview: false };
+      const currentHash = sourceFingerprint(location, row.sourcePath);
+      const status = currentHash === null ? "missing" : currentHash === row.sourceHash ? "current" : "changed";
+      return { id: row.id, title: row.title, sourcePath: row.sourcePath, status, requiresReview: status === "changed" || status === "missing" };
+    });
+  } finally {
+    db.close();
+  }
+}
+
 export function recallMemories(location: ProjectLocation, query = "", limit = 20): MemoryRecord[] {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
     throw new Error("Memory limit must be a positive safe integer no greater than 500");
@@ -152,7 +197,7 @@ export function recallMemories(location: ProjectLocation, query = "", limit = 20
   try {
     const rows = query.trim()
       ? db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
-          commit_sha AS commitSha, created_at AS createdAt, updated_at AS updatedAt FROM memories
+          commit_sha AS commitSha, source_hash AS sourceHash, created_at AS createdAt, updated_at AS updatedAt FROM memories
           WHERE status != 'rejected' AND (title LIKE ? OR content LIKE ? OR category LIKE ?)
           ORDER BY updated_at DESC, id LIMIT ?`).all(`%${query}%`, `%${query}%`, `%${query}%`, limit)
       : db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
