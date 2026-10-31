@@ -101,10 +101,10 @@ describe("MCP bounded output and project isolation", () => {
     const importLines: string[] = [];
     for (let i = 0; i < 205; i += 1) {
       const name = `mod-${String(i).padStart(3, "0")}`;
-      writeFileSync(join(root, `${name}.ts`), `export const value${i} = ${i};\\n`);
+      writeFileSync(join(root, `${name}.ts`), `export const value${i} = ${i};\n`);
       importLines.push(`import { value${i} } from "./${name}";`);
     }
-    writeFileSync(join(root, "entry.ts"), importLines.join("\\n") + "\\nexport const total = 205;\\n");
+    writeFileSync(join(root, "entry.ts"), importLines.join("\n") + "\nexport const total = 205;\n");
     indexWithDatabase(databases[0]!, location);
 
     for (let i = 0; i < 205; i += 1) {
@@ -138,8 +138,8 @@ describe("MCP bounded output and project isolation", () => {
   it("keeps concurrent MCP servers isolated to their own repositories and memories", async () => {
     const first = createProject("first");
     const second = createProject("second");
-    writeFileSync(join(first.root, "first-only.ts"), "export const firstOnly = true;\\n");
-    writeFileSync(join(second.root, "second-only.ts"), "export const secondOnly = true;\\n");
+    writeFileSync(join(first.root, "first-only.ts"), "export const firstOnly = true;\n");
+    writeFileSync(join(second.root, "second-only.ts"), "export const secondOnly = true;\n");
     indexWithDatabase(databases[0]!, first.location);
     indexWithDatabase(databases[1]!, second.location);
     remember(first.location, "First secret label", "First project memory", "decision");
@@ -169,4 +169,21 @@ describe("MCP bounded output and project isolation", () => {
     expect(secondMemory.map((memory: { title: string }) => memory.title)).toContain("Second secret label");
     expect(secondMemory.map((memory: { title: string }) => memory.title)).not.toContain("First secret label");
   });
+
+  it("returns controlled MCP errors for missing, unindexed, traversal, and outside-root paths", async () => {
+    const { location, root } = createProject("paths");
+    writeFileSync(join(root, "indexed.ts"), "export const indexed = true;\n");
+    indexWithDatabase(databases[0]!, location);
+    const client = await connect(location);
+    const invalidPaths = ["missing.ts", "../outside.ts", join(root, "..", "outside.ts")];
+    for (const path of invalidPaths) {
+      const response = await client.request("tools/call", {
+        name: "dependency_graph",
+        arguments: { path },
+      });
+      const result = response.result as { isError?: boolean } | undefined;
+      expect(Boolean(response.error) || result?.isError === true, path).toBe(true);
+    }
+  });
+
 });
