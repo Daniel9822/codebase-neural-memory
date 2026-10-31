@@ -139,7 +139,7 @@ describe("MCP bounded output and project isolation", () => {
     expect(memories.total).toBe(205);
     expect(memories.records).toHaveLength(100);
     expect(memories.truncated).toBe(true);
-    const completeMemories = await client.call("memory_freshness", { limit: 500 });
+    const completeMemories = await client.call("memory_freshness", { limit: 205 });
     expect(completeMemories.records).toHaveLength(205);
     expect(completeMemories.truncated).toBe(false);
 
@@ -207,7 +207,7 @@ describe("MCP bounded output and project isolation", () => {
   });
 
 
-  it("returns empty, non-truncated reports for an empty initialized project", async () => {
+  it("returns empty reports and exact-limit project maps without truncation", async () => {
     const { location } = createProject("empty");
     const client = await connect(location);
     const [freshness, memories, map] = await Promise.all([
@@ -223,6 +223,17 @@ describe("MCP bounded output and project isolation", () => {
     expect(map.files).toEqual([]);
     expect(map.totalFiles).toBe(0);
     expect(map.truncated).toBe(false);
+    const exactMapProject = createProject("exact-map");
+    for (let i = 0; i < 10; i += 1) {
+      writeFileSync(join(exactMapProject.root, `exact-${i}.ts`), `export const item${i} = ${i};\\n`);
+    }
+    indexWithDatabase(databases[1]!, exactMapProject.location);
+    const exactMapClient = await connect(exactMapProject.location);
+    const exactMap = await exactMapClient.call("project_map", { limit: 10 });
+    expect(exactMap.totalFiles).toBe(10);
+    expect(exactMap.files).toHaveLength(10);
+    expect(exactMap.truncated).toBe(false);
+
   });
 
 });
