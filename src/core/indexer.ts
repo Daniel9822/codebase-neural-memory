@@ -187,6 +187,98 @@ function matchPathAlias(specifier: string, config: PathAliasConfig): string[] | 
   ));
 }
 
+interface LocalPackage { root: string; exports: unknown; }
+
+function readLocalPackages(rootPath: string, files: Array<{ id: number; path: string }>): Map<string, LocalPackage[]> {
+  const root = resolve(rootPath);
+  const packageRoots = new Set<string>([root]);
+  for (const file of files) {
+    let directory = dirname(resolve(root, file.path));
+    while (directory === root || directory.startsWith(root + "/") || directory.startsWith(root + "\\")) {
+      packageRoots.add(directory);
+      if (directory === root) break;
+      const parent = dirname(directory);
+      if (parent === directory) break;
+      directory = parent;
+    }
+  }
+  const packages = new Map<string, LocalPackage[]>();
+  for (const packageRoot of [...packageRoots].sort((a, b) => a.localeCompare(b))) {
+    try {
+      const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")) as { name?: unknown; exports?: unknown };
+      if (typeof manifest.name !== "string" || !manifest.name || manifest.exports === undefined) continue;
+      const entries = packages.get(manifest.name) ?? [];
+      entries.push({ root: packageRoot, exports: manifest.exports });
+      packages.set(manifest.name, entries);
+    } catch { /* Missing or invalid package manifests are ignored. */ }
+  }
+  return packages;
+}
+
+function packageSpecifierParts(specifier: string): { name: string; subpath: string } | undefined {
+  const parts = specifier.split("/");
+  if (specifier.startsWith("@")) {
+    if (parts.length < 2 || !parts[0] || !parts[1]) return undefined;
+    return { name: parts.slice(0, 2).join("/"), subpath: parts.length > 2 ? "./" + parts.slice(2).join("/") : "." };
+  }
+  if (!parts[0]) return undefined;
+  return { name: parts[0], subpath: parts.length > 1 ? "./" + parts.slice(1).join("/") : "." };
+}
+
+function selectConditionalExport(value: unknown): string | undefined {
+  if (typeof value === "string") return value;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return undefined;
+  const conditions = value as Record<string, unknown>;
+  for (const condition of ["types", "import", "node", "default", "require"]) {
+    if (condition in conditions) {
+      const selected = selectConditionalExport(conditions[condition]);
+      if (selected) return selected;
+    }
+  }
+  return undefined;
+}
+
+function selectPackageExport(exportsValue: unknown, subpath: string): string | undefined {
+  if (typeof exportsValue === "string") return subpath === "." ? exportsValue : undefined;
+  if (!exportsValue || typeof exportsValue !== "object" || Array.isArray(exportsValue)) return undefined;
+  const exportsObject = exportsValue as Record<string, unknown>;
+  const hasSubpathKeys = Object.keys(exportsObject).some((key) => key.startsWith("."));
+  if (!hasSubpathKeys) return subpath === "." ? selectConditionalExport(exportsObject) : undefined;
+  if (subpath in exportsObject) return selectConditionalExport(exportsObject[subpath]);
+  const patterns = Object.keys(exportsObject).filter((key) => key.includes("*")).map((key) => {
+    const wildcard = key.indexOf("*");
+    return { key, prefix: key.slice(0, wildcard), suffix: key.slice(wildcard + 1) };
+  }).filter(({ prefix, suffix }) => subpath.startsWith(prefix) && subpath.endsWith(suffix) &&
+    subpath.length >= prefix.length + suffix.length)
+    .sort((a, b) => b.prefix.length - a.prefix.length || b.suffix.length - a.suffix.length);
+  const selected = patterns[0];
+  if (!selected) return undefined;
+  const substitution = subpath.slice(selected.prefix.length, subpath.length - selected.suffix.length);
+  return selectConditionalExport(exportsObject[selected.key])?.replace("*", substitution);
+}
+
+function resolvePackageExportBases(specifier: string, packages: Map<string, LocalPackage[]>, rootPath: string): {
+  recognized: boolean; bases: string[];
+} {
+  const parts = packageSpecifierParts(specifier);
+  if (!parts) return { recognized: false, bases: [] };
+  const localPackages = packages.get(parts.name);
+  if (!localPackages) return { recognized: false, bases: [] };
+  const bases: string[] = [];
+  for (const localPackage of localPackages) {
+    const target = selectPackageExport(localPackage.exports, parts.subpath);
+    if (!target || !target.startsWith("./")) continue;
+    const absoluteTarget = resolve(localPackage.root, target);
+    const relativeToPackage = relative(localPackage.root, absoluteTarget);
+    if (relativeToPackage === ".." || relativeToPackage.startsWith("../") || isAbsolute(relativeToPackage) ||
+      absoluteTarget === localPackage.root) continue;
+    const relativeToProject = relative(rootPath, absoluteTarget).replaceAll("\\", "/");
+    if (relativeToProject === ".." || relativeToProject.startsWith("../") || isAbsolute(relativeToProject)) continue;
+    bases.push(relativeToProject);
+  }
+  return { recognized: true, bases: [...new Set(bases)] };
+}
+
 function expandSourceCandidates(base: string): string[] {
   const extension = posix.extname(base);
   const aliases = extension === ".js" ? [base.replace(/\.js$/, ".ts"), base.replace(/\.js$/, ".tsx")]
@@ -215,34 +307,41 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string): number {
     VALUES (?, ?, ?, ?)
   `);
   const aliasConfig = loadPathAliasConfig(rootPath);
-  const resolveImportCandidates = (sourcePath: string, specifier: string): Array<{ id: number; path: string }> => {
+  const localPackages = readLocalPackages(rootPath, files);
+  const resolveImportCandidates = (sourcePath: string, specifier: string): {
+    recognized: boolean; candidates: Array<{ id: number; path: string }>;
+  } => {
     let bases: string[];
+    let recognized = true;
     if (specifier.startsWith(".")) {
       bases = [posix.normalize(posix.join(posix.dirname(sourcePath), specifier))];
     } else {
       const targets = aliasConfig ? matchPathAlias(specifier, aliasConfig) : undefined;
-      if (!targets) return [];
-      bases = targets.flatMap((target) => {
-        const candidate = relative(rootPath, target).replaceAll("\\", "/");
-        return candidate === ".." || candidate.startsWith("../") || isAbsolute(candidate) ? [] : [candidate];
-      });
+      if (targets) {
+        bases = targets.flatMap((target) => {
+          const candidate = relative(rootPath, target).replaceAll("\\", "/");
+          return candidate === ".." || candidate.startsWith("../") || isAbsolute(candidate) ? [] : [candidate];
+        });
+      } else {
+        const packageResolution = resolvePackageExportBases(specifier, localPackages, rootPath);
+        recognized = packageResolution.recognized;
+        bases = packageResolution.bases;
+      }
     }
     const candidates = [...new Set(bases.flatMap(expandSourceCandidates))];
-    return candidates.flatMap((candidate) => {
+    return { recognized, candidates: candidates.flatMap((candidate) => {
       const id = byPath.get(candidate);
       return id === undefined ? [] : [{ id, path: candidate }];
-    });
+    }) };
   };
 
   const imports = db.prepare("SELECT file_id, module_specifier FROM file_imports ORDER BY file_id, module_specifier").all() as Array<{ file_id: number; module_specifier: string }>;
   for (const item of imports) {
     const sourcePath = fileById.get(item.file_id);
     if (!sourcePath) continue;
-    const isRelative = item.module_specifier.startsWith(".");
-    const hasAlias = !isRelative && Boolean(aliasConfig && matchPathAlias(item.module_specifier, aliasConfig));
-    if (!isRelative && !hasAlias) continue;
-    const candidates = resolveImportCandidates(sourcePath, item.module_specifier)
-      .filter((candidate) => candidate.id !== item.file_id);
+    const resolution = resolveImportCandidates(sourcePath, item.module_specifier);
+    if (!resolution.recognized) continue;
+    const candidates = resolution.candidates.filter((candidate) => candidate.id !== item.file_id);
     if (candidates.length === 1) {
       insertRelation.run("file", item.file_id, "file", candidates[0]!.id, "IMPORTS", 1, "typescript-ast");
     } else {
