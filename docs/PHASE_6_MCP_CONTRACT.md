@@ -73,8 +73,10 @@ The ten handlers call overview, freshness, map, search, graph, file-detail, cont
 | Client-visible defaults and bounds | Source inspection of Zod schemas and handler defaults | Documented |
 | Core function mapping | Source inspection of handler calls | Documented |
 | MCP protocol error envelope | Adapter tests assert `isError: true` for Zod validation and core missing-path errors | Verified in tests |
-| All ten valid calls and invalid arguments | SDK in-memory tests discover all ten schemas and call all ten handlers; invalid Zod/core errors are asserted | Verified in tests |\n| Bounded freshness and map reports | Exact/over/empty/incomplete discovery boundaries, totals, truncation, nested map caps, and invalid path errors are tested | Verified in CI run 41239258583 |
-| Repeat calls, EOF, and reconnection | In-memory protocol test plus real CLI stdio process EOF/restart test | Verified in tests |\n| Two-project process isolation | Two concurrent MCP servers tested with distinct indexed files and memories; no cross-project reads observed | Verified in tests |
+| All ten valid calls and invalid arguments | SDK in-memory tests discover all ten schemas and call all ten handlers; invalid Zod/core errors are asserted | Verified in tests |
+| Bounded freshness and map reports | Exact/over/empty/incomplete discovery boundaries, totals, truncation, nested map caps, and invalid path errors are tested | Verified in CI run 41239258583 |
+| Repeat calls, EOF, and reconnection | In-memory protocol test plus real CLI stdio process EOF/restart test | Verified in tests |
+| Two-project process isolation | Two concurrent MCP servers tested with distinct indexed files and memories; no cross-project reads observed | Verified in tests |
 | OpenCode end-to-end | Not evidenced by the reviewed source/docs | Pending |
 | Second real MCP client | Not evidenced by the reviewed source/docs | Pending |
 
