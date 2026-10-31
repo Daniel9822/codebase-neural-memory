@@ -261,7 +261,7 @@ describe("indexWithDatabase", () => {
     writeFileSync(join(location.rootPath, "valid.ts"), "export function valid() { return true; }");
     writeFileSync(join(location.rootPath, "binary.ts"), Buffer.from([0, 1, 2, 3]));
     writeFileSync(join(location.rootPath, "broken.ts"), "export function broken( {");
-    writeFileSync(join(location.rootPath, "large.ts"), "export const large = true;\\n// " + "x".repeat(1_000_001));
+    writeFileSync(join(location.rootPath, "large.ts"), "export const large = true;\n// " + "x".repeat(1_000_001));
 
     const summary = indexWithDatabase(database!, location);
     const persistedSymbols = (database!.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
@@ -274,7 +274,7 @@ describe("indexWithDatabase", () => {
     expect(summary.failed).toBe(1);
     expect(summary.symbols).toBe(persistedSymbols);
     expect(summary.relations).toBe(persistedRelations);
-    expect(summary.errors.join(" ")).toMatch(/broken\\.ts/);
+    expect(summary.errors.join(" ")).toMatch(/broken\.ts/);
     expect(summary.skippedFiles).toHaveLength(2);
     expect(summary.skippedFiles).toEqual(expect.arrayContaining([
       "binary.ts: binary content",
