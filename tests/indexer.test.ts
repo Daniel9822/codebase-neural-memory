@@ -235,23 +235,26 @@ describe("indexWithDatabase", () => {
   it("resolves local package root and subpath exports, preferring the types condition", () => {
     createProject();
     const packageRoot = join(location.rootPath, "packages", "utils");
-    mkdirSync(join(packageRoot, "src"), { recursive: true });
+    mkdirSync(join(packageRoot, "src", "features"), { recursive: true });
     writeFileSync(join(packageRoot, "package.json"), JSON.stringify({
       name: "@local/utils",
       exports: {
         ".": { types: "./src/index.d.ts", import: "./src/index.ts" },
         "./format": "./src/format.ts",
+        "./features/*": "./src/features/*.ts",
       },
     }));
-    writeFileSync(join(location.rootPath, "main.ts"), 'import "@local/utils";\nimport "@local/utils/format";');
+    writeFileSync(join(location.rootPath, "main.ts"), 'import "@local/utils";\nimport "@local/utils/format";\nimport "@local/utils/features/one";');
     writeFileSync(join(packageRoot, "src", "index.d.ts"), "export declare const utility: string;");
     writeFileSync(join(packageRoot, "src", "index.ts"), "export const utility = 'runtime';");
     writeFileSync(join(packageRoot, "src", "format.ts"), "export function format() {}");
+    writeFileSync(join(packageRoot, "src", "features", "one.ts"), "export const feature = true;");
 
     indexWithDatabase(database!, location);
 
     expect(database!.prepare("SELECT source.path AS source, target.path AS target FROM relations r JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id WHERE r.kind = 'IMPORTS' ORDER BY target.path").all())
       .toEqual([
+        { source: "main.ts", target: "packages/utils/src/features/one.ts" },
         { source: "main.ts", target: "packages/utils/src/format.ts" },
         { source: "main.ts", target: "packages/utils/src/index.d.ts" },
       ]);
