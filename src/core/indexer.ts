@@ -67,7 +67,7 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
   });
 }
 
-function discoverFiles(root: string, extraExcludes: string[] = []): DiscoveryResult {
+export function discoverFiles(root: string, extraExcludes: string[] = []): DiscoveryResult {
   const output: DiscoveredFile[] = [];
   const presentPaths = new Set<string>();
   const protectedDirectories = new Set<string>();
@@ -426,6 +426,62 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string, indexRevision: n
   return (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
 }
 
+
+export interface IndexFreshness {
+  status: "not-indexed" | "current" | "stale" | "incomplete";
+  indexRevision: number;
+  checkedFiles: number;
+  addedFiles: number;
+  changedFiles: number;
+  deletedFiles: number;
+  skippedFiles: string[];
+  errors: string[];
+}
+
+export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
+  const db = openDatabase(location);
+  try {
+    const project = db.prepare("SELECT last_indexed_at, index_revision, index_excludes_json FROM projects WHERE id = ?").get(location.id) as {
+      last_indexed_at: string | null; index_revision: number; index_excludes_json: string;
+    } | undefined;
+    if (!project) throw new Error("This repository has not been initialized. Run `cnm init` first.");
+    if (!project.last_indexed_at) {
+      return { status: "not-indexed", indexRevision: project.index_revision, checkedFiles: 0, addedFiles: 0,
+        changedFiles: 0, deletedFiles: 0, skippedFiles: [], errors: [] };
+    }
+    const excludes = JSON.parse(project.index_excludes_json) as string[];
+    const discovery = discoverFiles(location.rootPath, excludes);
+    const indexed = db.prepare("SELECT path, content_hash FROM files ORDER BY path").all() as Array<{ path: string; content_hash: string }>;
+    const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
+    let addedFiles = 0;
+    let changedFiles = 0;
+    for (const file of discovery.files) {
+      const oldHash = indexedByPath.get(file.relativePath);
+      if (oldHash === undefined) addedFiles += 1;
+      else if (oldHash !== file.hash) changedFiles += 1;
+    }
+    let deletedFiles = 0;
+    for (const file of indexed) {
+      if (discovery.presentPaths.has(file.path)) continue;
+      const protectedByReadFailure = [...discovery.protectedDirectories].some((directory) =>
+        directory === "" || file.path === directory || file.path.startsWith(directory + "/"));
+      if (!protectedByReadFailure) deletedFiles += 1;
+    }
+    const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0;
+    const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0;
+    return {
+      status: incomplete ? "incomplete" : stale ? "stale" : "current",
+      indexRevision: project.index_revision,
+      checkedFiles: discovery.scanned,
+      addedFiles, changedFiles, deletedFiles,
+      skippedFiles: discovery.skippedFiles,
+      errors: discovery.errors,
+    };
+  } finally {
+    db.close();
+  }
+}
+
 export function indexProject(location: ProjectLocation, force = false, extraExcludes: string[] = []): IndexSummary {
   const db = openDatabase(location);
   try {
@@ -439,6 +495,7 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
   const discovery = discoverFiles(location.rootPath, extraExcludes);
   const { files: discovered, presentPaths } = discovery;
   return db.transaction(() => {
+    db.prepare("UPDATE projects SET index_excludes_json = ? WHERE id = ?").run(JSON.stringify(extraExcludes), location.id);
     const existing = db.prepare("SELECT id, stable_id, path, content_hash FROM files").all() as Array<{
       id: number; stable_id: string; path: string; content_hash: string;
     }>;
