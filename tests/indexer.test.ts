@@ -394,7 +394,7 @@ describe("indexWithDatabase", () => {
       JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
       JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
       WHERE r.kind IN ('EXTENDS', 'IMPLEMENTS')
-      ORDER BY r.kind
+      ORDER BY r.kind, source.name
     `).all()).toEqual([
       { source: "Worker", target: "Base", kind: "EXTENDS", provenance: "typescript-ast-heritage" },
       { source: "Worker", target: "Contract", kind: "IMPLEMENTS", provenance: "typescript-ast-heritage" },
