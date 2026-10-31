@@ -15,7 +15,7 @@ CI runs the same command after the smoke test. The measurements below are from G
 
 ## Fixture design
 
-The generator creates three deterministic TypeScript repositories:
+The generator creates three deterministic TypeScript repositories and also measures the checked-out repository without writing into it:
 
 | Case | Source files | Generated modules | Shape |
 |---|---:|---:|---|
@@ -23,7 +23,7 @@ The generator creates three deterministic TypeScript repositories:
 | Medium | 101 | 100 | One labeled domain file plus a 100-module import chain |
 | Large | 301 | 300 | One labeled domain file plus a 300-module import chain |
 
-The shared labeled retrieval corpus contains ten symbol queries with one or more relevant symbols per query. The domain fixture is held constant across scales; generated modules add repository size and graph depth without adding matching names for the labeled domain queries.
+The shared labeled retrieval corpus contains ten symbol queries with one or more relevant symbols per query. The domain fixture is held constant across scales; generated modules add repository size and graph depth without adding matching names for the labeled domain queries. A separate real-repository case indexes the current CNM checkout into a temporary database directory outside the repository and removes that directory after measurement.
 
 ## Measurement protocol
 
@@ -52,6 +52,22 @@ Environment: GitHub-hosted `ubuntu-latest`, Node.js `v22.23.3`, Linux x64.
 | Freshness median / p95 (ms) | 4.899 / 8.009 | 6.623 / 7.085 | 10.135 / 17.165 |
 | Database bytes | 180,224 | 327,680 | 684,032 |
 | Process peak RSS at case end (bytes, cumulative) | 238,170,112 | 249,966,592 | 250,359,808 |
+
+### Real repository case
+
+The same CI run also measured the checked-out `codebase-neural-memory` repository (28 supported TypeScript source files). The index database lived in a temporary directory outside the checkout; no repository source files were modified.
+
+| Metric | Result |
+|---|---:|
+| Initial index | 616.795 ms |
+| Unchanged index | 93.846 ms |
+| Search median / p95 | 1.796 / 1.892 ms |
+| Graph median / p95 | 1.895 / 2.557 ms |
+| Freshness median / p95 | 46.777 / 52.346 ms |
+| Database bytes | 294,912 |
+| Process peak RSS | 254,279,680 bytes |
+
+Evidence: [GitHub Actions run 41254266525](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41254266525), Ubuntu Linux x64 / Node.js v22.23.3. This is one real repository layout, not a representative cross-project sample.
 
 Retrieval metrics were identical across the three scales because the labeled domain fixture is held constant:
 
