@@ -75,6 +75,15 @@ export function migrate(db: MemoryDatabase): void {
       PRIMARY KEY (file_id, caller_name, callee_name)
     );
 
+    CREATE TABLE IF NOT EXISTS symbol_heritage (
+      file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      owner_name TEXT NOT NULL,
+      relation_kind TEXT NOT NULL CHECK(relation_kind IN ('EXTENDS', 'IMPLEMENTS')),
+      target_name TEXT NOT NULL,
+      module_specifier TEXT,
+      imported_name TEXT
+    );
+
     CREATE TABLE IF NOT EXISTS relations (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       source_kind TEXT NOT NULL,
@@ -127,6 +136,7 @@ export function migrate(db: MemoryDatabase): void {
     db.exec("ALTER TABLE symbol_calls ADD COLUMN imported_symbol_name TEXT");
   }
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (3, ?)`).run(now);
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (4, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {
