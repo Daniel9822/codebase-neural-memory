@@ -140,8 +140,8 @@ describe("findImpact", () => {
   it("returns known reverse dependents transitively and terminates on cycles and duplicate paths", () => {
     createProject();
     writeFileSync(join(location.rootPath, "target.ts"), "export const target = true;");
-    writeFileSync(join(location.rootPath, "alpha.ts"), 'import "./target";\\nimport "./gamma";');
-    writeFileSync(join(location.rootPath, "beta.ts"), 'import "./target";\\nimport "./alpha";');
+    writeFileSync(join(location.rootPath, "alpha.ts"), 'import "./target";\nimport "./gamma";');
+    writeFileSync(join(location.rootPath, "beta.ts"), 'import "./target";\nimport "./alpha";');
     writeFileSync(join(location.rootPath, "gamma.ts"), 'import "./alpha";');
     indexWithDatabase(database!, location);
 
