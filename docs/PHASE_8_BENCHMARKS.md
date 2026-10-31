@@ -81,6 +81,18 @@ The checked-out CNM repository (28 supported TypeScript files) was measured on a
 
 These are single-run observations on hosted runners, not a reliable ranking of operating systems. Filesystem cache, runner hardware, virtualization, and host load differ; repeat measurements before drawing conclusions or setting thresholds.
 
+### Cross-platform real-repository baseline
+
+The checked-out CNM repository (28 supported TypeScript files) was measured on all three matrix runners in CI run [41254663323](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41254663323). Each runner used a temporary database outside the source tree. All three benchmark jobs and the Ubuntu verification job passed.
+
+| Runner | Initial index | Unchanged index | Search median / p95 | Graph median / p95 | Freshness median / p95 | Database bytes | Process peak RSS bytes |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| Ubuntu Linux x64 | 557.049 ms | 52.657 ms | 1.156 / 1.268 ms | 1.122 / 1.347 ms | 21.027 / 25.853 ms | 294,912 | 255,401,984 |
+| macOS | 213.423 ms | 85.154 ms | 1.064 / 1.278 ms | 1.074 / 1.214 ms | 56.312 / 79.594 ms | 294,912 | 257,228,800 |
+| Windows | 811.163 ms | 457.688 ms | 2.161 / 2.378 ms | 2.266 / 3.245 ms | 171.971 / 188.847 ms | 294,912 | 183,410,688 |
+
+These are single-run observations on hosted runners, not a reliable ranking of operating systems. Filesystem cache, runner hardware, virtualization, and host load differ; repeat measurements before drawing conclusions or setting thresholds.
+
 Retrieval metrics were identical across the three scales because the labeled domain fixture is held constant:
 
 | Metric | Result |
