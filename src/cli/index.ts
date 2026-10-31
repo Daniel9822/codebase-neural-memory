@@ -148,9 +148,10 @@ program.command("dependencies <file>")
   });
 
 program.command("file <path>")
-  .description("Show indexed symbols, imports, references, and provenance for a source file.")
-  .action((file: string) => {
-    console.log(JSON.stringify(getFileDetails(ensureInitialized(), file), null, 2));
+  .description("Show bounded indexed symbols, imports, references, and provenance for a source file.")
+  .option("--limit <number>", "Maximum items per collection (1-500)", parsePositiveInteger, 100)
+  .action((file: string, options: { limit: number }) => {
+    console.log(JSON.stringify(getFileDetails(ensureInitialized(), file, options.limit), null, 2));
   });
 
 program.command("remember <title> <content>")

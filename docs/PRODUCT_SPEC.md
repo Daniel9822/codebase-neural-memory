@@ -36,7 +36,7 @@ Expected workflow:
 1. Install CNM as a CLI.
 2. Run `cnm init` inside a repository.
 3. Run `cnm index` to build the initial local index.
-4. Inspect it using `cnm status`, `cnm map`, `cnm search`, `cnm explain`, and `cnm impact`.
+4. Inspect it using `cnm status`, `cnm map`, `cnm search`, `cnm explain`, `cnm relations`, `cnm dependencies`, `cnm file`, `cnm impact`, and `cnm freshness`.
 5. Store explicit project knowledge with `cnm remember`.
 6. Connect a compatible coding agent through the local MCP stdio server.
 7. Let the agent retrieve only the information relevant to its current task.
@@ -86,18 +86,20 @@ Embeddings and semantic retrieval may be evaluated as optional extensions after 
 
 The repository currently documents and contains an initial JavaScript/TypeScript implementation. The following is an inventory, not a claim that every behavior has passed acceptance testing:
 
-- CLI commands: init, index, status, map, search, explain, impact, remember, memories, and mcp.
+- CLI commands: init, index, status, map, search, explain, relations, impact, dependencies, file, freshness, remember, memories, and mcp.
 - SQLite storage outside the target repository in the operating system's per-user data directory.
 - TypeScript compiler API for parsing JavaScript/TypeScript files.
 - File hashing to skip unchanged files on later indexing runs.
 - Extraction of functions, classes, methods, interfaces, type aliases, enums, and imports.
-- Local call facts and conservative import relationships.
-- FTS5 symbol lookup.
-- Project map and reverse-import impact lookup.
+- Local call facts and conservative import relationships, including provenance, confidence, and index revision.
+- Deterministic lexical symbol ranking over exact names, name terms, signature terms, export status, and FTS5 BM25, with a safely escaped LIKE fallback.
+- Project map, incoming/outgoing symbol relations, direct/transitive dependency traversal with per-edge chain evidence and explicit limits, and reverse-import impact lookup.
+- Bounded file details with source metadata, symbols, resolved/unresolved imports, relations, per-collection totals, and truncation flags.
+- Read-only working-tree freshness report (`cnm freshness` / `index_freshness`); it is not Git branch/commit tracking or a watcher.
 - Explicit local memories, currently saved as confirmed records by the CLI.
-- Read-only MCP tools: project_overview, project_map, symbol_lookup, change_impact, and memory_recall.
+- Read-only MCP tools: project_overview, project_map, symbol_lookup, change_impact, memory_recall, index_freshness, dependency_graph, and file_details.
 
-Known limitations in this baseline include conservative import resolution, same-file/local call resolution, simple memory lifecycle, path-derived project identity, and lack of semantic embeddings, automatic file watching, advanced Git history analysis, and multi-developer synchronization.
+Known limitations in this baseline include conservative import resolution, same-file/local call resolution, simple memory lifecycle, path-derived project identity, no conceptual component extraction/retrieval, no repository-scale retrieval quality or performance baseline yet, and lack of semantic embeddings, automatic file watching, advanced Git history analysis, and multi-developer synchronization.
 
 The source code and tests must be inspected before treating this inventory as verified behavior.
 
@@ -126,9 +128,11 @@ The model should distinguish:
 
 - **Source artifacts:** repositories, files, commits, and tests.
 - **Code symbols:** functions, classes, methods, interfaces, types, and other language-specific declarations.
-- **Conceptual entities:** components, features, business rules, and architecture decisions.
+- **Conceptual entities:** components, features, business rules, and architecture decisions are part of the intended knowledge vocabulary. The current parser/indexer does not extract component entities or provide component retrieval; these concepts must not be presented as implemented.
 - **Relations:** directed, typed links such as IMPORTS, CALLS, DEPENDS_ON, IMPLEMENTS, DEFINED_IN, and TESTED_BY.
 - **Memories:** explicit project knowledge with category, status, source, timestamps, and optional commit reference.
+
+Phase 3 retrieval acceptance covers indexed source files, symbols, imports, dependencies, and parser-derived symbol relations. Component extraction and retrieval remain a separate future capability and are not implied by the conceptual entity vocabulary above.
 
 Relations and memories need provenance. A syntax-derived import should be distinguishable from a semantic association or a developer-confirmed decision. Confidence values must not imply certainty where the parser cannot resolve a relationship.
 
@@ -179,11 +183,11 @@ No initialization or indexing operation may upload repository content. No team s
 
 ### Retrieval and context
 - Support exact and lexical symbol search.
-- Retrieve related components and dependencies.
+- Retrieve symbols, files, imports, dependencies, and symbol relations. Conceptual component retrieval is not currently implemented and is not a Phase 3 acceptance requirement.
 - Return source paths and line references when available.
-- Explain the evidence behind results.
+- Explain lexical ranking signals and the provenance/confidence/index revision of every dependency-chain edge.
 - Report stale or incomplete index state.
-- Apply result and context-size limits.
+- Apply result limits to every collection and report totals/truncation when bounded.
 - Keep lexical/structural retrieval useful without embeddings.
 
 ### Agent integration
@@ -206,6 +210,6 @@ No initialization or indexing operation may upload repository content. No team s
 
 ## 12. Product success
 
-CNM succeeds when, on representative repositories and controlled tasks, it can retrieve the correct components, symbols, dependencies, rules, and tests more efficiently than repeated manual repository exploration, while keeping output compact and verifiable.
+CNM succeeds when, on representative repositories and controlled tasks, it can retrieve the correct files, symbols, dependencies, rules, and tests more efficiently than repeated manual repository exploration, while keeping output compact and verifiable. Conceptual component retrieval is a separate future capability and must not be implied by the current lexical/structural API.
 
 Improvement must be measured against a baseline. Do not promise a fixed reduction in tokens, latency, or task failures before benchmarks support it.

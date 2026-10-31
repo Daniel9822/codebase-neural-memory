@@ -42,7 +42,7 @@ cnm dependencies "src/services/tournamentService.ts" --depth 2
 cnm remember "Duplicate registration is prohibited" "A participant may only be registered once in an active tournament."
 cnm memories
 cnm freshness
-cnm file "src/services/tournamentService.ts"
+cnm file "src/services/tournamentService.ts" --limit 100
 ```
 
 Run `cnm index` again after changing the code. Unchanged files are skipped by content hash; modified files are reparsed and deleted files are removed from the active index. Use `cnm freshness` to compare the working tree with the index without modifying it: the report distinguishes `not-indexed`, `current`, `stale`, and `incomplete`, and counts added, changed, and deleted files while listing skipped files and discovery errors. Add project-specific exclusions with repeatable `--exclude` patterns, for example `cnm index --exclude "generated/" --exclude "*.fixture.ts"`. These patterns are additive and cannot disable mandatory safety exclusions.
@@ -95,7 +95,7 @@ CNM does not create a memory directory in the repository and does not modify `.g
 
 ## What is indexed
 
-Use `cnm relations <symbol>` to inspect incoming and outgoing symbol relationships (such as `CALLS`, `EXTENDS`, and `IMPLEMENTS`) with file locations, provenance, confidence, and index revision. Use `--limit` to bound the result. `cnm dependencies <file> --depth <number> --limit <number> --max-processed <number>` returns direct or transitive imports with edge evidence, depth, and the dependency chain; the JSON response reports whether either traversal budget truncated the result. Defaults are 100 unique results and 1,000 examined import edges. `cnm file <path>` returns indexed file metadata, symbols, resolved and unresolved imports, symbol relationships, and provenance. These details are read from the existing index; CNM does not infer additional entities for this view.
+Use `cnm relations <symbol>` to inspect incoming and outgoing symbol relationships (such as `CALLS`, `EXTENDS`, and `IMPLEMENTS`) with file locations, provenance, confidence, and index revision. Use `--limit` to bound the result. `cnm dependencies <file> --depth <number> --limit <number> --max-processed <number>` returns direct or transitive imports with depth, a dependency chain, and `chainEvidence` containing provenance, confidence, and index revision for every edge in that chain; the JSON response reports whether either traversal budget truncated the result. Defaults are 100 unique results and 1,000 examined import edges. `cnm file <path> --limit <number>` returns indexed file metadata, symbols, resolved and unresolved imports, symbol relationships, and provenance. The per-collection limit defaults to 100 and has a maximum of 500; the response includes total counts and truncation flags for each collection. The MCP `file_details` tool accepts the same optional `limit`. These details are read from the existing index; CNM does not infer additional entities for this view.
 
 File and symbol nodes receive deterministic SHA-256 identifiers derived from their project-relative identity; these identifiers survive forced reindexing and line-only shifts. Internal SQLite row IDs remain implementation details.
 

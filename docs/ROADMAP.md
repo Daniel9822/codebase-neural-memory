@@ -69,21 +69,23 @@ Exit condition: graph rebuild is deterministic, stale edges are removed, and gra
 
 ## Phase 3 — Lexical and structural retrieval
 
-**Status:** Evidence-rich bounded dependency traversal, explainable lexical ranking, file-detail retrieval, labeled relevance fixtures, and read-only source freshness are implemented with regression coverage. Broader repository-scale relevance and performance evaluation remain open.
+**Status:** Evidence-rich bounded dependency traversal, explainable lexical ranking, bounded file-detail retrieval, literal-safe LIKE fallback, and read-only source freshness are implemented. The labeled corpus now covers ten retrieval queries, including exact, multi-term, and domain-style queries. Repository-scale relevance and performance evaluation remain open.
 
 Tasks:
 - [x] Improve FTS query handling, multi-term ranking, bounded candidates, and a narrowly scoped FTS5 fallback that does not swallow unrelated SQLite errors.
 - [x] Add file detail retrieval by reusing indexed metadata, symbols, imports, unresolved imports, relations, and provenance.
 - [x] Support direct and transitive dependency queries with evidence, depth, dependency chains, cycle protection, result limits, processing limits, and truncation reporting.
-- [x] Explain lexical ranking signals and dependency relation evidence.
-- Include source path, symbol kind, and line ranges.
+- [x] Explain lexical ranking signals and dependency relation evidence for every edge in each transitive dependency chain.
+- [x] Escape SQL LIKE wildcard characters (percent, underscore, and backslash) in lexical fallback queries.
+- [x] Bound every `file_details` collection and report totals and truncation; expose the same limit through CLI and MCP.
+- [x] Include source path, symbol kind, and line ranges in symbol retrieval results.
 - [x] Detect stale or incomplete source state and communicate added, changed, deleted, skipped, and failed paths through `cnm freshness` and MCP `index_freshness`.
-- [x] Build a labeled test corpus with known expected lexical retrieval results (`tests/fixtures/retrieval-relevance.ts`).
+- [x] Build a labeled ten-query test corpus with known expected lexical retrieval results (`tests/fixtures/retrieval-relevance.ts`).
 - [x] Add regression coverage for migration v6 → v7 and document `cnm freshness` / MCP `index_freshness`.
 
 Deliverable: fast, explainable lexical and graph-based retrieval without embeddings.
 
-Exit condition: expected symbols, components, and dependents are returned accurately for retrieval fixtures.
+Exit condition: expected symbols, files, dependencies, and dependents are returned accurately for retrieval fixtures with source locations, per-edge evidence, deterministic ranking, and explicit result bounds. Conceptual components are not an exit criterion: CNM does not yet extract or retrieve component entities; that requirement is deferred to a future context/semantic capability and must not be represented as delivered by Phase 3.
 
 ## Phase 4 — Explicit project memory lifecycle
 
