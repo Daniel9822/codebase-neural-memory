@@ -46,11 +46,11 @@ Inferred edges carry provenance and confidence. A confirmed memory is separate f
 
 ## Retrieval
 
-The current retrieval layer provides lexical symbol lookup, a file/import map, and transitive reverse-import impact analysis. Later stages can combine these with semantic ranking, task-specific graph traversal, token budgets, and freshness scoring.
+The retrieval layer provides deterministic lexical symbol search with exact/name/signature/export ranking signals, source paths and line ranges; file/import maps; incoming and outgoing symbol relations; bounded direct and transitive dependency traversal; bounded file details; reverse-import impact analysis; and read-only index freshness inspection. Dependency results carry provenance, confidence, index revision, depth, the full file chain, and evidence for every edge in that chain. File-detail collections expose per-collection limits, total counts, and truncation flags. SQL LIKE fallback treats percent, underscore, and backslash as literal query characters. Retrieval remains lexical and structural: it does not claim semantic understanding or retrieve conceptual components.
 
 ## MCP boundary
 
-MCP exposes read-only tools in v0.1 through the current TypeScript SDK v2 and stdio transport. Memory creation and index mutation remain CLI operations, keeping an agent from silently changing durable project knowledge.
+MCP exposes read-only tools through the TypeScript SDK v2 and stdio transport: project_overview, project_map, symbol_lookup, change_impact, memory_recall, index_freshness, dependency_graph, and file_details. Search, dependency traversal, and file details validate and bound their result sizes. Memory creation and index mutation remain CLI operations, keeping an agent from silently changing durable project knowledge.
 
 ## Deliberate non-goals for v0.1
 
