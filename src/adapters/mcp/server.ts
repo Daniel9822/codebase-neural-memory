@@ -7,9 +7,10 @@ import { getIndexFreshness } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
 import type { ProjectLocation } from "../../core/project.js";
 
-export function startMcpServer(location: ProjectLocation): void {
-  serveStdio(() => {
-    const server = new McpServer({ name: "codebase-neural-memory", version: "0.1.0" });
+/** Create the actual MCP adapter for a project. Exported to exercise the same
+ * registration and handlers over the SDK's in-memory transport in tests. */
+export function createMcpServer(location: ProjectLocation): McpServer {
+  const server = new McpServer({ name: "codebase-neural-memory", version: "0.1.0" });
 
     server.registerTool("project_overview", {
       description: "Return the local repository memory index summary.",
@@ -97,6 +98,9 @@ export function startMcpServer(location: ProjectLocation): void {
       content: [{ type: "text", text: JSON.stringify(recallMemories(location, query ?? "", limit ?? 20), null, 2) }],
     }));
 
-    return server;
-  });
+  return server;
+}
+
+export function startMcpServer(location: ProjectLocation): void {
+  serveStdio(() => createMcpServer(location));
 }
