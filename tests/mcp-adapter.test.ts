@@ -19,10 +19,11 @@ class McpTestClient {
   }>();
   private readonly clientTransport: InMemoryTransport;
   private readonly serverTransport: InMemoryTransport;
-  private readonly server = createMcpServer(this.location);
+  private readonly server: ReturnType<typeof createMcpServer>;
   private connected = false;
 
   constructor(private readonly location: ProjectLocation) {
+    this.server = createMcpServer(location);
     [this.clientTransport, this.serverTransport] = InMemoryTransport.createLinkedPair();
     this.clientTransport.onmessage = (message) => {
       if (!("id" in message) || typeof message.id !== "number") return;
