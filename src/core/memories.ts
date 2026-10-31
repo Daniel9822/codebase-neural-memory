@@ -206,7 +206,7 @@ export function recallMemories(location: ProjectLocation, query = "", limit = 20
           WHERE status != 'rejected' AND (title LIKE ? OR content LIKE ? OR category LIKE ?)
           ORDER BY updated_at DESC, id LIMIT ?`).all(`%${query}%`, `%${query}%`, `%${query}%`, limit)
       : db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
-          commit_sha AS commitSha, created_at AS createdAt, updated_at AS updatedAt FROM memories
+          commit_sha AS commitSha, source_hash AS sourceHash, created_at AS createdAt, updated_at AS updatedAt FROM memories
           WHERE status != 'rejected' ORDER BY updated_at DESC, id LIMIT ?`).all(limit);
     return rows as MemoryRecord[];
   } finally {
