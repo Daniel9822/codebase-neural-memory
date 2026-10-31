@@ -38,13 +38,14 @@ describe("indexWithDatabase", () => {
     createProject();
     const filePath = join(location.rootPath, "src", "stable.ts");
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
-    writeFileSync(filePath, "export function stable(value: string) { return value; }\\n");
-    indexWithDatabase(database!, location);
+    writeFileSync(filePath, ["export function stable(value: string) { return value; }", ""].join("\n"));
+    const initial = indexWithDatabase(database!, location);
+    expect(initial.added).toBe(1);
 
     const beforeFile = database!.prepare("SELECT stable_id FROM files WHERE path = ?").get("src/stable.ts") as { stable_id: string };
     const beforeSymbol = database!.prepare("SELECT stable_id FROM symbols WHERE name = ?").get("stable") as { stable_id: string };
 
-    writeFileSync(filePath, "// a harmless line shift\\nexport function stable(value: string) { return value; }\\n");
+    writeFileSync(filePath, ["// a harmless line shift", "export function stable(value: string) { return value; }", ""].join("\n"));
     indexWithDatabase(database!, location, true);
 
     const afterFile = database!.prepare("SELECT stable_id FROM files WHERE path = ?").get("src/stable.ts") as { stable_id: string };
