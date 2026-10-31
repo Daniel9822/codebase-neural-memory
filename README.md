@@ -47,6 +47,24 @@ cnm file "src/services/tournamentService.ts" --limit 100
 
 Run `cnm index` again after changing the code. Unchanged files are skipped by content hash; modified files are reparsed and deleted files are removed from the active index. Use `cnm freshness` to compare the working tree with the index without modifying it: the report distinguishes `not-indexed`, `current`, `stale`, and `incomplete`, and counts added, changed, and deleted files while listing skipped files and discovery errors. Add project-specific exclusions with repeatable `--exclude` patterns, for example `cnm index --exclude "generated/" --exclude "*.fixture.ts"`. These patterns are additive and cannot disable mandatory safety exclusions.
 
+## Project memory lifecycle
+
+CNM stores project decisions and notes in the local project database. Use `remember` for knowledge explicitly confirmed by the person invoking the command, or `propose` for suggestions that must remain unconfirmed until an explicit transition:
+
+```bash
+cnm propose "Potential API rule" "Review this rule before adopting it."
+cnm memories
+cnm memory transition <memory-id> confirmed
+cnm memory update <memory-id> --content "Updated decision text"
+cnm memory freshness
+cnm memory transition <memory-id> obsolete
+cnm memory delete <memory-id>
+```
+
+The lifecycle permits `proposed → confirmed` or `proposed → rejected`, `confirmed → obsolete`, and `obsolete → confirmed`. Rejected memories are terminal and excluded from recall by default. Updates and deletion are explicit and scoped to the current project. Optional source paths and Git commit identifiers can be stored with a memory.
+
+When a source path is supplied, CNM records a SHA-256 fingerprint of the referenced file. `cnm memory freshness` reports `current`, `changed`, `missing`, `untracked`, or `unsafe` references and indicates when review is required. This inspection does not rewrite the memory or change its lifecycle status. An untracked reference has no stored baseline (for example, a legacy memory); it requires review. Unsafe references include paths that resolve outside the project root. This is file-content freshness only: commit/branch comparison and automatic lifecycle transitions are not implemented.
+
 ## MCP integration
 
 Start the local MCP server from the target repository:
