@@ -282,7 +282,7 @@ Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code ins
 - [x] Commit and branch changes are reported as stale even when supported source-file hashes are unchanged (`tests/git-awareness.test.ts`).
 - [x] Git renames reconcile as one added and one deleted path; existing deletion tests verify stale symbols, FTS rows, and graph relations are removed.
 - [x] Freshness uses a deterministic full scan rather than relying on file-watcher events; therefore missed watcher notifications cannot suppress reconciliation. A watcher is not implemented.
-- [ ] A clean reindex and incremental reconciliation converge to equivalent logical state across all controlled Git transitions.
+- [x] A clean reindex and incremental reconciliation converge to equivalent logical state across branch switches, renames, deletions, symbols, imports, calls, heritage, relations, unresolved imports, and FTS (`tests/git-awareness.test.ts`).
 - [x] Worktree, submodule, and repository-move identity/storage behavior is documented; submodule isolation inside a parent scan is explicitly not claimed.
 - [x] The existing CLI `cnm freshness` and MCP `index_freshness` report indexed/current commit, branch, dirty state, and whether each changed.
 - [x] Memory freshness compares recorded commits with current Git ancestry, includes commit-only memories, and requires review for non-current or unavailable provenance (`tests/git-awareness.test.ts`).
