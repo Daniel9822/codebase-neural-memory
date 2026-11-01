@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { indexWithDatabase } from "../src/core/indexer.js";
+import { getProjectMapReport } from "../src/core/retrieval.js";
 
 let temporaryDirectory = "";
 let database: MemoryDatabase | undefined;
@@ -311,6 +312,53 @@ describe("indexWithDatabase", () => {
           candidates_json: JSON.stringify(["packages/utils/src/shared.ts", "packages/utils/src/shared.tsx"]),
         },
       ]);
+  });
+
+  it("detects missing external packages and invalid named exports without flagging built-ins", () => {
+    createProject();
+    const packageRoot = join(location.rootPath, "node_modules", "installed-package");
+    mkdirSync(packageRoot, { recursive: true });
+    writeFileSync(join(packageRoot, "package.json"), JSON.stringify({
+      name: "installed-package",
+      types: "index.d.ts",
+    }));
+    writeFileSync(join(packageRoot, "index.d.ts"), "export declare const known: string;");
+    writeFileSync(join(location.rootPath, "main.ts"), [
+      'import { known } from "installed-package";',
+      'import { absent } from "installed-package";',
+      'import { missing } from "not-installed-package";',
+      'import { readFile } from "node:fs";',
+      "void known; void absent; void missing; void readFile;",
+    ].join("\n"));
+
+    indexWithDatabase(database!, location);
+
+    const diagnostics = database!.prepare(`
+      SELECT module_specifier, diagnostic_code, kind, imported_name, line
+      FROM import_diagnostics ORDER BY line, diagnostic_code
+    `).all();
+    expect(diagnostics).toEqual([
+      {
+        module_specifier: "installed-package",
+        diagnostic_code: 2305,
+        kind: "missing-export",
+        imported_name: "absent",
+        line: 2,
+      },
+      {
+        module_specifier: "not-installed-package",
+        diagnostic_code: 2307,
+        kind: "missing-package",
+        imported_name: null,
+        line: 3,
+      },
+    ]);
+
+    const report = getProjectMapReport(location, 10);
+    expect(report.files[0]?.importDiagnostics).toEqual([
+      expect.objectContaining({ specifier: "installed-package", kind: "missing-export", importedName: "absent", line: 2 }),
+      expect.objectContaining({ specifier: "not-installed-package", kind: "missing-package", line: 3 }),
+    ]);
   });
 
   it("rebuilds a local import relation between indexed files", () => {
