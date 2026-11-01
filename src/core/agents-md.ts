@@ -17,42 +17,42 @@ function instructions(tool: AgentTool): string {
 ${toolNote}
 
 ## 1. Session initialization
-- Call `memory_recall` with a natural-language description of the task; use `list: true` when you need to inspect all recent memories. Review lifecycle status before relying on a result.
-- Treat `confirmed` memories as project knowledge. `proposed` memories are suggestions, not facts; `obsolete` memories are historical context and must not be treated as current guidance.
-- Call `index_freshness`. Use its exact paths and hashes to understand drift; do not run `git status` solely to discover source changes.
-- If freshness is `stale`, call `index_update` once, then re-check freshness. Do not loop automatic refresh calls. If discovery is incomplete, explain the gap and verify affected files directly.
+- Call \`memory_recall\` with a natural-language description of the task; use \`list: true\` when you need to inspect all recent memories. Review lifecycle status before relying on a result.
+- Treat \`confirmed\` memories as project knowledge. \`proposed\` memories are suggestions, not facts; \`obsolete\` memories are historical context and must not be treated as current guidance.
+- Call \`index_freshness\`. Use its exact paths and hashes to understand drift; do not run \`git status\` solely to discover source changes.
+- If freshness is \`stale\`, call \`index_update\` once, then re-check freshness. Do not loop automatic refresh calls. If discovery is incomplete, explain the gap and verify affected files directly.
 
 ## 2. MCP-first source retrieval
-- Start with `symbol_lookup`, narrowing by `kind`, `filePath`, or `exported`; request `includeSource` for the one to three relevant symbols.
-- Use `file_details` with `inlineSnippets` for a focused file view.
-- Use `source_excerpt` only for exact line ranges returned by CNM.
-- For broad tasks, call `task_context` with explicit `anchors.paths` and/or `anchors.symbols`.
-- Use `dependency_graph` with low `depth` first; expand only when evidence requires it.
+- Start with \`symbol_lookup\`, narrowing by \`kind\`, \`filePath\`, or \`exported\`; request \`includeSource\` for the one to three relevant symbols.
+- Use \`file_details\` with \`inlineSnippets\` for a focused file view.
+- Use \`source_excerpt\` only for exact line ranges returned by CNM.
+- For broad tasks, call \`task_context\` with explicit \`anchors.paths\` and/or \`anchors.symbols\`.
+- Use \`dependency_graph\` with low \`depth\` first; expand only when evidence requires it.
 - An empty result means “not found by this retrieval method”, not “does not exist”.
 
 ## 3. Freshness and source verification
-- Trust indexed structure only when the result is current. A freshness warning or `indexStatus: stale` means verify the current file before editing or describing exact line ranges.
+- Trust indexed structure only when the result is current. A freshness warning or \`indexStatus: stale\` means verify the current file before editing or describing exact line ranges.
 - Source excerpts include hashes. Compare them with indexed hashes and do not mix metadata from one revision with source from another.
 - Never claim CNM has validated a package import or TypeScript binding merely because the local import graph contains no unresolved edge.
 
 ## 4. External reads and safety boundaries
 - Read files outside the index when needed for Markdown, assets, JSON/configuration, package manifests, tests, compiler output, or files CNM cannot represent.
-- Never read or copy secrets such as `.env`, private keys, credentials, or authentication histories into memory or agent instructions.
+- Never read or copy secrets such as \`.env\`, private keys, credentials, or authentication histories into memory or agent instructions.
 - Verify exact diffs and generated artifacts from disk when the task requires byte-level truth.
 
 ## 5. Editing and validation
 - Before editing, inspect the current source excerpt and its freshness/hash.
-- After editing, run `index_update` and re-check relevant symbols/ranges if lines or structure moved.
+- After editing, run \`index_update\` and re-check relevant symbols/ranges if lines or structure moved.
 - Run the repository's compiler, build, and relevant tests. CNM is a structural map, not a compiler or test runner.
 - Review the final diff; distinguish verified results from assumptions.
 
 ## 6. Project memory — proactive and durable
 - During work, identify durable knowledge worth preserving: architectural decisions, stable conventions, important workflows, non-obvious behavior, recurring failure causes, and verified fixes. Do not save transient details, secrets, speculation, or unverified guesses.
-- You may create a `memory_propose` entry proactively when such knowledge is established. Include a precise title, concise reusable explanation, suitable category (`decision`, `convention`, `architectural`, or `gotcha`), and `sourcePath` / `commitSha` when grounded.
-- Proposed memories are immediately discoverable through `memory_recall`, but are not confirmed truth. Label them as pending when presenting them.
-- Ask the user whether they want a proposal confirmed. If the user explicitly says yes (including “confirm it”, “approve”, or equivalent clear authorization), call `memory_transition` with status `confirmed`; do not ask for a second approval. If the user declines, use `rejected` only when appropriate or leave the proposal pending.
+- You may create a \`memory_propose\` entry proactively when such knowledge is established. Include a precise title, concise reusable explanation, suitable category (\`decision\`, \`convention\`, \`architectural\`, or \`gotcha\`), and \`sourcePath\` / \`commitSha\` when grounded.
+- Proposed memories are immediately discoverable through \`memory_recall\`, but are not confirmed truth. Label them as pending when presenting them.
+- Ask the user whether they want a proposal confirmed. If the user explicitly says yes (including “confirm it”, “approve”, or equivalent clear authorization), call \`memory_transition\` with status \`confirmed\`; do not ask for a second approval. If the user declines, use \`rejected\` only when appropriate or leave the proposal pending.
 - Never confirm a proposal merely because the agent believes it is useful. Explicit user authorization is the approval boundary.
-- Revisit relevant confirmed memories during later tasks and flag them for review when `memory_freshness` reports changed, missing, unsafe, or non-current source/commit provenance.
+- Revisit relevant confirmed memories during later tasks and flag them for review when \`memory_freshness\` reports changed, missing, unsafe, or non-current source/commit provenance.
 
 ## 7. Known limitations
 - CNM retrieval is lexical and structural, not a guarantee of semantic completeness. Read source bodies and tests before inferring behavior.
