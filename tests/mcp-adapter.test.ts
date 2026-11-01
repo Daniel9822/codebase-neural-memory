@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { InMemoryTransport, LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/server";
@@ -382,6 +382,85 @@ describe("MCP adapter protocol contract", () => {
       expect.objectContaining({ name: "refreshedHelper", filePath: "helper.ts" }),
     ]);
     expect(refreshedResult.content.some((item) => item.text.includes("CNM AUTO-UPDATE"))).toBe(true);
+  });
+
+  it("refuses strict reads when discovery is incomplete and preserves the prior index", async () => {
+    createProject();
+    const client = await connectClient({ autoUpdate: true, strictFreshness: true });
+    const outside = join(temporaryDirectory, "outside.ts");
+    writeFileSync(outside, "export const outside = true;");
+    symlinkSync(outside, join(location.rootPath, "linked.ts"));
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function changedHelper() { return false; }");
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+
+    const response = await client.request("tools/call", {
+      name: "symbol_lookup",
+      arguments: { query: "helper", limit: 5 },
+    });
+    const result = response.result as { isError?: boolean; content: Array<{ text: string }> };
+    const refusal = JSON.parse(result.content[0]!.text) as { status: string; autoUpdate: { skippedReason: string | null } };
+    expect(result.isError).toBe(true);
+    expect(refusal.status).toBe("refused");
+    expect(refusal.autoUpdate.skippedReason).toContain("discovery is incomplete");
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision).toBe(beforeRevision);
+  });
+
+  it("skips automatic refresh above fifty changed files and refuses strict reads", async () => {
+    createProject();
+    const client = await connectClient({ autoUpdate: true, strictFreshness: true });
+    for (let index = 0; index < 51; index += 1) {
+      writeFileSync(join(location.rootPath, `changed-${index}.ts`), `export const changed${index} = true;`);
+    }
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+
+    const response = await client.request("tools/call", {
+      name: "project_overview",
+      arguments: {},
+    });
+    const result = response.result as { isError?: boolean; content: Array<{ text: string }> };
+    const refusal = JSON.parse(result.content[0]!.text) as { status: string; autoUpdate: { skippedReason: string | null } };
+    expect(result.isError).toBe(true);
+    expect(refusal.status).toBe("refused");
+    expect(refusal.autoUpdate.skippedReason).toContain("exceed the safety limit of 50");
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision).toBe(beforeRevision);
+  });
+
+  it("rolls back failed automatic refresh and refuses strict reads with the failure reason", async () => {
+    createProject();
+    const client = await connectClient({ autoUpdate: true, strictFreshness: true });
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    const beforeHash = database!.prepare("SELECT content_hash FROM files WHERE path = 'helper.ts'").get() as { content_hash: string };
+    database!.exec("CREATE TRIGGER fail_auto_refresh BEFORE INSERT ON relations BEGIN SELECT RAISE(ABORT, 'forced auto-refresh failure'); END;");
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function changedHelper() { return false; }");
+
+    const response = await client.request("tools/call", {
+      name: "symbol_lookup",
+      arguments: { query: "helper", limit: 5 },
+    });
+    const result = response.result as { isError?: boolean; content: Array<{ text: string }> };
+    const refusal = JSON.parse(result.content[0]!.text) as { status: string; autoUpdate: { failureReason: string | null } };
+    expect(result.isError).toBe(true);
+    expect(refusal.status).toBe("refused");
+    expect(refusal.autoUpdate.failureReason).toContain("forced auto-refresh failure");
+    expect(database!.prepare("SELECT content_hash FROM files WHERE path = 'helper.ts'").get()).toEqual(beforeHash);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision).toBe(beforeRevision);
+  });
+
+  it("serializes concurrent auto-refresh reads into one verified index revision", async () => {
+    createProject();
+    const client = await connectClient({ autoUpdate: true, strictFreshness: true });
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function changedHelper() { return false; }");
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+
+    const [first, second] = await Promise.all([
+      client.request("tools/call", { name: "symbol_lookup", arguments: { query: "changedHelper", limit: 5 } }),
+      client.request("tools/call", { name: "project_overview", arguments: {} }),
+    ]);
+    for (const response of [first, second]) {
+      const result = response.result as { isError?: boolean; content: Array<{ text: string }> };
+      expect(result.isError).not.toBe(true);
+    }
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision).toBe(beforeRevision + 1);
   });
 
   it("supports clean close and a fresh reconnection", async () => {
