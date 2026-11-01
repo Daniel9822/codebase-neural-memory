@@ -206,7 +206,7 @@ describe("MCP adapter protocol contract", () => {
     });
     const coreResult = coreError.result as { isError?: boolean; content?: Array<{ text?: string }> } | undefined;
     expect(Boolean(coreError.error) || coreResult?.isError === true).toBe(true);
-    expect((coreResult?.content ?? []).map((item) => item.text ?? "").join("\\n")).toContain("File not found in memory index");
+    expect((coreResult?.content ?? []).map((item) => item.text ?? "").join("\n")).toContain("File not found in memory index");
   });
 
   it("does not change repository files, index revision, or durable memory records during read calls", async () => {
@@ -246,8 +246,8 @@ describe("MCP adapter protocol contract", () => {
     const client = await connectClient();
     indexWithDatabase(database!, location, false, ["excluded.ts"]);
     const initialRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
-    writeFileSync(join(location.rootPath, "helper.ts"), "export function helper() { return false; }\\n");
-    writeFileSync(join(location.rootPath, "excluded.ts"), "export function shouldStayExcluded() {}\\n");
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function helper() { return false; }\n");
+    writeFileSync(join(location.rootPath, "excluded.ts"), "export function shouldStayExcluded() {}\n");
 
     const update = await client.request("tools/call", { name: "index_update", arguments: {} });
     const updateResult = update.result as { content: Array<{ text: string }> };
