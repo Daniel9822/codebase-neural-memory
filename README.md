@@ -89,7 +89,8 @@ The server uses stdio and exposes fourteen tools: eleven read/retrieval tools an
 - `task_context` — deterministic, bounded task context from indexed facts and memories; optional exact path/symbol anchors disable broad lexical symbol fallback and label each item origin.
 - `memory_freshness` — source-file fingerprints and Git commit ancestry for linked or commit-referenced memories.
 - `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
-- `memory_propose` — persist an agent suggestion with `proposed` status; a person must explicitly confirm it.\n- `memory_transition` — explicitly transition a memory lifecycle state; agent confirmation requires clear user authorization.
+- `memory_propose` — persist an agent suggestion with `proposed` status; a person must explicitly confirm it.
+- `memory_transition` — explicitly transition a memory lifecycle state; agent confirmation requires clear user authorization.
 
 Use `source_excerpt` after `symbol_lookup` or `task_context` to inspect the actual implementation at a returned path and line range. It accepts a project-relative indexed path, inclusive `startLine` / `endLine`, and optional `maxCharacters` (100–20,000; default 12,000). It returns at most 200 lines and reads source files no larger than 1 MiB, rejects paths outside the project root, and reports `indexStatus: current|stale` by comparing the working-tree SHA-256 with the indexed hash. A stale excerpt is current working-tree content, not a claim that the index describes those bytes.
 
