@@ -401,7 +401,7 @@ describe("bounded file detail retrieval", () => {
       'import { missing } from "fixture-package";',
       'import { absent } from "not-installed-fixture";',
       "void missing; void absent;",
-    ].join("\\n"));
+    ].join("\n"));
     indexWithDatabase(database!, location);
 
     const details = getFileDetails(location, "imports.ts");
