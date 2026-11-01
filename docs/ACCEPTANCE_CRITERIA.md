@@ -367,10 +367,10 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 - [x] `index_update` is discoverable and runs incremental reconciliation without force-reparsing unchanged files.
 - [x] `index_update` preserves the project's persisted custom exclusion rules.
 - [x] `index_update` reports the standard index summary and advances the index revision.
-- [x] Selective index updates accept project-relative file and directory paths plus include globs, and reject path traversal.
-- [x] File and directory-entry budgets are validated, enforced, and reported with explicit truncation metadata.
-- [x] Selective and truncated updates never delete indexed files outside the selected scope; bounded explicit MCP updates can commit processed files without pretending the remaining scope was scanned.
-- [x] MCP schema and valid-call tests cover selective update options; core tests cover file, directory, glob, limits, partial reconciliation, and out-of-scope deletion safety.
+- [ ] Selective index updates accept project-relative file and directory paths plus include globs, and reject path traversal.
+- [ ] File and directory-entry budgets are validated, enforced, and reported with explicit truncation metadata.
+- [ ] Selective and truncated updates never delete indexed files outside the selected scope; bounded explicit MCP updates can commit processed files without pretending the remaining scope was scanned.
+- [ ] MCP schema and valid-call tests cover selective update options; core tests cover file, directory, glob, limits, partial reconciliation, and out-of-scope deletion safety.
 - [x] `memory_propose` persists a durable memory with status `proposed`, never `confirmed`.
 - [x] Proposed memories remain subject to the existing explicit lifecycle transition rules.
 - [x] `symbol_lookup` optional kind, file-path-prefix, and exported filters are validated and applied deterministically.
