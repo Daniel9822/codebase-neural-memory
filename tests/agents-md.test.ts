@@ -58,6 +58,12 @@ describe("generated agent instructions", () => {
     expect(updated).not.toContain("tool=opencode");
   });
 
+  it("refuses to overwrite a directory at the AGENTS.md path", () => {
+    const location = createProject();
+    mkdirSync(join(location.rootPath, "AGENTS.md"));
+    expect(() => ensureAgentInstructions(location)).toThrow("regular file");
+  });
+
   it("detects manual edits to the managed section without changing user content", () => {
     const location = createProject();
     ensureAgentInstructions(location);
