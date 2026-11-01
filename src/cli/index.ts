@@ -177,8 +177,8 @@ program.command("blame <file>")
   .description("Show bounded Git line attribution for a tracked project file.")
   .option("--start-line <number>", "First line to attribute", parsePositiveInteger, 1)
   .option("--end-line <number>", "Last line to attribute (maximum 200-line range)", parsePositiveInteger, 100)
-  .action((file: string, options: { startLine: number; endLine: number }) => {
-    console.log(JSON.stringify(getGitBlame(ensureInitialized().rootPath, file, options.startLine, options.endLine), null, 2));
+  .action(async (file: string, options: { startLine: number; endLine: number }) => {
+    console.log(JSON.stringify(await getGitBlame(ensureInitialized().rootPath, file, options.startLine, options.endLine), null, 2));
   });
 
 program.command("dependencies <file>")
