@@ -1,6 +1,10 @@
-# Changelog\n\n## Unreleased\n\n- Add bounded directory-boundary component maps with cross-directory import counts and directed shortest dependency distances.
+# Changelog
 
 ## Unreleased
+
+- Add bounded directory-boundary component maps with cross-directory import counts and directed shortest dependency distances.
+
+
 
 - Preserve bounded multiline TypeScript/JavaScript declaration headers in indexed symbol signatures; keep implementation bodies available only through bounded source retrieval.
 - Add freshness warnings to all indexed MCP reads, with optional strict refusal and guarded incremental auto-update.
