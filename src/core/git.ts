@@ -76,7 +76,14 @@ export function getGitSnapshot(rootPath: string): GitSnapshot {
   }
 
   const records = porcelain.split("\\n");
-  const statusRecords = records.filter((line) => line.length > 0 && !line.startsWith("#"));
+  const statusRecords: string[] = [];
+  for (let index = 0; index < records.length; index += 1) {
+    const line = records[index] ?? "";
+    if (!line || line.startsWith("#")) continue;
+    statusRecords.push(line);
+    // Porcelain v2 rename/copy records carry the original path on the next line.
+    if (line.startsWith("2 ")) index += 1;
+  }
   const branchHead = records.find((line) => line.startsWith("# branch.head "))?.slice("# branch.head ".length);
   const branchOid = records.find((line) => line.startsWith("# branch.oid "))?.slice("# branch.oid ".length);
   return {
