@@ -213,7 +213,7 @@ function readLocalPackages(rootPath: string, files: Array<{ id: number; path: st
   for (const packageRoot of [...packageRoots].sort((a, b) => a.localeCompare(b))) {
     try {
       const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")) as { name?: unknown; exports?: unknown };
-      if (typeof manifest.name !== "string" || !manifest.name || manifest.exports === undefined) continue;
+      if (typeof manifest.name !== "string" || !manifest.name) continue;
       const entries = packages.get(manifest.name) ?? [];
       entries.push({ root: packageRoot, exports: manifest.exports });
       packages.set(manifest.name, entries);
