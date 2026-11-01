@@ -331,3 +331,20 @@ These are not requirements for v1:
 - Agent-driven source-code editing.
 
 They may be reconsidered only after the local individual workflow is reliable and evaluated.
+
+
+## Agent readiness and durable memory v2 — In progress
+
+This work turns CNM into an agent-ready project capability rather than relying on each repository owner to hand-author agent instructions.
+
+- [x] Generate a managed CNM instruction section in root `AGENTS.md` during `cnm init`; create the file when absent and preserve existing user-authored content.
+- [x] Add `cnm agents-md` with `--check`, `--print`, and tool flavors (`opencode`, `claude`, `cursor`, `generic`). The managed block is idempotent and hash-stamped.
+- [x] Instruct agents to proactively propose durable architectural knowledge, conventions, verified fixes, and important workflows.
+- [x] Make proposed memories discoverable by natural-language recall and list mode, with lifecycle and category filters; proposed entries remain visibly unconfirmed.
+- [x] Add an explicit MCP `memory_transition` operation. An agent may transition a proposal to `confirmed` only after clear user authorization; the tool itself does not infer consent.
+- [x] Document cross-agent continuity: memories remain in the project database and are available to any connected agent using the same project binding.
+- [ ] Validate external package imports and named import bindings (NP2 from Contract v2). The structural import graph is not a substitute for compiler diagnostics.
+- [x] Retain opt-in auto-refresh and strict freshness policies from the previous agent workflow work; do not add a second refresh mechanism.
+- [ ] Add full regression coverage and cross-platform CI evidence for the new generator, retrieval ranking, and memory transition tool before merge.
+
+**Acceptance:** a fresh project gets useful agent instructions from `cnm init`; an existing `AGENTS.md` retains its original content; natural-language queries discover relevant confirmed and proposed memories; and only an explicit user approval allows the agent to confirm a proposal.
