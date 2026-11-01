@@ -391,6 +391,30 @@ describe("bounded dependency traversal and file details", () => {
 });
 
 describe("bounded file detail retrieval", () => {
+  it("returns bounded TypeScript package and named-export diagnostics", () => {
+    createProject();
+    const packageRoot = join(location.rootPath, "node_modules", "fixture-package");
+    mkdirSync(packageRoot, { recursive: true });
+    writeFileSync(join(packageRoot, "package.json"), JSON.stringify({ name: "fixture-package", types: "index.d.ts" }));
+    writeFileSync(join(packageRoot, "index.d.ts"), "export declare const present: boolean;");
+    writeFileSync(join(location.rootPath, "imports.ts"), [
+      'import { missing } from "fixture-package";',
+      'import { absent } from "not-installed-fixture";',
+      "void missing; void absent;",
+    ].join("\\n"));
+    indexWithDatabase(database!, location);
+
+    const details = getFileDetails(location, "imports.ts");
+    expect(details.importDiagnostics).toEqual([
+      expect.objectContaining({ specifier: "fixture-package", kind: "missing-export", code: 2305, importedName: "missing", line: 1 }),
+      expect.objectContaining({ specifier: "not-installed-fixture", kind: "missing-package", code: 2307, line: 2 }),
+    ]);
+    expect(details.totals.importDiagnostics).toBe(2);
+    expect(details.truncated.importDiagnostics).toBe(false);
+    expect(getFileDetails(location, "imports.ts", 1).importDiagnostics).toHaveLength(1);
+    expect(getFileDetails(location, "imports.ts", 1).truncated.importDiagnostics).toBe(true);
+  });
+
   it("limits every collection and reports totals and truncation", () => {
     createProject();
     writeFileSync(join(location.rootPath, "many.ts"), `
