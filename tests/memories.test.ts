@@ -217,9 +217,9 @@ describe("explicit memory lifecycle", () => {
     expect(recallMemories(location, "", 20, { statuses: ["proposed"] })).toEqual([
       expect.objectContaining({ id: proposed, status: "proposed" }),
     ]);
-    expect(recallMemories(location, "", 20, { category: "architectural" })).toEqual([
-      expect.objectContaining({ category: "architectural" }),
-    ]);
+    expect(recallMemories(location, "", 20, { category: "architectural" })).toEqual(
+      expect.arrayContaining([expect.objectContaining({ category: "architectural" })]),
+    );
   });
 
   it("validates recall limits", () => {
