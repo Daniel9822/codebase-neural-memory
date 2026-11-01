@@ -4,7 +4,7 @@ This document turns the v2 proposal into implementation gaps. It distinguishes r
 
 ## Baseline inspected
 
-Baseline: `main` at `27181d65034e941d04485ac68aeb8951f1a3789e`.
+Baseline: `main` after PR #60 (`d4d0fdfd39a848d30bc6456360dbc228f5c12ae7`).
 
 Already present on the baseline:
 
@@ -35,17 +35,21 @@ The TypeScript analyzer and persistence already exist. This change exposes per-f
 
 Supported diagnostic classes currently include TypeScript missing-module and missing-export codes. This remains static analysis over indexed source files, not a replacement for `tsc`, a bundler, runtime module loading, or tests. Dynamic imports and unsupported/unindexed files may remain outside coverage.
 
-### P2 — hardening still required
+### P2 — auto-update failure and snapshot hardening
 
-The successful auto-update path is already implemented. Additional failure-mode tests remain required for:
-- incomplete Git discovery;
-- more than 50 changed files;
-- index update failure/rollback;
-- concurrent reads attempting refresh;
-- source drift during an update;
-- strict freshness behavior after skipped or failed refresh.
+The successful auto-update path remains bounded to at most 50 changed source files and refuses incomplete discovery. This change hardens the update transaction itself:
 
-Do not describe these cases as validated until tests and CI establish their behavior.
+- Automatic reconciliation now requires complete discovery; skipped, unreadable, or protected source paths abort before any database write.
+- Per-file parse/index failures abort and roll back the whole automatic update instead of committing a partial revision.
+- A second source discovery compares every supported path and SHA-256 hash before commit. File drift or newly incomplete discovery aborts and rolls back the transaction.
+- Git snapshot drift continues to abort the transaction.
+- MCP auto-update failures are caught and reported. Strict freshness returns a structured refusal with the skipped/failure reason and never serves stale indexed data; non-strict mode labels the failed refresh and retains the freshness warning.
+- Successful auto-update is announced only after the post-update freshness check reports `current`.
+- Concurrent MCP read requests in the same Node process are covered; the index/update path is synchronous, so those handlers cannot interleave their refresh transactions on the event loop. Cross-process contention remains governed by SQLite transaction locking and is not claimed as covered by this test.
+
+Covered by MCP adapter tests: incomplete discovery, the 50-file ceiling, forced SQLite relation failure with rollback, strict refusal after failure, and concurrent reads producing one index revision.
+
+The second-discovery guard is implemented to detect source drift during reconciliation. A deterministic race-injection test is not currently provided; the guard should not be described as race-proof against changes occurring after its final verification point.
 
 ### NP5 — diagnostic provenance and confidence (follow-up)
 
@@ -65,9 +69,9 @@ Add reproducible agent-task scenarios for symbol discovery, implementation expla
 - [x] Missing package and missing named-export cases are covered by retrieval tests.
 - [x] MCP adapter test verifies the same diagnostics are present in the actual `file_details` tool response.
 - [ ] Full typecheck, complete tests, build, smoke, and cross-platform CI pass on the final PR head.
-- [ ] P2 failure-mode matrix is covered by tests.
+- [x] P2 tests cover incomplete discovery, the 50-file ceiling, transactional rollback, strict refusal after failure, and same-process concurrent reads. Source-drift revalidation is implemented; a deterministic race-injection test remains open.
 - [ ] Agent behavior scenarios are exercised against a real supported MCP client.
 
 ## Validation record
 
-The implementation is proposed on a feature branch. No local test suite or build has been run in this session. CI results must be recorded against the final PR head before treating this work as validated.
+Implementation is proposed on `feat/auto-update-failure-hardening`. No local test suite or build has been run in this session. CI results must be recorded against the final PR head before treating this work as validated.
