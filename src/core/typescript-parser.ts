@@ -45,7 +45,7 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
   const heritage: ParsedHeritage[] = [];
   const importedBindings = new Map<string, { moduleSpecifier: string; importedName: string }>();
   const shadowedImportedNames = new Set<string>();
-  const isTestFile = /(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(filePath);
+  const isTestFile = /(^|[/\\])(?:tests?|__tests__)([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(filePath);
   const testRegistrationNames = new Set(["it", "test", "specify", "fit", "xit", "xtest"]);
   const testCaseOccurrences = new Map<string, number>();
 
