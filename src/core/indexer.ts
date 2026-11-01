@@ -56,11 +56,24 @@ export interface IndexOptions {
   maxProcessed?: number;
 }
 function normalizeScopePaths(paths: string[] = []): string[] {
+  if (paths.length > 100) throw new Error("At most 100 index scope paths are allowed.");
   return paths.map((value) => {
     const normalized = value.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
-    if (!normalized || normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized) ||
+    if (!normalized || normalized.length > 500 || normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized) ||
       normalized.split("/").some((part) => part === ".." || part === ".")) {
-      throw new Error("Index scope paths must be non-empty project-relative paths without traversal.");
+      throw new Error("Index scope paths must be non-empty project-relative paths (max 500 characters) without traversal.");
+    }
+    return normalized;
+  });
+}
+function normalizeIncludePatterns(patterns: string[] = []): string[] {
+  if (patterns.length > 100) throw new Error("At most 100 index include patterns are allowed.");
+  return patterns.map((pattern) => {
+    const normalized = pattern.replaceAll("\\", "/").trim();
+    if (!normalized || normalized.length > 500 || normalized.startsWith("/") ||
+      /^[A-Za-z]:/.test(normalized) || normalized.startsWith("!") ||
+      normalized.split("/").some((part) => part === "..")) {
+      throw new Error("Include patterns must be project-relative glob patterns (max 500 characters) without negation or traversal.");
     }
     return normalized;
   });
@@ -71,9 +84,6 @@ function validateIndexOptions(options: IndexOptions): void {
   }
   if (options.maxProcessed !== undefined && (!Number.isInteger(options.maxProcessed) || options.maxProcessed < 1 || options.maxProcessed > 100_000)) {
     throw new Error("maxProcessed must be an integer between 1 and 100000.");
-  }
-  if (options.include?.some((pattern) => !pattern.trim() || pattern.trimStart().startsWith("!"))) {
-    throw new Error("Include patterns must be non-empty and cannot use negation.");
   }
 }
 function isWithinIndexScope(path: string, paths: string[], includeMatcher?: ReturnType<typeof ignore>): boolean {
@@ -111,7 +121,8 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
 export function discoverFiles(root: string, extraExcludes: string[] = [], options: IndexOptions = {}): DiscoveryResult {
   validateIndexOptions(options);
   const selectedPaths = normalizeScopePaths(options.paths);
-  const includeMatcher = options.include?.length ? ignore().add(options.include) : undefined;
+  const includePatterns = normalizeIncludePatterns(options.include);
+  const includeMatcher = includePatterns.length ? ignore().add(includePatterns) : undefined;
   const output: DiscoveredFile[] = [];
   const presentPaths = new Set<string>();
   const protectedDirectories = new Set<string>();
