@@ -288,6 +288,32 @@ describe("indexWithDatabase", () => {
       .toEqual([{ name: "secondVersion" }]);
   });
 
+  it("rebuilds graph relations when TypeScript/package configuration changes without source edits", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"),
+      'import { helper } from "@/helper";\\nexport function run() { return helper(); }');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+
+    indexWithDatabase(database!, location);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
+      .toEqual({ count: 0 });
+    const before = database!.prepare("SELECT relations_config_hash FROM projects WHERE id = ?")
+      .get(location.id) as { relations_config_hash: string };
+
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
+    }));
+    const refreshed = indexWithDatabase(database!, location);
+    const after = database!.prepare("SELECT relations_config_hash FROM projects WHERE id = ?")
+      .get(location.id) as { relations_config_hash: string };
+
+    expect(refreshed.unchanged).toBe(2);
+    expect(after.relations_config_hash).not.toBe(before.relations_config_hash);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
+      .toEqual({ count: 1 });
+  });
+
   it("records missing and ambiguous relative imports without guessing a target", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
