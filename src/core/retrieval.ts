@@ -502,10 +502,11 @@ export interface FileDetails {
   symbols: FileDetailSymbol[];
   imports: Array<{ path: string; provenance: string; confidence: number; indexRevision: number }>;
   unresolvedImports: Array<{ specifier: string; status: string; candidates: string[] }>;
+  importDiagnostics: Array<{ specifier: string; kind: string; code: number; message: string; line: number; column: number; importedName: string | null }>;
   relations: FileDetailRelation[];
   limits: { perCollection: number };
-  totals: { symbols: number; imports: number; unresolvedImports: number; relations: number };
-  truncated: { symbols: boolean; imports: boolean; unresolvedImports: boolean; relations: boolean };
+  totals: { symbols: number; imports: number; unresolvedImports: number; importDiagnostics: number; relations: number };
+  truncated: { symbols: boolean; imports: boolean; unresolvedImports: boolean; importDiagnostics: boolean; relations: boolean };
 }
 
 export function getFileDetails(
@@ -529,6 +530,7 @@ export function getFileDetails(
       symbols: (db.prepare("SELECT COUNT(*) AS count FROM symbols WHERE file_id = ?").get(file.id) as { count: number }).count,
       imports: (db.prepare("SELECT COUNT(*) AS count FROM relations WHERE source_kind = 'file' AND source_id = ? AND kind = 'IMPORTS'").get(file.id) as { count: number }).count,
       unresolvedImports: (db.prepare("SELECT COUNT(*) AS count FROM unresolved_imports WHERE source_file_id = ?").get(file.id) as { count: number }).count,
+      importDiagnostics: (db.prepare("SELECT COUNT(*) AS count FROM import_diagnostics WHERE source_file_id = ?").get(file.id) as { count: number }).count,
       relations: (db.prepare(`SELECT COUNT(*) AS count FROM relations r
         JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
         JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
@@ -554,6 +556,12 @@ export function getFileDetails(
       status: row.status as string,
       candidates: JSON.parse(row.candidatesJson as string) as string[],
     }));
+    const importDiagnostics = db.prepare(`
+      SELECT module_specifier AS specifier, kind, diagnostic_code AS code, message, line,
+        column_number AS column, imported_name AS importedName
+      FROM import_diagnostics WHERE source_file_id = ?
+      ORDER BY line, column_number, diagnostic_code LIMIT ?
+    `).all(file.id, limit) as FileDetails["importDiagnostics"];
     const relations = db.prepare(`
       SELECT CASE WHEN source.file_id = ? THEN 'outgoing' ELSE 'incoming' END AS direction,
         r.kind AS relation,
@@ -574,13 +582,14 @@ export function getFileDetails(
     return {
       path: file.path, stableId: file.stableId, language: file.language, extension: file.extension,
       contentHash: file.contentHash, indexedAt: file.indexedAt, indexRevision: project.index_revision,
-      symbols, imports, unresolvedImports, relations,
+      symbols, imports, unresolvedImports, importDiagnostics, relations,
       limits: { perCollection: limit },
       totals,
       truncated: {
         symbols: totals.symbols > symbols.length,
         imports: totals.imports > imports.length,
         unresolvedImports: totals.unresolvedImports > unresolvedImports.length,
+        importDiagnostics: totals.importDiagnostics > importDiagnostics.length,
         relations: totals.relations > relations.length,
       },
     };
