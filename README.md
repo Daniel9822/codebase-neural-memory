@@ -180,10 +180,10 @@ MIT. See [LICENSE](LICENSE).
 
 ## Task context
 
-Build a deterministic, bounded context bundle for a task from the local index and project memories:
+Build a deterministic, bounded context bundle for a task from the local index and project memories. In addition to total item/character limits, set independent category limits for symbols, files, dependencies, tests, and memories:
 
 ```sh
-cnm context "Fix authentication token refresh and update tests" --max-items 20 --max-characters 12000
+cnm context "Fix authentication token refresh and update tests" --max-items 20 --max-characters 12000 --symbol-limit 20 --file-limit 10 --dependency-limit 20 --test-limit 20 --memory-limit 20
 ```
 
-The JSON response includes lexical anchors, ranked symbols/files/memories/test paths, source references, lifecycle and freshness warnings, budget usage, and follow-up prompts. Memory statuses are not collapsed: proposed and obsolete records are labeled and accompanied by warnings. The MCP adapter exposes the same capability as `task_context`. Retrieval remains lexical/structural and does not claim semantic completeness.
+The JSON response includes lexical anchors, ranked symbols/files/memories/test paths, source references, lifecycle and freshness warnings, total budget usage, and per-category limits/usage/truncation metadata. Memory statuses are not collapsed: proposed and obsolete records are labeled and accompanied by warnings. The MCP adapter exposes the same capability as `task_context`. Retrieval remains lexical/structural and does not claim semantic completeness.
