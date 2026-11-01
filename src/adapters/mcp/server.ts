@@ -225,8 +225,9 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       message: "Git blame range cannot exceed 200 lines",
       path: ["endLine"],
     }),
-  }, async ({ path, startLine, endLine }) => readResponse(location, options, () =>
-    getGitBlame(location.rootPath, path, startLine, endLine)));
+  }, async ({ path, startLine, endLine }) => ({
+    content: [{ type: "text", text: JSON.stringify(await getGitBlame(location.rootPath, path, startLine, endLine), null, 2) }],
+  }));
 
   server.registerTool("change_impact", {
     description: "Find indexed files that import a target file, recursively, with explicit result and processing limits.",
