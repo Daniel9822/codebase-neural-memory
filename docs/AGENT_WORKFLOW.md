@@ -16,7 +16,7 @@ CNM generates and maintains a managed instruction section in the target reposito
 2. Use `file_details` for indexed file structure, imports, and relationships; enable `inlineSnippets` when useful.
 3. Use `source_excerpt` for exact line ranges returned by CNM.
 4. For broad tasks, call `task_context` with explicit `anchors.paths` and/or `anchors.symbols`.
-5. Use `dependency_graph` with low depth first; use `change_impact` before changing high-fan-in contracts.
+5. Use `dependency_graph` with low depth first; use `change_impact` before changing high-fan-in files. For a specific function, class, or interface, use `symbol_impact` with `direction: "incoming"` to find callers, subclasses, and implementors; disambiguate repeated names with `filePath`, `kind`, or `startLine`. Use `direction: "outgoing"` to inspect the symbol's dependencies.
 6. An empty result means “not found by this retrieval method”, not “does not exist”.
 
 ## Freshness and safe fallbacks
