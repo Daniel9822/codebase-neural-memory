@@ -57,7 +57,10 @@ function readResponse<T>(
       try {
         updateProjectIndex(location);
         freshness = getIndexFreshness(location);
-        refreshed = true;
+        refreshed = freshness.status === "current";
+        if (!refreshed) {
+          autoUpdateFailureReason = `post-update freshness verification returned status "${freshness.status}"; the read will not be treated as current.`;
+        }
       } catch (error) {
         autoUpdateFailureReason = error instanceof Error ? error.message : String(error);
         // A failed refresh must never make the pre-refresh snapshot look current.
