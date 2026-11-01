@@ -382,6 +382,33 @@ function expandSourceCandidates(base: string): string[] {
       ...["index.ts", "index.tsx", "index.js", "index.jsx"].map((file) => `${base}/${file}`)];
 }
 
+function computeRelationsConfigHash(rootPath: string, files: Array<{ path: string }>): string {
+  const packageDirectories = new Set<string>([""]);
+  for (const file of files) {
+    let directory = posix.dirname(file.path.replaceAll("\\", "/"));
+    while (directory !== "." && directory !== "") {
+      packageDirectories.add(directory);
+      directory = posix.dirname(directory);
+    }
+  }
+  const configPaths = [
+    "tsconfig.json",
+    ...[...packageDirectories].map((directory) =>
+      directory ? posix.join(directory, "package.json") : "package.json"),
+  ].sort((a, b) => a.localeCompare(b));
+  const hash = createHash("sha256");
+  for (const configPath of configPaths) {
+    hash.update(configPath).update("\\0");
+    try {
+      hash.update(readFileSync(join(rootPath, ...configPath.split("/"))));
+    } catch {
+      hash.update("<missing>");
+    }
+    hash.update("\\0");
+  }
+  return hash.digest("hex");
+}
+
 function rebuildRelations(db: MemoryDatabase, rootPath: string, indexRevision: number): number {
   db.prepare("DELETE FROM relations").run();
   const files = db.prepare("SELECT id, path FROM files").all() as Array<{ id: number; path: string }>;
@@ -727,6 +754,10 @@ export function indexWithDatabase(
   }
   const { files: discovered, presentPaths } = discovery;
   return db.transaction(() => {
+    const projectState = db.prepare("SELECT relations_config_hash FROM projects WHERE id = ?").get(location.id) as {
+      relations_config_hash: string | null;
+    } | undefined;
+    if (!projectState) throw new Error("Project record is missing; run cnm init first.");
     db.prepare("UPDATE projects SET index_excludes_json = ? WHERE id = ?").run(JSON.stringify(extraExcludes), location.id);
     const existing = db.prepare("SELECT id, stable_id, path, content_hash FROM files").all() as Array<{
       id: number; stable_id: string; path: string; content_hash: string;
@@ -818,11 +849,13 @@ export function indexWithDatabase(
     db.prepare("UPDATE projects SET index_revision = index_revision + 1 WHERE id = ?").run(location.id);
     const revisionRow = db.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number } | undefined;
     if (!revisionRow) throw new Error("Project record is missing; run cnm init first.");
-    // Relationship resolution and import diagnostics depend on indexed source
-    // content, not on index revisions. Avoid a full-project graph rebuild when
-    // this run only confirmed unchanged files or encountered protected skips.
+    // Relationship resolution and import diagnostics depend on source files and
+    // package/TypeScript configuration. Rebuild only when one of those inputs changed.
     const sourceIndexChanged = summary.added > 0 || summary.updated > 0 || summary.deleted > 0;
-    if (sourceIndexChanged) {
+    const configFiles = db.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
+    const currentRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles);
+    const relationsNeedRebuild = sourceIndexChanged || currentRelationsConfigHash !== projectState.relations_config_hash;
+    if (relationsNeedRebuild) {
       summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
     } else {
       // Keep graph revision metadata aligned without re-resolving every import,
@@ -830,6 +863,7 @@ export function indexWithDatabase(
       db.prepare("UPDATE relations SET index_revision = ?").run(revisionRow.index_revision);
       summary.relations = (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
     }
+    db.prepare("UPDATE projects SET relations_config_hash = ? WHERE id = ?").run(currentRelationsConfigHash, location.id);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
     if (options.requireCompleteSnapshot) {
       const finalDiscovery = discoverFiles(location.rootPath, extraExcludes, options);
