@@ -56,8 +56,6 @@ MCP exposes read/retrieval tools plus two explicit local write operations throug
 - `index_freshness` — read-only source-file and Git commit/branch/working-tree versus index freshness report. Each successful index records its Git snapshot; freshness compares the current `HEAD`, branch, and porcelain working-tree hash and still performs a deterministic source scan.
 - `project_map` — indexed files and locally resolved imports.
 - `symbol_lookup` — bounded lexical symbol search with ranking signals, optional filters, and verified inline source snippets.
-- `file_details` — bounded indexed file metadata, with optional inline source snippets.
-- `task_context` — bounded context with optional exact path/symbol anchors and per-item origin labels.
 - `index_update` — incremental working-tree reconciliation using persisted project exclusions.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
 - `file_details` — bounded indexed file metadata, symbols, imports, and relations.
