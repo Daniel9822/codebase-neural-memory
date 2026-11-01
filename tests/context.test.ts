@@ -23,6 +23,7 @@ function setup(): void {
   writeFileSync(join(rootPath, "src", "auth.ts"), "import { normalizeToken } from './token';\nimport './missing-module';\nexport function refreshAuthToken() { return normalizeToken(); }\n");
   writeFileSync(join(rootPath, "src", "token.ts"), "export function normalizeToken() { return true; }\n");
   writeFileSync(join(rootPath, "tests", "auth.test.ts"), "import { refreshAuthToken } from '../src/auth';\n");
+  writeFileSync(join(rootPath, "src", "auth.test.ts"), "import { refreshAuthToken } from './auth';\n");
   writeFileSync(join(rootPath, "tests", "billing.test.ts"), "export function calculatesInvoiceTotal() { return 42; }\\n");
   indexWithDatabase(db, location);
 }
@@ -51,6 +52,7 @@ describe("task-oriented context builder", () => {
       target: "src/auth.ts",
       relationship: "direct-or-transitive-import-dependent",
     });
+    expect(result.items.some((item) => item.kind === "test" && item.source === "src/auth.test.ts" && item.origin === "graph")).toBe(true);
     expect(result.items.some((item) => item.kind === "test" && item.source === "tests/billing.test.ts")).toBe(false);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "confirmed")).toBe(true);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "proposed")).toBe(true);
