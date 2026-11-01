@@ -533,6 +533,7 @@ describe("findSymbolImpact", () => {
   it("maps concrete test cases to the imported symbols they call", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    mkdirSync(join(location.rootPath, "tests"), { recursive: true });
     writeFileSync(join(location.rootPath, "src", "auth.ts"), "export function refreshAuthToken() { return true; }\n");
     writeFileSync(join(location.rootPath, "tests", "auth.test.ts"), `import { it } from "vitest";
 import { refreshAuthToken } from "../src/auth";
