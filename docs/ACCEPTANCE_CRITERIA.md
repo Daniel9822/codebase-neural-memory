@@ -2,7 +2,7 @@
 
 **Product:** Codebase Neural Memory (CNM)  
 **Purpose:** Verifiable completion conditions for the roadmap  
-**Last reviewed:** 2026-10-31
+**Last reviewed:** 2026-11-01
 
 ## 1. How to use this document
 
@@ -388,7 +388,17 @@ The following capabilities remain open: signature-regex search, semantic impact/
 - [x] task_context accepts explicit path/symbol anchors, suppresses broad lexical fallback in anchored mode, and labels items as anchor, graph, or fallback.
 - [x] Anchored context does not inject unrelated repository test paths or lexical memories.
 - [x] MCP-first workflow documentation defines start-of-session freshness/memory checks, pre-edit retrieval, post-edit verification, and proposed-memory review.
-- [ ] Typecheck, complete test suite, build, smoke, and cross-platform CI pass on the final PR head.
+- [x] Typecheck, complete test suite, build, smoke, and cross-platform CI pass on the final PR head (run 41285903567; PR #55; merge commit de0cc1056469113995647d1d10199e08da39dc42).
 - [ ] Verify the new contract in at least one real OpenCode and one VS Code/Copilot client after merging; simulated protocol tests alone do not satisfy this item.
 
 **Safety note:** the auto-update limit is a changed-file count, not a wall-clock timeout. The indexer is synchronous; no five-second cancellation guarantee is claimed. Source excerpts independently report hash status to detect a change between freshness preflight and the actual read.
+
+
+**Agent-trust verification record**
+
+- **Result:** PASS for automated verification.
+- **Merged PR:** [#55 — freshness-aware MCP reads and anchored context](https://github.com/Daniel9822/codebase-neural-memory/pull/55).
+- **Merge commit:** `de0cc1056469113995647d1d10199e08da39dc42`.
+- **PR-head CI:** [GitHub Actions #41285903567](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41285903567) — all verify and benchmark jobs passed.
+- **Commands passed:** `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, `npm run smoke`, and benchmark on Ubuntu, Windows, and macOS.
+- **Manual client verification:** still open. The new warnings, strict refusal, auto-update, inline source, and anchor schemas have automated MCP adapter coverage; a post-merge OpenCode and VS Code/Copilot manual check is not claimed.
