@@ -203,6 +203,7 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
         failed += 1;
         errors.push(relativePath + ": " + (error instanceof Error ? error.message : String(error)));
       }
+      }
     } catch (error) {
       failed += 1;
       errors.push((directoryPath || ".") + ": " + (error instanceof Error ? error.message : String(error)));
