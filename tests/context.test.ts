@@ -45,6 +45,12 @@ describe("task-oriented context builder", () => {
     expect(result.items.some((item) => item.kind === "symbol" && item.title.includes("refreshAuthToken"))).toBe(true);
     expect(result.items.some((item) => item.kind === "dependency" && item.source === "src/token.ts")).toBe(true);
     expect(result.items.some((item) => item.kind === "test" && item.source === "tests/auth.test.ts")).toBe(true);
+    const mappedTest = result.items.find((item) => item.kind === "test" && item.source === "tests/auth.test.ts" && item.origin === "graph");
+    expect(mappedTest?.signals).toContain("reverse-import-dependent");
+    expect(mappedTest?.detail).toMatchObject({
+      target: "src/auth.ts",
+      relationship: "direct-or-transitive-import-dependent",
+    });
     expect(result.items.some((item) => item.kind === "test" && item.source === "tests/billing.test.ts")).toBe(false);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "confirmed")).toBe(true);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "proposed")).toBe(true);
