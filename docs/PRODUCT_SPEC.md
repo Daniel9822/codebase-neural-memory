@@ -66,7 +66,7 @@ Expected workflow:
 - A graph data model for typed relationships.
 - Local project notes and decisions explicitly entered by the developer.
 - Structural and textual retrieval.
-- A read-only MCP stdio adapter.
+- An MCP stdio adapter with read/retrieval tools, incremental index reconciliation, and proposed-only memory creation.
 - Tests, diagnostics, and documentation.
 
 ### Explicitly out of scope for the first stable release
@@ -97,7 +97,7 @@ The repository currently documents and contains an initial JavaScript/TypeScript
 - Bounded file details with source metadata, symbols, resolved/unresolved imports, relations, per-collection totals, and truncation flags.
 - Read-only source and Git freshness reports: `cnm freshness` / `index_freshness` record indexed commit/branch and working-tree state; `cnm memory freshness` / `memory_freshness` compare memory commit references with current Git ancestry and file fingerprints. These checks do not change memory lifecycle state. Reconciliation uses deterministic scans; no background watcher is implemented.
 - Explicit local memories, currently saved as confirmed records by the CLI.
-- Read-only MCP tools registered in `src/adapters/mcp/server.ts` (10): `project_overview`, `index_freshness`, `project_map`, `symbol_lookup`, `dependency_graph`, `file_details`, `change_impact`, `task_context`, `memory_freshness`, and `memory_recall`.
+- MCP tools registered in `src/adapters/mcp/server.ts` (13): `project_overview`, `index_freshness`, `index_update`, `project_map`, `symbol_lookup`, `dependency_graph`, `file_details`, `source_excerpt`, `change_impact`, `task_context`, `memory_freshness`, `memory_propose`, and `memory_recall`.
 - MCP input schemas, adapter defaults and hard bounds, core-operation mappings, project binding, and known verification gaps are specified in [`docs/PHASE_6_MCP_CONTRACT.md`](PHASE_6_MCP_CONTRACT.md). Workspace-scoped OpenCode and VS Code setup templates and a real-client verification runbook are provided in [`docs/CLIENT_INTEGRATION.md`](CLIENT_INTEGRATION.md); both clients have completed manual `project_overview` and `symbol_lookup` calls against the local CNM repository. Recorded versions are VS Code 1.144.0 (x64), OpenCode 1.19.5, and Node.js v22.12.0. The validated VS Code installation provides the integrated GitHub Copilot Agent experience; no separate extension version is tracked.
 
 Known limitations in this baseline include conservative import resolution, same-file/local call resolution, simple memory lifecycle, path-derived project identity, no conceptual component extraction/retrieval, initial synthetic and cross-platform real-CNM-repository performance baselines now exist; additional independent repositories, broader relevance judgments, and controlled agent-task comparisons remain pending, and lack of semantic embeddings, automatic file watching, advanced Git history analysis, and multi-developer synchronization.
@@ -192,9 +192,9 @@ No initialization or indexing operation may upload repository content. No team s
 - Keep lexical/structural retrieval useful without embeddings.
 
 ### Agent integration
-- Expose read-only retrieval tools over local MCP stdio.
+- Expose retrieval tools over local MCP stdio; allow explicit incremental index reconciliation and proposed-only memory creation. Confirmation and other memory lifecycle mutations remain human-controlled.
 - Validate all tool inputs.
-- Keep writes and indexing under explicit CLI control in the initial release.
+- Keep index reconciliation and memory proposal as explicit MCP calls; never silently confirm a proposal. Other memory lifecycle mutations remain under explicit CLI control.
 - Avoid logging source contents or memory bodies unnecessarily.
 
 ## 11. Non-functional requirements

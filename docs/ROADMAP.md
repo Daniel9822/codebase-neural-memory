@@ -249,6 +249,21 @@ Deliverable: reproducible evaluation suite and evidence-based performance improv
 
 Exit condition: documented benchmarks, stable regression tests, and no known data-integrity failures in the supported scenarios.
 
+### Phase 6 follow-up — Agent-operable indexing and memory proposals
+
+**Status:** Implementation added on branch `feat/agent-capabilities-followup`; awaiting CI verification and review in the next pull request.
+
+- [x] Expose explicit incremental MCP index reconciliation while preserving persisted project exclusions.
+- [x] Expose an agent memory-proposal operation that can create only `proposed` records; human confirmation remains a separate action.
+- [x] Add optional symbol kind, project-relative path-prefix, and export filters to MCP symbol lookup.
+- [ ] Verify MCP schemas, valid calls, invalid inputs, incremental update behavior, exclusion preservation, and proposed-only memory status in CI.
+- [ ] Complete the remaining agent-capability gaps: richer signature/body retrieval, semantic impact and distances, test-to-symbol mapping, granular task-context budgets, and Git blame/session rationale.
+- [ ] Evaluate bounded reindex controls and stronger path/glob matching before broad adoption.
+
+Deliverable: agents can explicitly refresh derived index state and submit reviewable memory suggestions without silently confirming project knowledge.
+
+Exit condition: full CI passes on the PR head; protocol and core tests prove the write boundaries; documentation matches the registered tools.
+
 ## Phase 9 — Optional semantic retrieval
 
 **Status:** Deferred until structural and lexical retrieval are stable.

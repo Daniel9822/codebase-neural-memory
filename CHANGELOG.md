@@ -1,4 +1,4 @@
-# Changelog
+# Changelog\n\n## Unreleased\n\n- Add MCP `index_update` for incremental working-tree reconciliation while preserving persisted exclusion rules.\n- Add MCP `memory_propose` for agent-authored suggestions that remain `proposed` until explicit human confirmation.\n- Add optional `symbol_lookup` filters for symbol kind, project-relative file path prefix, and export status.
 
 ## Unreleased
 

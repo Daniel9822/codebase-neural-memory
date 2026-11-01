@@ -1,9 +1,9 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
-import { getMemoryFreshnessReport, recallMemories } from "../../core/memories.js";
+import { getMemoryFreshnessReport, recallMemories, proposeMemory } from "../../core/memories.js";
 import { getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
-import { getIndexFreshness } from "../../core/indexer.js";
+import { getIndexFreshness, updateProjectIndex } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
 import type { ProjectLocation } from "../../core/project.js";
 
@@ -26,6 +26,13 @@ export function createMcpServer(location: ProjectLocation): McpServer {
       content: [{ type: "text", text: JSON.stringify(getIndexFreshness(location), null, 2) }],
     }));
 
+    server.registerTool("index_update", {
+      description: "Incrementally reconcile the local source index with the current working tree, preserving the project's configured exclusions. This is an explicit local write operation; unchanged files are skipped.",
+      inputSchema: z.object({}),
+    }, async () => ({
+      content: [{ type: "text", text: JSON.stringify(updateProjectIndex(location), null, 2) }],
+    }));
+
     server.registerTool("project_map", {
       description: "List indexed source files and their locally resolved imports.",
       inputSchema: z.object({ limit: z.number().int().min(1).max(200).optional() }),
@@ -34,11 +41,23 @@ export function createMcpServer(location: ProjectLocation): McpServer {
     }));
 
     server.registerTool("symbol_lookup", {
-      description: "Search indexed symbols. Results explain exact-name, name-term, signature, export, and FTS5 ranking signals.",
-      inputSchema: z.object({ query: z.string().min(1), limit: z.number().int().min(1).max(50).optional() }),
-    }, async ({ query, limit }) => ({
-      content: [{ type: "text", text: JSON.stringify(searchSymbols(location, query, limit ?? 20), null, 2) }],
-    }));
+      description: "Search indexed symbols with optional kind, project-relative path prefix, and export filters. Results explain lexical ranking signals and include source line ranges.",
+      inputSchema: z.object({
+        query: z.string().min(1),
+        limit: z.number().int().min(1).max(50).optional(),
+        kind: z.string().min(1).max(40).optional(),
+        filePath: z.string().min(1).max(500).optional(),
+        exported: z.boolean().optional(),
+      }),
+    }, async ({ query, limit, kind, filePath, exported }) => {
+      const normalizedPath = filePath?.replaceAll("\\", "/").replace(/^\.\//, "");
+      const results = searchSymbols(location, query, 1000).filter((item) =>
+        (kind === undefined || item.kind === kind) &&
+        (normalizedPath === undefined || item.filePath === normalizedPath || item.filePath.startsWith(normalizedPath.endsWith("/") ? normalizedPath : normalizedPath + "/")) &&
+        (exported === undefined || item.exported === exported),
+      ).slice(0, limit ?? 20);
+      return { content: [{ type: "text", text: JSON.stringify(results, null, 2) }] };
+    });
 
     server.registerTool("dependency_graph", {
       description: "Traverse direct or transitive file imports with relation provenance, confidence, depth, dependency chains, and explicit truncation limits.",
@@ -102,6 +121,23 @@ export function createMcpServer(location: ProjectLocation): McpServer {
       inputSchema: z.object({ task: z.string().min(1), maxItems: z.number().int().min(1).max(100).optional(), maxCharacters: z.number().int().min(100).max(50000).optional() }),
     }, async ({ task, maxItems, maxCharacters }) => ({
       content: [{ type: "text", text: JSON.stringify(buildTaskContext(location, task, { ...(maxItems === undefined ? {} : { maxItems }), ...(maxCharacters === undefined ? {} : { maxCharacters }) }), null, 2) }],
+    }));
+
+    server.registerTool("memory_propose", {
+      description: "Persist an agent-suggested project memory in proposed status. It is never confirmed automatically and requires explicit human review.",
+      inputSchema: z.object({
+        title: z.string().min(1).max(300),
+        content: z.string().min(1).max(10000),
+        category: z.string().min(1).max(80).optional(),
+        sourcePath: z.string().min(1).max(500).optional(),
+        commitSha: z.string().min(1).max(100).optional(),
+      }),
+    }, async ({ title, content, category, sourcePath, commitSha }) => ({
+      content: [{ type: "text", text: JSON.stringify({
+        id: proposeMemory(location, title, content, category ?? "decision", sourcePath, commitSha),
+        status: "proposed",
+        requiresHumanConfirmation: true,
+      }, null, 2) }],
     }));
 
     server.registerTool("memory_freshness", {
