@@ -144,9 +144,12 @@ export function buildTaskContext(
   if (indexFreshness.status !== "current") {
     warnings.push(`Indexed source is ${indexFreshness.status}; context may omit newer or unreadable files (added: ${indexFreshness.addedFiles}, changed: ${indexFreshness.changedFiles}, deleted: ${indexFreshness.deletedFiles}).`);
   }
-  const symbols = explicitAnchorMode
-    ? anchorSymbols.flatMap((name) => searchSymbols(location, name, symbolLimit).filter((symbol) => symbol.name === name)).slice(0, symbolLimit)
-    : searchSymbols(location, normalizedTask, symbolLimit);
+  const symbolMatches = explicitAnchorMode
+    ? anchorSymbols.flatMap((name) => searchSymbols(location, name, symbolLimit + 1).filter((symbol) => symbol.name === name))
+    : searchSymbols(location, normalizedTask, symbolLimit + 1);
+  const symbolCandidatesTruncated = symbolMatches.length > symbolLimit;
+  const symbols = symbolMatches.slice(0, symbolLimit);
+  const fileCandidatesTruncated = new Set(symbols.map((symbol) => symbol.filePath)).size > fileLimit;
   for (const symbol of symbols) {
     candidates.push({
       kind: "symbol",
@@ -209,7 +212,10 @@ export function buildTaskContext(
             detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
           });
         }
-        if (dependencies.truncated) warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
+        if (dependencies.truncated) {
+          dependencyCandidatesTruncated = true;
+          warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
+        }
       }
       if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
         addTestCandidate({
@@ -245,7 +251,10 @@ export function buildTaskContext(
           detail: { from: path, chain: dependency.chain, evidence: dependency.evidence },
         });
       }
-      if (dependencies.truncated) warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
+      if (dependencies.truncated) {
+        dependencyCandidatesTruncated = true;
+        warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
+      }
     }
   }
 
@@ -274,13 +283,14 @@ export function buildTaskContext(
   if (testCandidatesTruncated) warnings.push(`Test candidates were truncated at the configured testLimit of ${testLimit}.`);
   if (dependencyCandidatesTruncated) warnings.push(`Dependency candidates were truncated at the configured dependencyLimit of ${dependencyLimit}.`);
 
-  const memories = (explicitAnchorMode ? [] : recallMemories(location, "", 500))
+  const matchedMemories = (explicitAnchorMode ? [] : recallMemories(location, "", 500))
     .map((memory) => ({ memory, matches: anchors.filter((anchor) =>
       `${memory.title} ${memory.content} ${memory.category}`.toLocaleLowerCase().includes(anchor)).length }))
     .filter((entry) => entry.matches > 0)
     .sort((a, b) => b.matches - a.matches || b.memory.updatedAt.localeCompare(a.memory.updatedAt)
-      || a.memory.id.localeCompare(b.memory.id))
-    .slice(0, memoryLimit).map((entry) => entry.memory);
+      || a.memory.id.localeCompare(b.memory.id));
+  const memoryCandidatesTruncated = matchedMemories.length > memoryLimit;
+  const memories = matchedMemories.slice(0, memoryLimit).map((entry) => entry.memory);
   const freshness = inspectMemoryFreshness(location);
   const freshnessById = new Map(freshness.map((entry) => [entry.id, entry]));
   for (const memory of memories) {
@@ -303,15 +313,22 @@ export function buildTaskContext(
     symbol: symbolLimit, file: fileLimit, dependency: dependencyLimit, test: testLimit, memory: memoryLimit,
   };
   const bounded = boundedItems(candidates, maxItems, maxCharacters, perKindLimits);
+  const truncatedKinds = new Set<TaskContextItem["kind"]>(bounded.truncatedKinds);
+  if (symbolCandidatesTruncated) truncatedKinds.add("symbol");
+  if (fileCandidatesTruncated) truncatedKinds.add("file");
+  if (dependencyCandidatesTruncated) truncatedKinds.add("dependency");
+  if (testCandidatesTruncated) truncatedKinds.add("test");
+  if (memoryCandidatesTruncated) truncatedKinds.add("memory");
   if (bounded.truncated) warnings.push("Context was truncated to respect the configured item or character budget.");
+  if (truncatedKinds.size > 0) warnings.push(`Per-kind context budgets truncated: ${[...truncatedKinds].join(", ")}.`);
   return {
     task: normalizedTask, anchors, items: bounded.items, warnings: [...new Set(warnings)],
     followUp: anchors.slice(0, 5).map((anchor) => `Inspect deeper details related to "${anchor}".`),
     budget: {
       maxItems, maxCharacters, usedItems: bounded.items.length, usedCharacters: bounded.usedCharacters,
-      truncated: bounded.truncated,
+      truncated: bounded.truncated || truncatedKinds.size > 0,
       perKind: Object.fromEntries(TASK_CONTEXT_KINDS.map((kind) => [kind, { limit: perKindLimits[kind], used: bounded.usedByKind[kind] }])) as Record<TaskContextItem["kind"], { limit: number; used: number }>,
-      truncatedKinds: bounded.truncatedKinds,
+      truncatedKinds: [...truncatedKinds],
     },
   };
 }
