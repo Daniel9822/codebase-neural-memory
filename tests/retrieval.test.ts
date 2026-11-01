@@ -115,6 +115,7 @@ describe("findDependencies", () => {
   it("accepts paths with Windows separators and a leading ./", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    mkdirSync(join(location.rootPath, "tests"), { recursive: true });
     writeFileSync(join(location.rootPath, "src", "main.ts"), 'import "./helper";');
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export const helper = true;");
     indexWithDatabase(database!, location);
