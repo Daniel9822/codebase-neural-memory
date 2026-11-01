@@ -260,9 +260,9 @@ Exit condition: documented benchmarks, stable regression tests, and no known dat
 - [x] Verify MCP schemas, valid calls, invalid inputs, incremental update behavior, exclusion preservation, and proposed-only memory status in CI.
 - [x] Add bounded symbol-level impact traversal over `CALLS`, `EXTENDS`, and `IMPLEMENTS`, including BFS shortest distances, per-edge evidence, ambiguity handling, and CLI/MCP access (PR #65).
 - [x] Map recognized test callback symbols to imported source symbols through indexed `CALLS` edges and expose the relationship through `symbol_impact` (PR #65); this is static syntax evidence, not runtime coverage.
-- [ ] Complete the remaining agent-capability gaps: richer signature/body retrieval, granular task-context budgets, Git blame/session rationale, and explicit architectural component grouping/distances. Current symbol-impact traversal measures symbol-to-symbol paths; it does not infer conceptual components.
+- [x] Add bounded read-only Git blame retrieval for tracked project-relative line ranges with timeout, output cap, and path validation (PR #66); blame is attribution metadata, not inferred session rationale.
+- [ ] Complete the remaining agent-capability gaps: richer signature/body retrieval, granular task-context budgets, Git session rationale, and explicit architectural component grouping/distances. Current symbol-impact traversal measures symbol-to-symbol paths; it does not infer conceptual components.
 - [x] Add independent task-context item budgets for symbols, files, dependencies, tests, and memories; expose the limits in CLI/MCP and report per-category usage/truncation (PR #64).
-- [ ] Complete the remaining agent-capability gaps: richer signature/body retrieval, semantic impact and distances, test-to-symbol mapping, and Git blame/session rationale.
 - [ ] Evaluate bounded reindex controls and stronger path/glob matching before broad adoption.
 
 Deliverable: agents can explicitly refresh derived index state and submit reviewable memory suggestions without silently confirming project knowledge.

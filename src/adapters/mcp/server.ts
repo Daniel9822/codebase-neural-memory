@@ -5,6 +5,7 @@ import { getMemoryFreshnessReport, recallMemories, proposeMemory, transitionMemo
 import { getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
+import { getGitBlame } from "../../core/git.js";
 import type { ProjectLocation } from "../../core/project.js";
 
 export interface McpServerOptions {
@@ -210,6 +211,23 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     }),
   }, async ({ path, startLine, endLine, maxCharacters }) => readResponse(location, options, () =>
     getSourceExcerpt(location, path, startLine, endLine, maxCharacters ?? 12_000)));
+
+  server.registerTool("git_blame", {
+    description: "Read bounded Git line attribution for a tracked project-relative file, including commit, author, date, and summary. This is historical attribution, not proof of why a change was made.",
+    inputSchema: z.object({
+      path: z.string().min(1).max(500),
+      startLine: z.number().int().min(1),
+      endLine: z.number().int().min(1),
+    }).refine((input) => input.endLine >= input.startLine, {
+      message: "endLine must be greater than or equal to startLine",
+      path: ["endLine"],
+    }).refine((input) => input.endLine - input.startLine < 200, {
+      message: "Git blame range cannot exceed 200 lines",
+      path: ["endLine"],
+    }),
+  }, async ({ path, startLine, endLine }) => ({
+    content: [{ type: "text", text: JSON.stringify(await getGitBlame(location.rootPath, path, startLine, endLine), null, 2) }],
+  }));
 
   server.registerTool("change_impact", {
     description: "Find indexed files that import a target file, recursively, with explicit result and processing limits.",

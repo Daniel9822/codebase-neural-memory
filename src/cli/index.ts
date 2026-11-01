@@ -10,6 +10,7 @@ import { deleteMemory, inspectMemoryFreshness, proposeMemory, recallMemories, re
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
 import { buildTaskContext } from "../core/context.js";
+import { getGitBlame } from "../core/git.js";
 import { checkAgentInstructions, ensureAgentInstructions, renderAgentInstructions, type AgentTool } from "../core/agents-md.js";
 
 const program = new Command();
@@ -192,6 +193,14 @@ program.command("impact <file>")
     console.log(JSON.stringify(findImpact(ensureInitialized(), file, options.limit, options.maxProcessed), null, 2));
   });
 
+
+program.command("blame <file>")
+  .description("Show bounded Git line attribution for a tracked project file.")
+  .option("--start-line <number>", "First line to attribute", parsePositiveInteger, 1)
+  .option("--end-line <number>", "Last line to attribute (maximum 200-line range)", parsePositiveInteger, 100)
+  .action(async (file: string, options: { startLine: number; endLine: number }) => {
+    console.log(JSON.stringify(await getGitBlame(ensureInitialized().rootPath, file, options.startLine, options.endLine), null, 2));
+  });
 
 program.command("dependencies <file>")
   .description("List files imported by the target, directly or up to a depth.")

@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getGitSnapshot } from "../src/core/git.js";
+import { getGitBlame, getGitSnapshot } from "../src/core/git.js";
 import { inspectMemoryFreshness, remember } from "../src/core/memories.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
 import type { ProjectLocation } from "../src/core/project.js";
@@ -40,6 +40,46 @@ afterEach(() => {
   database = undefined;
   if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
   temporaryDirectory = "";
+});
+
+describe("Git blame retrieval", () => {
+  it("returns bounded line attribution with commit, author, date, and summary", async () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "tracked.ts"), "export const first = 1;\nexport const second = 2;\n");
+    execFileSync("git", ["add", "tracked.ts"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "add tracked declarations"], { cwd: location.rootPath, stdio: "ignore" });
+
+    const result = await getGitBlame(location.rootPath, "tracked.ts", 1, 2);
+    expect(result).toMatchObject({
+      path: "tracked.ts",
+      startLine: 1,
+      endLine: 2,
+      truncated: false,
+      lines: [
+        { line: 1, originalLine: 1, author: "CNM Tests", summary: "add tracked declarations", content: "export const first = 1;" },
+        { line: 2, originalLine: 2, author: "CNM Tests", summary: "add tracked declarations", content: "export const second = 2;" },
+      ],
+    });
+    expect(result.lines[0]?.commit).toMatch(/^[0-9a-f]{40}$/);
+    expect(result.lines[0]?.authoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it("rejects unsafe paths and excessive line ranges", async () => {
+    createProject();
+    await expect(getGitBlame(location.rootPath, "../outside.ts")).rejects.toThrow(/project-relative/);
+    await expect(getGitBlame(location.rootPath, "tracked.ts", 1, 201)).rejects.toThrow(/200 lines/);
+    await expect(getGitBlame(location.rootPath, "C:/outside.ts")).rejects.toThrow(/project-relative/);
+  });
+
+  it("reports an actionable error for untracked files and unavailable Git", async () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "untracked.ts"), "export const value = 1;\\n");
+    await expect(getGitBlame(location.rootPath, "untracked.ts")).rejects.toThrow(/tracked/);
+
+    const nonGitRoot = join(temporaryDirectory, "plain");
+    mkdirSync(nonGitRoot);
+    await expect(getGitBlame(nonGitRoot, "tracked.ts")).rejects.toThrow(/not a Git repository/);
+  });
 });
 
 describe("Git-aware indexing and freshness", () => {
