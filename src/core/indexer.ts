@@ -822,9 +822,14 @@ export function indexWithDatabase(
     // content, not on index revisions. Avoid a full-project graph rebuild when
     // this run only confirmed unchanged files or encountered protected skips.
     const sourceIndexChanged = summary.added > 0 || summary.updated > 0 || summary.deleted > 0;
-    summary.relations = sourceIndexChanged
-      ? rebuildRelations(db, location.rootPath, revisionRow.index_revision)
-      : (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
+    if (sourceIndexChanged) {
+      summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
+    } else {
+      // Keep graph revision metadata aligned without re-resolving every import,
+      // call, package export, and diagnostic for an unchanged source snapshot.
+      db.prepare("UPDATE relations SET index_revision = ?").run(revisionRow.index_revision);
+      summary.relations = (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
+    }
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
     if (options.requireCompleteSnapshot) {
       const finalDiscovery = discoverFiles(location.rootPath, extraExcludes, options);
