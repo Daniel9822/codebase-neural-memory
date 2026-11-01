@@ -1,0 +1,118 @@
+{
+  "schemaVersion": 1,
+  "repository": "Daniel9822/codebase-neural-memory",
+  "evaluationDate": "2026-11-01",
+  "taskId": "CNM-AGENT-01",
+  "task": "Trace the MCP index_freshness tool from its registration through the core implementation. Explain the exact conditions that make an index current, stale, incomplete, or not indexed, and list the Git metadata returned.",
+  "referenceCommit": "7b582a926991897aa2fef0170c80c18a1a0384d0",
+  "testedCommit": null,
+  "commitComparability": "unverified",
+  "environment": {
+    "os": "Windows (reported by agent 2 paths; exact version not supplied)",
+    "nodeVersion": null,
+    "agentClient": null,
+    "agentClientVersion": null,
+    "model": null
+  },
+  "runs": [
+    {
+      "condition": "with-cnm",
+      "agent": 1,
+      "replicate": 1,
+      "toolCalls": {
+        "verifiedFromPastedExecutionLog": [
+          {"name": "symbol_lookup", "arguments": {"query": "getIndexFreshness", "limit": 20}, "status": "completed"},
+          {"name": "index_freshness", "arguments": {}, "status": "completed"},
+          {"name": "file_details", "arguments": {"path": "src/core/indexer.ts", "limit": 200}, "status": "completed"},
+          {"name": "project_map", "arguments": {"limit": 200}, "status": "completed"},
+          {"name": "file_details", "arguments": {"path": "src/adapters/mcp/server.ts", "limit": 200}, "status": "completed"},
+          {"name": "file_details", "arguments": {"path": "src/core/git.ts", "limit": 200}, "status": "completed"},
+          {"name": "file_details", "arguments": {"path": "src/shared/types.ts", "limit": 200}, "status": "completed"}
+        ],
+        "source_excerpt": "not available in the agent session; no successful invocation",
+        "additionalFailure": "A Search operation failed because a temporary Copilot tool-output path did not exist."
+      },
+      "observedToolOutput": {
+        "indexFreshnessStatus": "current",
+        "indexRevision": 1,
+        "checkedFiles": 28,
+        "addedFiles": 0,
+        "changedFiles": 0,
+        "deletedFiles": 0,
+        "skippedFiles": 0,
+        "errors": 0
+      },
+      "score": {
+        "correctness": 2,
+        "completeness": 2,
+        "evidence": 3,
+        "calibration": 4,
+        "total": 11
+      },
+      "taskSuccess": false,
+      "notes": "Real CNM MCP calls are evidenced by the pasted execution log. The answer correctly limited claims where tool output did not expose implementation bodies. It did not establish the exact four-state conditions or Git metadata fields. The explicitly requested source_excerpt call could not be made because that tool was not exposed in this session; treat this as a session/tool-availability limitation, not proof of a CNM implementation defect. The score is a provisional evaluator assessment."
+    },
+    {
+      "condition": "without-cnm",
+      "agent": 2,
+      "replicate": 1,
+      "toolCalls": null,
+      "answerEvidence": {
+        "reportedSourceLocations": [
+          "src/adapters/mcp/server.ts:12",
+          "src/adapters/mcp/server.ts:22",
+          "src/adapters/mcp/server.ts:124",
+          "src/core/indexer.ts:71",
+          "src/core/indexer.ts:89",
+          "src/core/indexer.ts:98",
+          "src/core/indexer.ts:115",
+          "src/core/indexer.ts:431",
+          "src/core/indexer.ts:469",
+          "src/core/indexer.ts:493",
+          "src/core/indexer.ts:506",
+          "src/core/indexer.ts:525",
+          "src/core/indexer.ts:528",
+          "src/core/indexer.ts:648",
+          "src/core/indexer.ts:655",
+          "src/core/git.ts:6",
+          "src/core/git.ts:30",
+          "tests/git-awareness.test.ts",
+          "tests/indexer.test.ts",
+          "tests/mcp-adapter.test.ts",
+          "tests/retrieval.test.ts:331",
+          "tests/retrieval.test.ts:346",
+          "docs/PHASE_6_MCP_CONTRACT.md:47"
+        ],
+        "claims": [
+          "The MCP handler registers index_freshness with an empty object schema and delegates to getIndexFreshness(location).",
+          "not-indexed applies when the project exists but last_indexed_at is absent; a missing project record instead raises an initialization error.",
+          "incomplete takes precedence over stale and covers discovery errors, skipped files, and loss of Git metadata that had previously been recorded.",
+          "stale covers file additions, changed hashes, deletions, or a changed/unrecorded Git snapshot.",
+          "current requires no incomplete scan, no file differences, and no changed/unrecorded Git snapshot; Git being unavailable alone does not invalidate a non-Git project.",
+          "Git report fields include status, indexed/current commit and branch, indexed/current dirty flags, indexed/current changed-path counts, and commitChanged/branchChanged/workingTreeChanged.",
+          "A worktree already dirty at indexing time may remain current if its snapshot has not changed."
+        ]
+      },
+      "score": {
+        "correctness": 4,
+        "completeness": 4,
+        "evidence": 4,
+        "calibration": 4,
+        "total": 16
+      },
+      "taskSuccess": true,
+      "notes": "Strong source-based answer with multiple source locations and test references. The agent reports reading source files directly and explicitly says it did not execute tests during this review. Score is provisional; commit identity for this run was not included in the pasted output."
+    }
+  ],
+  "comparison": {
+    "provisionalWinner": "without-cnm",
+    "scoreDifference": 5,
+    "interpretation": "The no-CNM agent produced a more complete source-level explanation in this run. The CNM-enabled agent did make real MCP calls and obtained a live freshness result, but lacked source_excerpt in its exposed tool set and therefore could not inspect implementation bodies. This single pair does not establish that using CNM reduces agent performance; it identifies a tool-discovery/availability and source-inspection gap in this specific session.",
+    "validityLimitations": [
+      "The exact checked-out commit SHA for each local worktree was not included in the pasted execution records, so same-commit comparability is unverified.",
+      "No elapsed time, token counts, model identity, exact client versions, or complete raw tool payloads were supplied.",
+      "Scores are provisional human/evaluator ratings from the submitted transcripts, not blinded independent ratings.",
+      "Only one replicate per condition has been collected."
+    ]
+  }
+}
