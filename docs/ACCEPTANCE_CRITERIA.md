@@ -363,14 +363,32 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 
 ## 15. MCP agent-capability follow-up (PR #54 candidate)
 
-- [ ] `index_update` is discoverable and runs incremental reconciliation without force-reparsing unchanged files.
-- [ ] `index_update` preserves the project's persisted custom exclusion rules.
-- [ ] `index_update` reports the standard index summary and advances the index revision.
-- [ ] `memory_propose` persists a durable memory with status `proposed`, never `confirmed`.
-- [ ] Proposed memories remain subject to the existing explicit lifecycle transition rules.
-- [ ] `symbol_lookup` optional kind, file-path-prefix, and exported filters are validated and applied deterministically.
-- [ ] MCP protocol tests discover and call the new tools and assert the updated schemas.
-- [ ] Read-only protocol tests continue to prove that read calls do not mutate source, index, or memory state.
-- [ ] Full CI passes on the final PR head, including typecheck, tests, build, smoke, and benchmark matrix.
+- [x] `index_update` is discoverable and runs incremental reconciliation without force-reparsing unchanged files.
+- [x] `index_update` preserves the project's persisted custom exclusion rules.
+- [x] `index_update` reports the standard index summary and advances the index revision.
+- [x] `memory_propose` persists a durable memory with status `proposed`, never `confirmed`.
+- [x] Proposed memories remain subject to the existing explicit lifecycle transition rules.
+- [x] `symbol_lookup` optional kind, file-path-prefix, and exported filters are validated and applied deterministically.
+- [x] MCP protocol tests discover and call the new tools and assert the updated schemas.
+- [x] Read-only protocol tests continue to prove that read calls do not mutate source, index, or memory state.
+- [x] Full CI passes on the final PR head, including typecheck, tests, build, smoke, and benchmark matrix.
 
-The following capabilities remain open and must not be represented as delivered by this PR unless separately implemented and tested: signature-regex search, source body retrieval in symbol results, semantic impact/distance and public-contract analysis, test-to-symbol mapping, finer task-context budget categories, and Git blame/session rationale.
+The following capabilities remain open: signature-regex search, semantic impact/distance and public-contract analysis, test-to-symbol mapping, finer task-context budget categories, and Git blame/session rationale. Inline source retrieval, explicit task anchors, and freshness-aware read policies are covered by the follow-up criteria below.
+
+
+## 16. Agent-trust and context-quality follow-up
+
+- [x] Every indexed MCP read checks source/index freshness and appends a warning when the index is stale or incomplete.
+- [x] Freshness warnings include changed/added/deleted counts and affected paths while preserving the original JSON payload as the first text block.
+- [x] Strict freshness mode refuses indexed reads unless freshness is current and returns an actionable refusal.
+- [x] Auto-update mode performs at most one incremental refresh before a read, only when discovery is complete and no more than 50 source files changed.
+- [x] Auto-update remains opt-in and never modifies source files; incomplete or large change sets require explicit index_update.
+- [x] symbol_lookup can include bounded source for each result, with working-tree hash, indexed hash, and indexStatus.
+- [x] file_details can include bounded snippets for a limited number of symbols.
+- [x] task_context accepts explicit path/symbol anchors, suppresses broad lexical fallback in anchored mode, and labels items as anchor, graph, or fallback.
+- [x] Anchored context does not inject unrelated repository test paths or lexical memories.
+- [x] MCP-first workflow documentation defines start-of-session freshness/memory checks, pre-edit retrieval, post-edit verification, and proposed-memory review.
+- [ ] Typecheck, complete test suite, build, smoke, and cross-platform CI pass on the final PR head.
+- [ ] Verify the new contract in at least one real OpenCode and one VS Code/Copilot client after merging; simulated protocol tests alone do not satisfy this item.
+
+**Safety note:** the auto-update limit is a changed-file count, not a wall-clock timeout. The indexer is synchronous; no five-second cancellation guarantee is claimed. Source excerpts independently report hash status to detect a change between freshness preflight and the actual read.
