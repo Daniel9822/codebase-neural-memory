@@ -55,15 +55,18 @@ MCP exposes read/retrieval tools plus two explicit local write operations throug
 - `project_overview` — local repository/index summary.
 - `index_freshness` — read-only source-file and Git commit/branch/working-tree versus index freshness report. Each successful index records its Git snapshot; freshness compares the current `HEAD`, branch, and porcelain working-tree hash and still performs a deterministic source scan.
 - `project_map` — indexed files and locally resolved imports.
-- `symbol_lookup` — bounded lexical symbol search with ranking signals and optional kind, path-prefix, and export filters.\n- `index_update` — incremental working-tree reconciliation using persisted project exclusions.
+- `symbol_lookup` — bounded lexical symbol search with ranking signals and optional kind, path-prefix, and export filters.
+- `index_update` — incremental working-tree reconciliation using persisted project exclusions.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
 - `file_details` — bounded indexed file metadata, symbols, imports, and relations.
+- `source_excerpt` — bounded source lines with current/indexed hash comparison.
 - `change_impact` — bounded reverse-import impact traversal.
 - `task_context` — deterministic, bounded task-oriented context from indexed facts and memories.
 - `memory_freshness` — source-file fingerprint and Git commit-ancestry inspection for linked or commit-referenced memories.
-- `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.\n- `memory_propose` — stores an agent suggestion only as `proposed`; explicit human confirmation is still required.
+- `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
+- `memory_propose` — stores an agent suggestion only as `proposed`; explicit human confirmation is still required.
 
-The server registration in `src/adapters/mcp/server.ts` is the source of truth for this inventory. Tool schemas, defaults, adapter-level limits, core mappings, project binding, and protocol validation evidence are recorded in [`docs/PHASE_6_MCP_CONTRACT.md`](docs/PHASE_6_MCP_CONTRACT.md). Adapter tests verify all ten valid calls, Zod-invalid arguments, core errors, repeat calls, EOF/reconnection, and two-project process isolation. Real OpenCode and VS Code with its integrated Copilot Agent experience are documented in [`docs/CLIENT_INTEGRATION.md`](docs/CLIENT_INTEGRATION.md); the validated VS Code version is recorded. Search, graph traversal, file details, task context, and memory recall validate and bound their inputs/results. `index_update` is the only MCP operation that mutates the derived index; it does not modify source files. `memory_propose` creates an unconfirmed suggestion only. Confirmation, lifecycle transitions, updates, and deletion remain explicit CLI operations. `component_get`, `decision_lookup`, and a tool named `project_context` are not currently registered; task-oriented context is exposed as `task_context`.
+The server registration in `src/adapters/mcp/server.ts` is the source of truth for this inventory. Tool schemas, defaults, adapter-level limits, core mappings, project binding, and protocol validation evidence are recorded in [`docs/PHASE_6_MCP_CONTRACT.md`](docs/PHASE_6_MCP_CONTRACT.md). Adapter tests verify tool discovery and schemas, valid calls, Zod-invalid arguments, core errors, repeat calls, EOF/reconnection, two-project process isolation, and the explicit index-update / proposed-memory write boundaries. Real OpenCode and VS Code with its integrated Copilot Agent experience are documented in [`docs/CLIENT_INTEGRATION.md`](docs/CLIENT_INTEGRATION.md); the validated VS Code version is recorded. Search, graph traversal, file details, task context, and memory recall validate and bound their inputs/results. `index_update` is the only MCP operation that mutates the derived index; it does not modify source files. `memory_propose` creates an unconfirmed suggestion only. Confirmation, lifecycle transitions, updates, and deletion remain explicit CLI operations. `component_get`, `decision_lookup`, and a tool named `project_context` are not currently registered; task-oriented context is exposed as `task_context`.
 
 ## Deliberate non-goals for v0.1
 
