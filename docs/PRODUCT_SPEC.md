@@ -172,7 +172,7 @@ No initialization or indexing operation may upload repository content. No team s
 - Keep each file update transactionally consistent.
 - Report skipped files and parse failures.
 - Support selective reindexing by project-relative file/directory paths and include globs, with explicit file and traversal budgets.
-- Treat selective/budget-limited scans as partial: report truncation and never delete indexed files outside the selected scope; preserve configured exclusions.
+- Treat selective/budget-limited scans as partial: report truncation, do not perform deletion reconciliation, never delete indexed files outside the selected scope, and preserve configured exclusions.
 
 ### Knowledge graph
 - Store typed, directed relationships with provenance.
