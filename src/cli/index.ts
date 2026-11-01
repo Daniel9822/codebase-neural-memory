@@ -73,7 +73,7 @@ program.command("agents-md")
       process.exitCode = result.status === "missing" ? 2 : 1;
       return;
     }
-    const result = ensureAgentInstructions(location, options.tool);
+    const result = ensureAgentInstructions(location, options.tool, Boolean(options.force));
     console.log(`AGENTS.md CNM instructions: ${result.status}.`);
   });
 
