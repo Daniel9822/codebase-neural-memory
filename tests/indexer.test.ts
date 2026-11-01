@@ -128,6 +128,10 @@ describe("indexWithDatabase", () => {
       .toThrow("maxFiles");
     expect(() => indexWithDatabase(database!, location, false, [], { maxProcessed: 0 }))
       .toThrow("maxProcessed");
+    expect(() => indexWithDatabase(database!, location, false, [], { include: ["../outside/**/*.ts"] }))
+      .toThrow("Include patterns");
+    expect(() => indexWithDatabase(database!, location, false, [], { paths: Array.from({ length: 101 }, (_, i) => `src/${i}.ts`) }))
+      .toThrow("At most 100 index scope paths");
   });
   it("keeps stable file and symbol identifiers across forced reindex and line shifts", () => {
     createProject();
