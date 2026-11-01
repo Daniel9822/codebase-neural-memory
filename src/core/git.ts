@@ -1,5 +1,8 @@
 import { createHash } from "node:crypto";
-import { execFileSync } from "node:child_process";
+import { execFile, execFileSync } from "node:child_process";
+import { promisify } from "node:util";
+
+const execFileAsync = promisify(execFile);
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 
@@ -150,13 +153,13 @@ export interface GitBlameResult {
   truncated: boolean;
 }
 
-/** Return bounded line-level attribution without changing repository state. */
-export function getGitBlame(
+/** Return bounded line-level attribution without blocking the MCP event loop. */
+export async function getGitBlame(
   rootPath: string,
   filePath: string,
   startLine = 1,
   endLine = startLine + 99,
-): GitBlameResult {
+): Promise<GitBlameResult> {
   if (!Number.isSafeInteger(startLine) || startLine < 1 ||
       !Number.isSafeInteger(endLine) || endLine < startLine) {
     throw new Error("Git blame line range must contain positive, ordered safe integers.");
@@ -164,7 +167,7 @@ export function getGitBlame(
   const requestedLines = endLine - startLine + 1;
   if (requestedLines > 200) throw new Error("Git blame range cannot exceed 200 lines.");
 
-  const normalized = filePath.replaceAll("\\", "/");
+  const normalized = filePath.replaceAll("\\\\", "/");
   if (!normalized || normalized.length > 500 || normalized.startsWith("/") ||
       /^[a-zA-Z]:/.test(normalized) ||
       normalized.split("/").some((part) => !part || part === "." || part === "..")) {
@@ -176,30 +179,34 @@ export function getGitBlame(
     throw new Error("Git blame path must stay inside the project root.");
   }
 
-  const repository = getGitSnapshot(rootPath);
-  if (!repository.available) throw new Error("Git blame is unavailable because the project root is not a Git repository.");
-
   let output: string;
   try {
-    output = execFileSync("git", [
+    // One subprocess only: do not collect a full Git snapshot (status, branch,
+    // HEAD) just to answer a line-attribution query. Async execution keeps the
+    // MCP event loop responsive; timeout and maxBuffer bound worst-case work.
+    const result = await execFileAsync("git", [
       "--literal-pathspecs", "blame", "--line-porcelain", "--root", "--no-show-signature",
       "-L", `${startLine},${endLine}`, "--", normalized,
     ], {
       cwd: rootPath,
       encoding: "utf8",
-      stdio: ["ignore", "pipe", "ignore"],
       windowsHide: true,
-      timeout: 10_000,
+      timeout: 2_500,
       maxBuffer: 2 * 1024 * 1024,
     });
-  } catch {
-    throw new Error("Git blame failed; verify that the file is tracked and the requested line range exists.");
+    output = result.stdout;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (/not a git repository/i.test(detail)) {
+      throw new Error("Git blame is unavailable because the project root is not a Git repository.");
+    }
+    throw new Error("Git blame failed or exceeded its 2.5-second execution budget; verify that the file is tracked and the requested line range exists.");
   }
 
-  const records = output.split(/\r?\n/);
+  const records = output.split(/\\r?\\n/);
   const lines: GitBlameLine[] = [];
   for (let index = 0; index < records.length;) {
-    const header = /^\^?([0-9a-f]{40,64}) (\d+) (\d+)(?: (\d+))?$/.exec(records[index] ?? "");
+    const header = /^\\^?([0-9a-f]{40,64}) (\\d+) (\\d+)(?: (\\d+))?$/.exec(records[index] ?? "");
     if (!header) { index += 1; continue; }
     const commit = header[1]!;
     const originalLine = Number(header[2]);
@@ -211,7 +218,7 @@ export function getGitBlame(
     let content = "";
     while (index < records.length) {
       const record = records[index++]!;
-      if (record.startsWith("\t")) {
+      if (record.startsWith("\\t")) {
         content = record.slice(1);
         break;
       }
