@@ -26,7 +26,7 @@ function tokenizeQuery(query: string): string[] {
 }
 
 function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (character) => `${character}`);
+  return value.replace(/[\\%_]/g, (character) => "\\" + character);
 }
 
 function isFtsUnavailable(error: unknown): boolean {
