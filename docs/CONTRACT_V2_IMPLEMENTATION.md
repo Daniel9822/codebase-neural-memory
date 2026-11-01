@@ -13,7 +13,7 @@ Already present on the baseline:
 - TypeScript semantic import diagnostics persisted in `import_diagnostics`, including TypeScript missing-module and missing-export diagnostics. `project_map` already exposes them with bounded totals/truncation.
 - Existing generated agent instructions already warn that CNM is not a compiler and require build/test validation.
 
-Important gap found during this audit: `file_details` did not expose the persisted semantic import diagnostics, even though `project_map` did. This made a file-focused MCP workflow appear blind to diagnostics that the index had already computed.
+The file-focused diagnostics gap identified during the initial audit was closed by PR #60: `file_details` now exposes the persisted semantic import diagnostics as well as `project_map`.
 
 ## Implementation gaps and decisions
 
