@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
-import { getMemoryFreshnessReport, recallMemories, proposeMemory } from "../../core/memories.js";
+import { getMemoryFreshnessReport, recallMemories, proposeMemory, transitionMemory, type MemoryStatus } from "../../core/memories.js";
 import { getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -230,16 +230,45 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     }, null, 2) }],
   }));
 
+  server.registerTool("memory_transition", {
+    description: "Apply an explicit lifecycle transition to a project memory. The agent must call status=confirmed only after the user has clearly authorized confirmation; this tool does not infer or grant user approval. Valid transitions are proposed→confirmed/rejected, confirmed→obsolete, and obsolete→confirmed.",
+    inputSchema: z.object({
+      id: z.string().uuid(),
+      status: z.enum(["proposed", "confirmed", "obsolete", "rejected"]),
+    }),
+  }, async ({ id, status }) => {
+    const changed = transitionMemory(location, id, status as MemoryStatus);
+    return {
+      isError: !changed,
+      content: [{ type: "text", text: JSON.stringify({
+        id,
+        status: changed ? status : "unchanged",
+        transitioned: changed,
+        requiresExplicitUserAuthorization: status === "confirmed",
+      }, null, 2) }],
+    };
+  });
+
   server.registerTool("memory_freshness", {
     description: "Inspect source-file fingerprints and referenced Git commit ancestry for project memories without changing memory status.",
     inputSchema: z.object({ limit: z.number().int().min(1).max(500).optional() }),
   }, async ({ limit }) => readResponse(location, options, () => getMemoryFreshnessReport(location, limit ?? 100)));
 
   server.registerTool("memory_recall", {
-    description: "Retrieve non-rejected local project memories, including proposed, confirmed, and obsolete entries. Each result includes its lifecycle status; callers must distinguish statuses before using memories as confirmed context.",
-    inputSchema: z.object({ query: z.string().optional(), limit: z.number().int().min(1).max(50).optional() }),
-  }, async ({ query, limit }) => readResponse(location, options, () =>
-    recallMemories(location, query ?? "", limit ?? 20)));
+    description: "Retrieve project memories using natural-language lexical relevance or list mode. Proposed, confirmed, and obsolete entries are discoverable by default; always respect each result's lifecycle status. Optional status/category filters narrow the results.",
+    inputSchema: z.object({
+      query: z.string().max(1000).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+      status: z.enum(["proposed", "confirmed", "obsolete", "rejected"]).optional(),
+      category: z.string().min(1).max(80).optional(),
+      list: z.boolean().optional(),
+    }),
+  }, async ({ query, limit, status, category, list }) => readResponse(location, options, () =>
+    recallMemories(location, query ?? "", limit ?? 20, {
+      ...(status === undefined ? {} : { statuses: [status] }),
+      ...(category === undefined ? {} : { category }),
+      ...(list === undefined ? {} : { list }),
+    })));
 
   return server;
 }

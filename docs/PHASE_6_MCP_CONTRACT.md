@@ -11,7 +11,7 @@
 - Project-root and project-ID resolution: `src/core/project.ts`
 - SDK dependency: `@modelcontextprotocol/server ^2.3.1` in `package.json`
 
-The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The original Phase 6 registration contained ten tools. The current registration includes the original retrieval tools plus `source_excerpt`, `index_update`, and `memory_propose`; this file must be reconciled with `server.ts` whenever a tool or schema changes.
+The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The original Phase 6 registration contained ten tools. The current registration includes the original retrieval tools plus `source_excerpt`, `index_update`, `memory_propose`, and `memory_transition`; this file must be reconciled with `server.ts` whenever a tool or schema changes.
 
 ## Project binding and startup
 
@@ -41,7 +41,8 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 | `task_context` | `task`: non-empty string; `maxItems`: optional integer, 1–100; `maxCharacters`: optional integer, 100–50,000; `anchors`: optional object with up to 20 project-relative paths and/or 20 exact symbol names (at least one required) | `maxItems`: 20; `maxCharacters`: 12,000 | `buildTaskContext(location, task, options)` |
 | `memory_propose` | `title`: 1–300 chars; `content`: 1–10,000 chars; optional `category` (1–80), `sourcePath` (1–500), `commitSha` (1–100) | Saves status `proposed`; human confirmation remains explicit | `proposeMemory(...)` |
 | `memory_freshness` | `limit`: optional integer, 1–500 | 100 source- or commit-linked records; total eligible count and truncation flag | `getMemoryFreshnessReport(location, limit)` |
-| `memory_recall` | `query`: optional string; `limit`: optional integer, 1–50 | `query`: empty string; `limit`: 20 | `recallMemories(location, query, limit)` |
+| `memory_recall` | `query`: optional string (max 1,000); `limit`: optional integer, 1–50; `status`: optional lifecycle status; `category`: optional string (1–80); `list`: optional boolean | `query`: empty string; `limit`: 20; proposed/confirmed/obsolete included by default; rejected excluded unless explicitly filtered | `recallMemories(location, query, limit, options)` with natural-language lexical scoring and lifecycle/category filters |
+| `memory_transition` | `id`: UUID; `status`: `proposed`, `confirmed`, `obsolete`, or `rejected` | Explicit lifecycle transition only; confirmation requires prior clear user authorization by the calling agent | `transitionMemory(location, id, status)` |
 
 ### Result and truncation behavior
 
@@ -54,7 +55,7 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 - `source_excerpt` reads only indexed files, confines lexical and canonical paths to the selected project root, and reports current-vs-indexed SHA-256 status plus line bounds and truncation.
 - `change_impact` has independent affected-file and processed-relation budgets and reports processing/truncation metadata.
 - `task_context` enforces both item and serialized-item-character budgets and reports budget usage/truncation.
-- `memory_recall` is capped at 50 records by the MCP schema; the core API itself permits a larger limit.
+- `memory_recall` is capped at 50 records by the MCP schema; natural-language matching ranks title/content/category token overlap, and `list: true` returns recent entries without query scoring. Proposed entries are included by default and retain their status label. Rejected entries are excluded by default but can be explicitly requested with `status: "rejected"`.
 
 The adapter's Zod limits are intentionally sometimes narrower than the corresponding core API limits. Client-facing limits in this table describe the MCP contract, not the maximum possible values of direct core calls.
 
@@ -77,7 +78,7 @@ When both are enabled, auto-update runs first and strict mode evaluates the resu
 
 ## Read-only boundary
 
-Most MCP tools are read-only. Two explicit local write operations are now available: `index_update` reconciles the index incrementally, preserving configured exclusions; `memory_propose` persists only a `proposed` record and cannot confirm it. Neither operation modifies repository source files. Memory confirmation, lifecycle transitions, updates, and deletion remain explicit CLI operations.
+Most MCP tools are read-only. Three explicit MCP local write operations are available: `index_update` reconciles the index incrementally, preserving configured exclusions; `memory_propose` persists only a `proposed` record; and `memory_transition` applies one allowed lifecycle transition. Memory updates and deletion remain explicit CLI operations. `memory_transition` does not infer user approval: an agent must call `status: "confirmed"` only after the user has clearly authorized confirmation. Neither memory operation modifies repository source files.
 
 ## Validation and error contract
 

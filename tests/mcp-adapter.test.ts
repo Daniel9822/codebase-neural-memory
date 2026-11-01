@@ -111,7 +111,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly thirteen tools and publishes the expected input schemas", async () => {
+  it("discovers exactly fourteen tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -127,6 +127,7 @@ describe("MCP adapter protocol contract", () => {
       "memory_freshness",
       "memory_propose",
       "memory_recall",
+      "memory_transition",
       "project_map",
       "project_overview",
       "source_excerpt",
@@ -147,7 +148,8 @@ describe("MCP adapter protocol contract", () => {
       task_context: ["anchors", "maxCharacters", "maxItems", "task"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
-      memory_recall: ["limit", "query"],
+      memory_recall: ["category", "limit", "list", "query", "status"],
+      memory_transition: ["id", "status"],
     });
   });
 
@@ -178,6 +180,19 @@ describe("MCP adapter protocol contract", () => {
       expect(result.content?.some((item) => item.type === "text" && typeof item.text === "string"), name).toBe(true);
       expect(() => JSON.parse(result.content![0]!.text!)).not.toThrow();
     }
+
+    const proposal = await client.request("tools/call", {
+      name: "memory_propose",
+      arguments: { title: "Explicit approval fixture", content: "This proposal needs user approval." },
+    });
+    const proposalData = JSON.parse((proposal.result as { content: Array<{ text: string }> }).content[0]!.text) as { id: string; status: string };
+    expect(proposalData.status).toBe("proposed");
+    const confirmation = await client.request("tools/call", {
+      name: "memory_transition",
+      arguments: { id: proposalData.id, status: "confirmed" },
+    });
+    const confirmationData = JSON.parse((confirmation.result as { content: Array<{ text: string }> }).content[0]!.text) as { transitioned: boolean; status: string };
+    expect(confirmationData).toMatchObject({ transitioned: true, status: "confirmed" });
 
     const first = await client.request("tools/call", { name: "project_overview", arguments: {} });
     const second = await client.request("tools/call", { name: "project_overview", arguments: {} });
