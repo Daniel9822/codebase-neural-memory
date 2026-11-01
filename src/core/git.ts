@@ -226,9 +226,12 @@ export async function getGitHistory(
     if (!current || !token) continue;
     const status = token.replace(/^\r?\n/, "");
     if (!/^(?:A|M|D|T|U|X|B|R\d{1,3}|C\d{1,3})$/.test(status)) continue;
-    const path = tokens[index++] ?? "";
+    let path = tokens[index++] ?? "";
     let previousPath: string | undefined;
-    if (/^[RC]/.test(status)) previousPath = tokens[index++] ?? "";
+    if (/^[RC]/.test(status)) {
+      previousPath = path;
+      path = tokens[index++] ?? "";
+    }
     if (totalPaths >= maxPaths) {
       truncatedPaths = true;
       continue;
