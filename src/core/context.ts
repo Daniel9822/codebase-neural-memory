@@ -169,6 +169,7 @@ export function buildTaskContext(
         seenImpactFiles.add(symbol.filePath);
         const impacted = findImpact(location, symbol.filePath, 20, 100);
         for (const path of impacted.affectedFiles) {
+          // Recognize tests under test directories and colocated *.test/spec.* files.
           if (!/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path)) continue;
           candidates.push({
             kind: "test", origin: "graph", title: `Import-dependent test: ${path}`, source: path,
