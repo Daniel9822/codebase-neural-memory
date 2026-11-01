@@ -1,10 +1,10 @@
 import { createHash } from "node:crypto";
 import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
-
-const execFileAsync = promisify(execFile);
 import { realpathSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+
+const execFileAsync = promisify(execFile);
 
 export interface GitSnapshot {
   available: boolean;
