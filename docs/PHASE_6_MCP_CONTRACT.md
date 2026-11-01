@@ -11,7 +11,7 @@
 - Project-root and project-ID resolution: `src/core/project.ts`
 - SDK dependency: `@modelcontextprotocol/server ^2.3.1` in `package.json`
 
-The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The original Phase 6 registration contained ten tools. The current registration contains eleven after the `source_excerpt` follow-up; this file must be reconciled with `server.ts` whenever a tool or schema changes.
+The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The original Phase 6 registration contained ten tools. The current registration includes the original retrieval tools plus `source_excerpt`, `index_update`, and `memory_propose`; this file must be reconciled with `server.ts` whenever a tool or schema changes.
 
 ## Project binding and startup
 
@@ -31,14 +31,14 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 |---|---|---|---|
 | `project_overview` | No arguments | — | `getProjectOverview(location)` |
 | `index_freshness` | No arguments | 200 per-file change records (path, status, old/new SHA-256); 200 skipped-file details and 200 error details; totals and truncation flags | `getIndexFreshness(location)` |
-| `project_map` | `limit`: optional integer, 1–200 | 80 files; 200 imports and 200 unresolved imports per file; 200 candidate paths per unresolved import; totals and truncation flags | `getProjectMapReport(location, limit)` |
-| `symbol_lookup` | `query`: non-empty string; `limit`: optional integer, 1–50 | `limit`: 20 | `searchSymbols(location, query, limit)` |
+| `index_update` | No arguments | Incremental reconciliation; unchanged files are skipped and persisted project exclusions are retained | `updateProjectIndex(location)` |\n| `project_map` | `limit`: optional integer, 1–200 | 80 files; 200 imports and 200 unresolved imports per file; 200 candidate paths per unresolved import; totals and truncation flags | `getProjectMapReport(location, limit)` |
+| `symbol_lookup` | `query`: non-empty string; `limit`: optional integer, 1–50; `kind`: optional string; `filePath`: optional project-relative path prefix; `exported`: optional boolean | `limit`: 20 | `searchSymbols` with post-ranking filters |
 | `dependency_graph` | `path`: non-empty string; `depth`: optional integer, 1–20; `limit`: optional integer, 1–100; `maxProcessed`: optional integer, 1–10,000 | `depth`: 1; `limit`: 100; `maxProcessed`: 1,000 | `findDependencies(location, path, depth, limit, maxProcessed)` |
 | `file_details` | `path`: non-empty string; `limit`: optional integer, 1–500 | 100 per collection | `getFileDetails(location, path, limit)` |
 | `source_excerpt` | `path`: non-empty indexed project-relative path; `startLine`, `endLine`: positive integers with end ≥ start; `maxCharacters`: optional integer, 100–20,000 | 12,000 characters; at most 200 lines and 1 MiB source file | `getSourceExcerpt(location, path, startLine, endLine, maxCharacters)` |
 | `change_impact` | `path`: non-empty string; `limit`: optional integer, 1–5,000; `maxProcessed`: optional integer, 1–10,000 | `limit`: 100; `maxProcessed`: 1,000 | `findImpact(location, path, limit, maxProcessed)` |
 | `task_context` | `task`: non-empty string; `maxItems`: optional integer, 1–100; `maxCharacters`: optional integer, 100–50,000 | `maxItems`: 20; `maxCharacters`: 12,000 | `buildTaskContext(location, task, options)` |
-| `memory_freshness` | `limit`: optional integer, 1–500 | 100 source- or commit-linked records; total eligible count and truncation flag | `getMemoryFreshnessReport(location, limit)` |
+| `memory_propose` | `title`: 1–300 chars; `content`: 1–10,000 chars; optional `category` (1–80), `sourcePath` (1–500), `commitSha` (1–100) | Saves status `proposed`; human confirmation remains explicit | `proposeMemory(...)` |\n| `memory_freshness` | `limit`: optional integer, 1–500 | 100 source- or commit-linked records; total eligible count and truncation flag | `getMemoryFreshnessReport(location, limit)` |
 | `memory_recall` | `query`: optional string; `limit`: optional integer, 1–50 | `query`: empty string; `limit`: 20 | `recallMemories(location, query, limit)` |
 
 ### Result and truncation behavior
@@ -58,7 +58,7 @@ The adapter's Zod limits are intentionally sometimes narrower than the correspon
 
 ## Read-only boundary
 
-The read-only handlers call overview, freshness, map, search, graph, file-detail, source-excerpt, context-building, or memory-recall operations. No MCP tool is registered for indexing, creating/updating/deleting memories, or changing memory lifecycle state. The CLI remains responsible for those explicit write operations. The handlers do not intentionally modify repository source files or create durable memory records.
+Most MCP tools are read-only. Two explicit local write operations are now available: `index_update` reconciles the index incrementally, preserving configured exclusions; `memory_propose` persists only a `proposed` record and cannot confirm it. Neither operation modifies repository source files. Memory confirmation, lifecycle transitions, updates, and deletion remain explicit CLI operations.
 
 ## Validation and error contract
 
