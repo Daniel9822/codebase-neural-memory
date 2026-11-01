@@ -258,7 +258,8 @@ Exit condition: documented benchmarks, stable regression tests, and no known dat
 - [x] Expose an agent memory-proposal operation that can create only `proposed` records; human confirmation remains a separate action.
 - [x] Add optional symbol kind, project-relative path-prefix, and export filters to MCP symbol lookup.
 - [x] Verify MCP schemas, valid calls, invalid inputs, incremental update behavior, exclusion preservation, and proposed-only memory status in CI.
-- [ ] Complete the remaining agent-capability gaps: richer signature/body retrieval, semantic impact and distances, test-to-symbol mapping, granular task-context budgets, and Git blame/session rationale.
+- [x] Add independent task-context item budgets for symbols, files, dependencies, tests, and memories; expose the limits in CLI/MCP and report per-category usage/truncation (PR #64).
+- [ ] Complete the remaining agent-capability gaps: richer signature/body retrieval, semantic impact and distances, test-to-symbol mapping, and Git blame/session rationale.
 - [ ] Evaluate bounded reindex controls and stronger path/glob matching before broad adoption.
 
 Deliverable: agents can explicitly refresh derived index state and submit reviewable memory suggestions without silently confirming project knowledge.
