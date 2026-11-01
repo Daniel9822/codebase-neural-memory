@@ -101,6 +101,13 @@ export function analyzeImportDiagnostics(
       const position = sourceFile.getLineAndCharacterOfPosition(diagnostic.start);
       const context = moduleContext(ts.getTokenAtPosition(sourceFile, diagnostic.start));
       if (!context || !isBareExternalSpecifier(context.specifier, localPackages, options)) continue;
+      const resolvedModule = ts.resolveModuleName(context.specifier, sourceFile.fileName, options, ts.sys).resolvedModule;
+      if (resolvedModule) {
+        const resolvedPath = resolve(resolvedModule.resolvedFileName);
+        const relativeResolved = relative(root, resolvedPath).split(sep).join("/");
+        const insideProject = relativeResolved !== ".." && !relativeResolved.startsWith("../") && !relativeResolved.startsWith("/");
+        if (insideProject && !relativeResolved.split("/").includes("node_modules")) continue;
+      }
       const relativePath = relative(root, filePath).split(sep).join("/");
       const kind = diagnostic.code === 2307 ? "missing-package" : "missing-export";
       output.push({
