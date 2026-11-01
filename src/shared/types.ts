@@ -4,7 +4,8 @@ export type SymbolKind =
   | "method"
   | "interface"
   | "type"
-  | "enum";
+  | "enum"
+  | "test-case";
 
 export interface ParsedSymbol {
   name: string;
