@@ -225,7 +225,6 @@ export function buildTaskContext(
           warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
         }
       }
-      if (dependencies.truncated) warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
       // Map the indexed source file back to tests through actual reverse-import
       // relations, rather than relying only on test filenames containing task words.
       if (!seenImpactFiles.has(symbol.filePath)) {
@@ -234,7 +233,6 @@ export function buildTaskContext(
         for (const path of impacted.affectedFiles) {
           // Recognize tests under test directories and colocated *.test/spec.* files.
           if (!/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path)) continue;
-          candidates.push({
           addTestCandidate({
             kind: "test", origin: "graph", title: `Import-dependent test: ${path}`, source: path,
             score: symbol.score + 3,
@@ -243,13 +241,6 @@ export function buildTaskContext(
           });
         }
         if (impacted.truncated) warnings.push(`Test dependency lookup for ${symbol.filePath} was truncated by retrieval limits.`);
-      }
-      if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
-        candidates.push({
-          kind: "test", origin: explicitAnchorMode ? "anchor" : "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
-          score: symbol.score + 2, signals: ["test-path", "lexical-match"],
-          detail: { startLine: symbol.startLine, endLine: symbol.endLine },
-        });
       }
     } catch {
       warnings.push(`Could not load indexed details for ${symbol.filePath}; the index may have changed.`);
