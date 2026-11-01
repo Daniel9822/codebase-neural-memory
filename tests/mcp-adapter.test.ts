@@ -111,7 +111,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly ten tools and publishes the expected input schemas", async () => {
+  it("discovers exactly eleven tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -127,6 +127,7 @@ describe("MCP adapter protocol contract", () => {
       "memory_recall",
       "project_map",
       "project_overview",
+      "source_excerpt",
       "symbol_lookup",
       "task_context",
     ]);
@@ -138,6 +139,7 @@ describe("MCP adapter protocol contract", () => {
       symbol_lookup: ["limit", "query"],
       dependency_graph: ["depth", "limit", "maxProcessed", "path"],
       file_details: ["limit", "path"],
+      source_excerpt: ["endLine", "maxCharacters", "path", "startLine"],
       change_impact: ["limit", "maxProcessed", "path"],
       task_context: ["maxCharacters", "maxItems", "task"],
       memory_freshness: ["limit"],
@@ -155,6 +157,7 @@ describe("MCP adapter protocol contract", () => {
       ["symbol_lookup", { query: "target", limit: 5 }],
       ["dependency_graph", { path: "main.ts", depth: 1 }],
       ["file_details", { path: "main.ts", limit: 10 }],
+      ["source_excerpt", { path: "main.ts", startLine: 1, endLine: 2 }],
       ["change_impact", { path: "helper.ts", limit: 10 }],
       ["task_context", { task: "understand target helper", maxItems: 10 }],
       ["memory_freshness", {}],
@@ -217,6 +220,7 @@ describe("MCP adapter protocol contract", () => {
       ["symbol_lookup", { query: "target" }],
       ["dependency_graph", { path: "main.ts" }],
       ["file_details", { path: "main.ts" }],
+      ["source_excerpt", { path: "main.ts", startLine: 1, endLine: 2 }],
       ["change_impact", { path: "helper.ts" }],
       ["task_context", { task: "target helper" }],
       ["memory_freshness", {}],

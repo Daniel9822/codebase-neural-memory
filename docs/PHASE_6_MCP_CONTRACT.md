@@ -2,6 +2,8 @@
 
 **Status:** Complete and formally closed on 2026-10-31. Blocks 1–3 are CI-verified; Block 4 real-client calls were manually verified in VS Code with its integrated GitHub Copilot Agent experience and in OpenCode. Recorded versions: VS Code 1.144.0 (x64), OpenCode 1.19.5, Node.js v22.12.0. No separate Copilot extension version is required for the validated VS Code installation. Block 5 regression passed in clean-checkout CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815); the documentation close-out merged in PR [#47](https://github.com/Daniel9822/codebase-neural-memory/pull/47), and post-merge main CI [41250490923](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250490923) passed.
 
+**Post-Phase-6 extension (2026-10-31):** the current MCP server adds an eleventh read-only tool, `source_excerpt`, to close the source-inspection gap identified during Phase 8 agent evaluation. The original Phase 6 close-out and its ten-tool verification remain historical records of the contract at that time.
+
 ## Source of truth
 
 - Tool registration and Zod input schemas: `src/adapters/mcp/server.ts`
@@ -9,7 +11,7 @@
 - Project-root and project-ID resolution: `src/core/project.ts`
 - SDK dependency: `@modelcontextprotocol/server ^2.3.1` in `package.json`
 
-The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The source registration currently contains exactly ten tools. This file must be reconciled with `server.ts` whenever a tool or schema changes.
+The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The original Phase 6 registration contained ten tools. The current registration contains eleven after the `source_excerpt` follow-up; this file must be reconciled with `server.ts` whenever a tool or schema changes.
 
 ## Project binding and startup
 
@@ -33,6 +35,7 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 | `symbol_lookup` | `query`: non-empty string; `limit`: optional integer, 1–50 | `limit`: 20 | `searchSymbols(location, query, limit)` |
 | `dependency_graph` | `path`: non-empty string; `depth`: optional integer, 1–20; `limit`: optional integer, 1–100; `maxProcessed`: optional integer, 1–10,000 | `depth`: 1; `limit`: 100; `maxProcessed`: 1,000 | `findDependencies(location, path, depth, limit, maxProcessed)` |
 | `file_details` | `path`: non-empty string; `limit`: optional integer, 1–500 | 100 per collection | `getFileDetails(location, path, limit)` |
+| `source_excerpt` | `path`: non-empty indexed project-relative path; `startLine`, `endLine`: positive integers with end ≥ start; `maxCharacters`: optional integer, 100–20,000 | 12,000 characters; at most 200 lines and 1 MiB source file | `getSourceExcerpt(location, path, startLine, endLine, maxCharacters)` |
 | `change_impact` | `path`: non-empty string; `limit`: optional integer, 1–5,000; `maxProcessed`: optional integer, 1–10,000 | `limit`: 100; `maxProcessed`: 1,000 | `findImpact(location, path, limit, maxProcessed)` |
 | `task_context` | `task`: non-empty string; `maxItems`: optional integer, 1–100; `maxCharacters`: optional integer, 100–50,000 | `maxItems`: 20; `maxCharacters`: 12,000 | `buildTaskContext(location, task, options)` |
 | `memory_freshness` | `limit`: optional integer, 1–500 | 100 source- or commit-linked records; total eligible count and truncation flag | `getMemoryFreshnessReport(location, limit)` |
@@ -46,6 +49,7 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 - `symbol_lookup` is capped at 50 results by the MCP schema.
 - `dependency_graph` has independent depth, unique-result, and processed-edge budgets. The core traversal also protects against cycles and reports its traversal/truncation metadata.
 - `file_details` applies the supplied limit independently to its returned collections; the core response includes collection totals and truncation indicators.
+- `source_excerpt` reads only indexed files, confines lexical and canonical paths to the selected project root, and reports current-vs-indexed SHA-256 status plus line bounds and truncation.
 - `change_impact` has independent affected-file and processed-relation budgets and reports processing/truncation metadata.
 - `task_context` enforces both item and serialized-item-character budgets and reports budget usage/truncation.
 - `memory_recall` is capped at 50 records by the MCP schema; the core API itself permits a larger limit.
@@ -54,7 +58,7 @@ The adapter's Zod limits are intentionally sometimes narrower than the correspon
 
 ## Read-only boundary
 
-The ten handlers call overview, freshness, map, search, graph, file-detail, context-building, or memory-recall operations. No MCP tool is registered for indexing, creating/updating/deleting memories, or changing memory lifecycle state. The CLI remains responsible for those explicit write operations. The handlers do not intentionally modify repository source files or create durable memory records.
+The read-only handlers call overview, freshness, map, search, graph, file-detail, source-excerpt, context-building, or memory-recall operations. No MCP tool is registered for indexing, creating/updating/deleting memories, or changing memory lifecycle state. The CLI remains responsible for those explicit write operations. The handlers do not intentionally modify repository source files or create durable memory records.
 
 ## Validation and error contract
 
