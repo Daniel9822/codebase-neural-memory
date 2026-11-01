@@ -105,6 +105,10 @@ describe("Git history evidence", () => {
     expect(result.commits[0]?.authoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(result.truncated).toBe(true);
     expect(result.truncatedPaths).toBe(false);
+
+    const pathLimited = await getGitHistory(location.rootPath, 10, 1);
+    expect(pathLimited.truncatedPaths).toBe(true);
+    expect(pathLimited.commits[0]?.files).toHaveLength(1);
   });
 
   it("validates budgets and reports unavailable Git", async () => {
