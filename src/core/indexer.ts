@@ -39,8 +39,47 @@ interface DiscoveryResult {
   scanned: number;
   skipped: number;
   failed: number;
+  truncated: boolean;
   errors: string[];
   skippedFiles: string[];
+}
+export interface IndexOptions {
+  /** Abort and roll back if discovery, parsing, or source snapshot validation is incomplete. */
+  requireCompleteSnapshot?: boolean;
+  /** Exact project-relative file/directory paths. Directory selections include descendants. */
+  paths?: string[];
+  /** Additional project-relative glob patterns; combined with paths as an intersection. */
+  include?: string[];
+  /** Maximum matching source files to read and index (1-10000). */
+  maxFiles?: number;
+  /** Maximum directory entries examined (1-100000). */
+  maxProcessed?: number;
+}
+function normalizeScopePaths(paths: string[] = []): string[] {
+  return paths.map((value) => {
+    const normalized = value.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
+    if (!normalized || normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized) ||
+      normalized.split("/").some((part) => part === ".." || part === ".")) {
+      throw new Error("Index scope paths must be non-empty project-relative paths without traversal.");
+    }
+    return normalized;
+  });
+}
+function validateIndexOptions(options: IndexOptions): void {
+  if (options.maxFiles !== undefined && (!Number.isInteger(options.maxFiles) || options.maxFiles < 1 || options.maxFiles > 10_000)) {
+    throw new Error("maxFiles must be an integer between 1 and 10000.");
+  }
+  if (options.maxProcessed !== undefined && (!Number.isInteger(options.maxProcessed) || options.maxProcessed < 1 || options.maxProcessed > 100_000)) {
+    throw new Error("maxProcessed must be an integer between 1 and 100000.");
+  }
+  if (options.include?.some((pattern) => !pattern.trim() || pattern.trimStart().startsWith("!"))) {
+    throw new Error("Include patterns must be non-empty and cannot use negation.");
+  }
+}
+function isWithinIndexScope(path: string, paths: string[], includeMatcher?: ReturnType<typeof ignore>): boolean {
+  const pathMatch = paths.length === 0 || paths.some((selected) =>
+    path === selected || path.startsWith(selected + "/"));
+  return pathMatch && (includeMatcher === undefined || includeMatcher.ignores(path));
 }
 
 function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: string[] = []): IgnoreScope {
@@ -69,7 +108,12 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
   });
 }
 
-export function discoverFiles(root: string, extraExcludes: string[] = []): DiscoveryResult {
+export function discoverFiles(root: string, extraExcludes: string[] = [], options: IndexOptions = {}): DiscoveryResult {
+  validateIndexOptions(options);
+  const selectedPaths = normalizeScopePaths(options.paths);
+  const includeMatcher = options.include?.length ? ignore().add(options.include) : undefined;
+  const scoped = selectedPaths.length > 0 || includeMatcher !== undefined ||
+    options.maxFiles !== undefined || options.maxProcessed !== undefined;
   const output: DiscoveredFile[] = [];
   const presentPaths = new Set<string>();
   const protectedDirectories = new Set<string>();
@@ -78,8 +122,12 @@ export function discoverFiles(root: string, extraExcludes: string[] = []): Disco
   let scanned = 0;
   let skipped = 0;
   let failed = 0;
+  let processedEntries = 0;
+  let truncated = false;
+  let stopped = false;
   const rootScope = loadIgnoreRules(root, true, extraExcludes);
   const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
+    if (stopped) return;
     const directoryPath = relative(root, directory).replaceAll("\\", "/");
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
     let entries: Dirent[];
@@ -93,11 +141,21 @@ export function discoverFiles(root: string, extraExcludes: string[] = []): Disco
       return;
     }
     for (const entry of entries) {
+      if (stopped) break;
+      processedEntries += 1;
+      if (options.maxProcessed !== undefined && processedEntries > options.maxProcessed) {
+        truncated = true;
+        stopped = true;
+        break;
+      }
       const absolutePath = join(directory, entry.name);
       const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
       if (isIgnored(absolutePath, scopes)) continue;
+      if (entry.isDirectory() && selectedPaths.length > 0 &&
+        !selectedPaths.some((selected) => selected === relativePath || selected.startsWith(relativePath + "/") || relativePath.startsWith(selected + "/"))) continue;
+      const selected = isWithinIndexScope(relativePath, selectedPaths, includeMatcher);
       if (entry.isSymbolicLink()) {
-        if (isSupportedSourceFile(relativePath)) {
+        if (selected && isSupportedSourceFile(relativePath)) {
           scanned += 1;
           skipped += 1;
           skippedFiles.push(relativePath + ": symbolic link");
@@ -108,7 +166,12 @@ export function discoverFiles(root: string, extraExcludes: string[] = []): Disco
         walk(absolutePath, scopes);
         continue;
       }
-      if (!entry.isFile() || !isSupportedSourceFile(relativePath)) continue;
+      if (!entry.isFile() || !isSupportedSourceFile(relativePath) || !selected) continue;
+      if (options.maxFiles !== undefined && output.length >= options.maxFiles) {
+        truncated = true;
+        stopped = true;
+        break;
+      }
       presentPaths.add(relativePath);
       scanned += 1;
       try {
@@ -133,7 +196,7 @@ export function discoverFiles(root: string, extraExcludes: string[] = []): Disco
   walk(root, [rootScope]);
   return {
     files: output.sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
-    presentPaths, protectedDirectories, scanned, skipped, failed, errors, skippedFiles,
+    presentPaths, protectedDirectories, scanned, skipped, failed, truncated, errors, skippedFiles,
   };
 }
 function stableIdentifier(value: unknown): string {
@@ -583,10 +646,15 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
   }
 }
 
-export function indexProject(location: ProjectLocation, force = false, extraExcludes: string[] = []): IndexSummary {
+export function indexProject(
+  location: ProjectLocation,
+  force = false,
+  extraExcludes: string[] = [],
+  options: IndexOptions = {},
+): IndexSummary {
   const db = openDatabase(location);
   try {
-    return indexWithDatabase(db, location, force, extraExcludes);
+    return indexWithDatabase(db, location, force, extraExcludes, options);
   } finally {
     db.close();
   }
@@ -605,11 +673,6 @@ export function updateProjectIndex(location: ProjectLocation): IndexSummary {
   }
 }
 
-export interface IndexOptions {
-  /** Abort and roll back if discovery, parsing, or source snapshot validation is incomplete. */
-  requireCompleteSnapshot?: boolean;
-}
-
 function sameDiscoveredSnapshot(left: DiscoveryResult, right: DiscoveryResult): boolean {
   if (left.failed !== 0 || left.skipped !== 0 || left.protectedDirectories.size !== 0 ||
       right.failed !== 0 || right.skipped !== 0 || right.protectedDirectories.size !== 0) return false;
@@ -625,10 +688,13 @@ export function indexWithDatabase(
   extraExcludes: string[] = [],
   options: IndexOptions = {},
 ): IndexSummary {
+  validateIndexOptions(options);
   const gitBefore = getGitSnapshot(location.rootPath);
-  const discovery = discoverFiles(location.rootPath, extraExcludes);
+  const discovery = discoverFiles(location.rootPath, extraExcludes, options);
+  const scoped = Boolean(options.paths?.length || options.include?.length ||
+    options.maxFiles !== undefined || options.maxProcessed !== undefined);
   if (options.requireCompleteSnapshot &&
-      (discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0)) {
+      (discovery.failed > 0 || discovery.skipped > 0 || discovery.truncated || discovery.protectedDirectories.size > 0)) {
     throw new Error("Index update aborted: source discovery is incomplete; no index changes were committed. Resolve skipped or unreadable files and retry.");
   }
   const { files: discovered, presentPaths } = discovery;
@@ -714,7 +780,7 @@ export function indexWithDatabase(
       const isProtected = [...discovery.protectedDirectories].some((directory) =>
         directory === "" || file.path === directory || file.path.startsWith(directory + "/"),
       );
-      if (!presentPaths.has(file.path) && !isProtected) {
+      if (!scoped && !presentPaths.has(file.path) && !isProtected) {
         removeFile(file.id);
         summary.deleted += 1;
       }
