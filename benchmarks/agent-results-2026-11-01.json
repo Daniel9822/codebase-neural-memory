@@ -337,7 +337,221 @@
           "Agent 1 had no actual memory records in its queried project context, limiting live data validation."
         ]
       }
+    },
+    {
+      "taskId": "CNM-AGENT-03",
+      "task": "Trace change_impact from MCP registration through findImpact; explain path normalization, reverse IMPORTS traversal, transitivity, cycle/deduplication handling, limits, truncation, missing target behavior, counters and metadata.",
+      "referenceCommit": "7b582a926991897aa2fef0170c80c18a1a0384d0",
+      "testedCommit": null,
+      "commitComparability": "unverified",
+      "runs": [
+        {
+          "condition": "with-cnm",
+          "agent": 1,
+          "replicate": 1,
+          "toolCalls": [
+            {
+              "name": "change_impact",
+              "arguments": {
+                "path": "src/core/memories.ts",
+                "limit": 100,
+                "maxProcessed": 1000
+              },
+              "status": "completed"
+            },
+            {
+              "name": "symbol_lookup",
+              "arguments": {
+                "query": "findImpact",
+                "limit": 20
+              },
+              "status": "completed"
+            },
+            {
+              "name": "file_details",
+              "arguments": {
+                "path": "tests/retrieval.test.ts",
+                "limit": 200
+              },
+              "status": "completed"
+            },
+            {
+              "name": "file_details",
+              "arguments": {
+                "path": "tests/mcp-adapter.test.ts",
+                "limit": 200
+              },
+              "status": "completed"
+            },
+            {
+              "name": "file_details",
+              "arguments": {
+                "path": "tests/mcp-boundaries.test.ts",
+                "limit": 200
+              },
+              "status": "completed"
+            },
+            {
+              "name": "change_impact",
+              "arguments": {
+                "path": "src/core/not-indexed.ts",
+                "limit": 5,
+                "maxProcessed": 10
+              },
+              "status": "failed_expected"
+            },
+            {
+              "name": "change_impact",
+              "arguments": {
+                "path": "src/core/memories.ts",
+                "limit": 1,
+                "maxProcessed": 1
+              },
+              "status": "completed"
+            },
+            {
+              "name": "file_details",
+              "arguments": {
+                "path": "src/core/retrieval.ts",
+                "limit": 100
+              },
+              "status": "completed"
+            },
+            {
+              "name": "file_details",
+              "arguments": {
+                "path": "tests/indexer.test.ts",
+                "limit": 100
+              },
+              "status": "completed"
+            },
+            {
+              "name": "file_details",
+              "arguments": {
+                "path": "tests/mcp-adapter.test.ts",
+                "limit": 100
+              },
+              "status": "completed"
+            },
+            {
+              "name": "editor_search_and_read",
+              "arguments": {
+                "query": "findImpact|change_impact|dependency_graph|relation|affectedFiles",
+                "ranges": [
+                  [
+                    360,
+                    425
+                  ]
+                ]
+              },
+              "status": "completed_non_mcp"
+            }
+          ],
+          "observedResults": {
+            "broadQuery": {
+              "path": "src/core/memories.ts",
+              "affectedFiles": [
+                "src/adapters/mcp/server.ts",
+                "src/cli/index.ts",
+                "src/core/context.ts",
+                "tests/context.test.ts",
+                "tests/git-awareness.test.ts",
+                "tests/mcp-adapter.test.ts",
+                "tests/mcp-boundaries.test.ts",
+                "tests/memories.test.ts"
+              ],
+              "truncated": false,
+              "processedFiles": 9,
+              "processedRelations": 14,
+              "limits": {
+                "maxResults": 100,
+                "maxProcessed": 1000
+              }
+            },
+            "tightLimits": {
+              "path": "src/core/memories.ts",
+              "affectedFilesCount": 1,
+              "truncated": true,
+              "processedFiles": 1,
+              "processedRelations": 1,
+              "limits": {
+                "maxResults": 1,
+                "maxProcessed": 1
+              }
+            },
+            "missingTarget": {
+              "error": "File not found in memory index: src/core/not-indexed.ts. Run cnm index."
+            },
+            "dotSegments": {
+              "path": "./src/core/../core/memories.ts",
+              "error": "File not found in memory index: src/core/../core/memories.ts. Run cnm index."
+            }
+          },
+          "findings": [
+            "Confirmed real change_impact execution, broad reverse-impact result, tight-limit behavior, and missing-index target error.",
+            "Located findImpact at src/core/retrieval.ts lines 299-349 and relevant test file metadata.",
+            "MCP description indicates recursive reverse importers, but exact traversal semantics were not verified from source body.",
+            "Observed that a leading ./ was stripped in the failing path while .. segments were not resolved for that input; agent appropriately limited this inference.",
+            "Could not establish exact cycle/deduplication and truncation conditions or full normalization rules because source_excerpt was unavailable and file_details did not expose source bodies."
+          ],
+          "score": {
+            "correctness": 2,
+            "completeness": 2,
+            "evidence": 3,
+            "calibration": 4,
+            "total": 11
+          },
+          "taskSuccess": false,
+          "notes": "MCP calls were genuinely executed. Agent obtained useful live graph output and boundary errors, but did not inspect the core implementation body. The unavailable source_excerpt capability is a recurring session-level source-inspection limitation."
+        },
+        {
+          "condition": "without-cnm",
+          "agent": 2,
+          "replicate": 1,
+          "sourceReads": [
+            "src/adapters/mcp/server.ts:82-100",
+            "src/core/retrieval.ts:260-370",
+            "tests/retrieval.test.ts:120-180",
+            "tests/retrieval.test.ts:335-375",
+            "docs/PHASE_6_MCP_CONTRACT.md:32-58",
+            "src/core/indexer.ts:304-356 (reported as consulted)"
+          ],
+          "findings": [
+            "MCP registration requires nonempty path; limit is 1-5000 and maxProcessed is 1-10000; defaults are 100 and 1000.",
+            "Core path normalization replaces backslashes with forward slashes and strips one leading ./; lookup is exact against indexed files.path; it does not resolve .. segments.",
+            "Missing indexed target throws an error recommending cnm index rather than returning an empty result.",
+            "Stored IMPORTS edges run from importing source file to imported target file; findImpact traverses them in reverse from target to importers, transitively.",
+            "Breadth-first queue plus visited IDs prevents cycles and duplicate affected paths; target itself is initially visited and excluded from affectedFiles.",
+            "limit/maxResults caps unique affected files; maxProcessed caps relation rows processed, including rows whose source is already visited.",
+            "truncated becomes true when a relation exceeds maxProcessed, a new unvisited affected file is encountered after maxResults is full, or work remains in queue.",
+            "processedFiles counts dequeued files including initial target; processedRelations counts relation rows inspected; affectedFiles contains unique importer paths excluding target.",
+            "Return shape: file, affectedFiles, truncated, processedFiles, processedRelations, limits.maxResults and limits.maxProcessed.",
+            "Tests cover transitive dependents, cycles, duplicate paths, result and processing truncation, invalid limits, and missing target."
+          ],
+          "score": {
+            "correctness": 4,
+            "completeness": 4,
+            "evidence": 4,
+            "calibration": 4,
+            "total": 16
+          },
+          "taskSuccess": true,
+          "notes": "Agent read the MCP adapter, core algorithm and tests, did not execute tests or modify files as instructed. Exact implementation semantics were reported with source ranges."
+        }
+      ],
+      "comparison": {
+        "provisionalWinner": "without-cnm",
+        "scoreDifference": 5,
+        "interpretation": "The no-CNM agent again produced the complete source-level explanation, including path handling, traversal direction, cycle prevention, counters, truncation conditions and test coverage. The CNM agent contributed valuable live tool evidence, including real result counts and error cases, but could not inspect the implementation body. This is the third consecutive task in which the no-CNM agent scored higher in the current single-pair evaluations.",
+        "validityLimitations": [
+          "Exact SHA checked out in both worktrees was not supplied; same-commit comparability remains unverified.",
+          "Only one replicate per condition for this task.",
+          "Scores are provisional evaluator ratings, not blinded independent ratings.",
+          "No timing, token, model, or client-version measurements were supplied.",
+          "The CNM agent's source_excerpt tool was unavailable in the session, limiting source-level analysis."
+        ]
+      }
     }
   ],
-  "completedTaskCount": 2
+  "completedTaskCount": 3
 }
