@@ -125,8 +125,8 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   server.registerTool("index_update", {
     description: "Incrementally reconcile the local source index, optionally restricted to project-relative paths or include globs and bounded by file/traversal budgets. Selective updates do not perform deletion reconciliation; they never delete indexed files outside the selected scope. A truncated scope is reported and is not a complete snapshot.",
     inputSchema: z.object({
-      paths: z.array(z.string().min(1).max(500)).max(100).optional(),
-      include: z.array(z.string().min(1).max(500)).max(100).optional(),
+      paths: z.array(z.string().min(1).max(500)).min(1).max(100).optional(),
+      include: z.array(z.string().min(1).max(500)).min(1).max(100).optional(),
       maxFiles: z.number().int().min(1).max(10000).optional(),
       maxProcessed: z.number().int().min(1).max(100000).optional(),
     }),
