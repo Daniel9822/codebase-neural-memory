@@ -292,7 +292,7 @@ describe("indexWithDatabase", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
     writeFileSync(join(location.rootPath, "src", "main.ts"),
-      'import { helper } from "@/helper";\\nexport function run() { return helper(); }');
+      'import { helper } from "@/helper";\nexport function run() { return helper(); }');
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
 
     indexWithDatabase(database!, location);
