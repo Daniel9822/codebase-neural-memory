@@ -268,18 +268,24 @@ describe("indexWithDatabase", () => {
   it("skips unchanged content and updates changed symbols incrementally", () => {
     createProject();
     const filePath = join(location.rootPath, "service.ts");
-    writeFileSync(filePath, "export function firstVersion() { return 1; }");
+    writeFileSync(filePath, 'import { helper } from "./helper";\\nexport function firstVersion() { return helper(); }');
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function helper() { return 1; }");
 
     const initial = indexWithDatabase(database!, location);
+    const initialRelations = database!.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number };
+    expect(initialRelations.count).toBeGreaterThan(0);
     const unchanged = indexWithDatabase(database!, location);
-    writeFileSync(filePath, "export function secondVersion() { return 2; }");
+    const graphAfterUnchanged = database!.prepare("SELECT index_revision FROM relations").all();
+    writeFileSync(filePath, 'import { helper } from "./helper";\\nexport function secondVersion() { return helper(); }');
     const updated = indexWithDatabase(database!, location);
 
-    expect(initial.added).toBe(1);
-    expect(unchanged.unchanged).toBe(1);
+    expect(initial.added).toBe(2);
+    expect(unchanged.unchanged).toBe(2);
     expect(unchanged.updated).toBe(0);
+    expect(graphAfterUnchanged.every((row) => (row as { index_revision: number }).index_revision === 2)).toBe(true);
     expect(updated.updated).toBe(1);
-    expect(database!.prepare("SELECT name FROM symbols").all()).toEqual([{ name: "secondVersion" }]);
+    expect(database!.prepare("SELECT name FROM symbols WHERE file_id = (SELECT id FROM files WHERE path = 'service.ts')").all())
+      .toEqual([{ name: "secondVersion" }]);
   });
 
   it("records missing and ambiguous relative imports without guessing a target", () => {
