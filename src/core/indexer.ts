@@ -406,7 +406,7 @@ function computeRelationsConfigHash(rootPath: string, files: Array<{ path: strin
     } catch {
       hash.update("<missing>");
     }
-    hash.update("\\0");
+    hash.update("\0");
   }
   return hash.digest("hex");
 }
