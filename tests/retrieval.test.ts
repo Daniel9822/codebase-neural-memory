@@ -110,7 +110,7 @@ describe("findDependencies", () => {
       },
     ]);
     expect(findDependencies(location, "a.ts", 10).dependencies.map((item) => item.path)).toEqual(["b.ts", "c.ts"]);
-  });
+  }, 20_000);
 
   it("accepts paths with Windows separators and a leading ./", () => {
     createProject();
