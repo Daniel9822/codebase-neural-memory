@@ -98,7 +98,7 @@ export function buildTaskContext(
 
   const lexicalAnchors = anchorsFor(normalizedTask);
   const explicitAnchorMode = options.anchors !== undefined;
-  const anchorPaths = [...new Set((options.anchors?.paths ?? []).map((path) => path.trim().replaceAll("\\\\", "/").replace(/^\\.\\//, "")))];
+  const anchorPaths = [...new Set((options.anchors?.paths ?? []).map((path) => path.trim().replaceAll("\\", "/").replace(/^\\.\\//, "")))];
   const anchorSymbols = [...new Set((options.anchors?.symbols ?? []).map((symbol) => symbol.trim()).filter(Boolean))];
   if (explicitAnchorMode && anchorPaths.length + anchorSymbols.length === 0) throw new Error("anchors must include at least one path or symbol.");
   if (anchorPaths.length > 20 || anchorSymbols.length > 20 || anchorPaths.some((path) => !path || path.startsWith("/") || path.split("/").some((part) => part === ".." || part === ""))) {
@@ -205,7 +205,7 @@ export function buildTaskContext(
       .filter((path) => /(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path));
   } finally { testDb.close(); }
   for (const path of testPaths) {
-    const matchingAnchors = anchors.filter((anchor) => path.toLocaleLowerCase().includes(anchor));
+    const matchingAnchors = explicitAnchorMode ? [] : anchors.filter((anchor) => path.toLocaleLowerCase().includes(anchor));
     // Do not add every test in the repository: a test path must match at least
     // one lexical task anchor to be considered a task-context candidate.
     if (matchingAnchors.length === 0) continue;
