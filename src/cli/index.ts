@@ -288,8 +288,17 @@ program.command("context <task>")
   .description("Build bounded, explainable local context for a natural-language task.")
   .option("--max-items <number>", "Maximum context items (1-100)", parsePositiveInteger, 20)
   .option("--max-characters <number>", "Maximum serialized item characters (100-50000)", parsePositiveInteger, 12000)
-  .action((task: string, options: { maxItems: number; maxCharacters: number }) => {
-    console.log(JSON.stringify(buildTaskContext(ensureInitialized(), task, { maxItems: options.maxItems, maxCharacters: options.maxCharacters }), null, 2));
+  .option("--symbol-limit <number>", "Maximum symbol candidates (1-50)", parsePositiveInteger, 20)
+  .option("--file-limit <number>", "Maximum file candidates (1-50)", parsePositiveInteger, 10)
+  .option("--dependency-limit <number>", "Maximum dependency candidates (1-50)", parsePositiveInteger, 20)
+  .option("--test-limit <number>", "Maximum test candidates (1-50)", parsePositiveInteger, 20)
+  .option("--memory-limit <number>", "Maximum memory candidates (1-50)", parsePositiveInteger, 20)
+  .action((task: string, options: { maxItems: number; maxCharacters: number; symbolLimit: number; fileLimit: number; dependencyLimit: number; testLimit: number; memoryLimit: number }) => {
+    console.log(JSON.stringify(buildTaskContext(ensureInitialized(), task, {
+      maxItems: options.maxItems, maxCharacters: options.maxCharacters,
+      symbolLimit: options.symbolLimit, fileLimit: options.fileLimit,
+      dependencyLimit: options.dependencyLimit, testLimit: options.testLimit, memoryLimit: options.memoryLimit,
+    }), null, 2));
   });
 
 program.command("mcp")

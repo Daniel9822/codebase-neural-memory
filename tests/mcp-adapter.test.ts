@@ -148,6 +148,7 @@ describe("MCP adapter protocol contract", () => {
       change_impact: ["limit", "maxProcessed", "path"],
       symbol_impact: ["depth", "direction", "filePath", "kind", "limit", "maxProcessed", "relationKinds", "startLine", "symbol"],
       task_context: ["anchors", "maxCharacters", "maxItems", "task"],
+      task_context: ["anchors", "dependencyLimit", "fileLimit", "maxCharacters", "maxItems", "memoryLimit", "symbolLimit", "task", "testLimit"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["category", "limit", "list", "query", "status"],
@@ -170,6 +171,7 @@ describe("MCP adapter protocol contract", () => {
       ["change_impact", { path: "helper.ts", limit: 10 }],
       ["symbol_impact", { symbol: "helper", filePath: "helper.ts", direction: "incoming", depth: 2 }],
       ["task_context", { task: "understand target helper", maxItems: 10 }],
+      ["task_context", { task: "understand target helper", maxItems: 10, symbolLimit: 5, fileLimit: 3, dependencyLimit: 4, testLimit: 2, memoryLimit: 6 }],
       ["memory_freshness", {}],
       ["memory_propose", { title: "Suggested invariant", content: "Agent suggestions remain unconfirmed." }],
       ["memory_recall", { query: "MCP adapter", limit: 5 }],
@@ -258,6 +260,12 @@ describe("MCP adapter protocol contract", () => {
     });
     const invalidSymbolImpactResult = invalidSymbolImpact.result as { isError?: boolean } | undefined;
     expect(Boolean(invalidSymbolImpact.error) || invalidSymbolImpactResult?.isError === true).toBe(true);
+    const invalidBudget = await client.request("tools/call", {
+      name: "task_context",
+      arguments: { task: "target helper", dependencyLimit: 51 },
+    });
+    const invalidBudgetResult = invalidBudget.result as { isError?: boolean } | undefined;
+    expect(Boolean(invalidBudget.error) || invalidBudgetResult?.isError === true).toBe(true);
 
     const coreError = await client.request("tools/call", {
       name: "dependency_graph",
