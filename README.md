@@ -88,6 +88,7 @@ The server uses stdio and exposes sixteen tools: thirteen read/retrieval tools a
 - `file_details` — bounded indexed file metadata, symbols, imports, and relations; `inlineSnippets` optionally includes bounded source for the first symbols.
 - `source_excerpt` — bounded current source-code lines from an indexed file, with line ranges, SHA-256 comparison against the index, and explicit stale/truncation status.
 - `git_blame` — bounded read-only line attribution for tracked project files, including commit, author, timestamp, and summary; this is historical attribution, not inferred rationale.
+- `git_history` — bounded recent commit metadata and changed-path evidence, with strict commit/path budgets and a 3-second command timeout. Git commits are not assumed to equal agent sessions, and commit messages are not treated as proof of intent.
 - `change_impact` — bounded reverse-import impact traversal at the file level.
 - `symbol_impact` — bounded symbol-level traversal over `CALLS`, `EXTENDS`, and `IMPLEMENTS`, returning shortest relation distances, source locations, and per-edge evidence. Incoming traversal finds callers, subclasses, implementors, and indexed test-case callbacks that may be affected; outgoing traversal finds dependencies. Recognized `it`/`test`/`specify`-style callbacks in test files are indexed as `test-case` symbols, with imported calls linked to their concrete source symbols. This is static syntax evidence, not runtime test coverage. Ambiguous symbol names return candidates and require a path/kind/line filter.
 - `task_context` — deterministic, bounded task context from indexed facts and memories; optional exact path/symbol anchors disable broad lexical symbol fallback and label each item origin.
@@ -96,7 +97,7 @@ The server uses stdio and exposes sixteen tools: thirteen read/retrieval tools a
 - `memory_propose` — persist an agent suggestion with `proposed` status; a person must explicitly confirm it.
 - `memory_transition` — explicitly transition a memory lifecycle state; agent confirmation requires clear user authorization.
 
-Use `cnm blame <path> --start-line <n> --end-line <n>` or MCP `git_blame` to inspect Git attribution for at most 200 lines in a tracked project-relative file. Author email is omitted. This does not infer intent or session rationale.
+Use `cnm blame <path> --start-line <n> --end-line <n>` or MCP `git_blame` to inspect Git attribution for at most 200 lines in a tracked project-relative file. Author email is omitted. This does not infer intent or session rationale. Use MCP `git_history` to inspect at most 50 recent commits and 500 changed paths; it is a factual change log, not reconstructed session history.
 
 Use `source_excerpt` after `symbol_lookup` or `task_context` to inspect the actual implementation at a returned path and line range. It accepts a project-relative indexed path, inclusive `startLine` / `endLine`, and optional `maxCharacters` (100–20,000; default 12,000). It returns at most 200 lines and reads source files no larger than 1 MiB, rejects paths outside the project root, and reports `indexStatus: current|stale` by comparing the working-tree SHA-256 with the indexed hash. A stale excerpt is current working-tree content, not a claim that the index describes those bytes.
 

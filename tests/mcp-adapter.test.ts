@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly seventeen tools and publishes the expected input schemas", async () => {
+  it("discovers exactly eighteen tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -125,6 +125,7 @@ describe("MCP adapter protocol contract", () => {
       "dependency_graph",
       "file_details",
       "git_blame",
+      "git_history",
       "index_freshness",
       "index_update",
       "memory_freshness",
@@ -150,6 +151,7 @@ describe("MCP adapter protocol contract", () => {
       file_details: ["inlineSnippets", "limit", "path", "snippetLimit", "snippetMaxLines"],
       source_excerpt: ["endLine", "maxCharacters", "path", "startLine"],
       git_blame: ["endLine", "path", "startLine"],
+      git_history: ["limit", "maxPaths"],
       change_impact: ["limit", "maxProcessed", "path"],
       symbol_impact: ["depth", "direction", "filePath", "kind", "limit", "maxProcessed", "relationKinds", "startLine", "symbol"],
       task_context: ["anchors", "dependencyLimit", "fileLimit", "maxCharacters", "maxItems", "memoryLimit", "symbolLimit", "task", "testLimit"],
@@ -173,6 +175,32 @@ describe("MCP adapter protocol contract", () => {
     const invalidResult = invalid.result as { isError?: boolean } | undefined;
     expect(Boolean(invalid.error) || invalidResult?.isError === true).toBe(true);
   });
+
+  it("executes bounded Git history and rejects invalid budgets", async () => {
+    createProject();
+    execFileSync("git", ["init"], { cwd: location.rootPath, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "cnm-tests@example.invalid"], { cwd: location.rootPath });
+    execFileSync("git", ["config", "user.name", "CNM MCP Tests"], { cwd: location.rootPath });
+    execFileSync("git", ["add", "main.ts"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "add MCP fixture"], { cwd: location.rootPath, stdio: "ignore" });
+
+    const client = await connectClient();
+    const valid = await client.request("tools/call", {
+      name: "git_history",
+      arguments: { limit: 5, maxPaths: 10 },
+    });
+    const validResult = valid.result as { isError?: boolean; content?: Array<{ text?: string }> } | undefined;
+    expect(validResult?.isError).not.toBe(true);
+    expect(validResult?.content?.[0]?.text).toContain("add MCP fixture");
+    expect(validResult?.content?.[0]?.text).toContain("main.ts");
+
+    const invalid = await client.request("tools/call", {
+      name: "git_history",
+      arguments: { limit: 51 },
+    });
+    const invalidResult = invalid.result as { isError?: boolean } | undefined;
+    expect(Boolean(invalid.error) || invalidResult?.isError === true).toBe(true);
+  }, 20_000);
 
   it("executes a valid bounded Git blame call and rejects invalid ranges", async () => {
     createProject();

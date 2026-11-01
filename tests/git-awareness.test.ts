@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { getGitBlame, getGitSnapshot } from "../src/core/git.js";
+import { getGitBlame, getGitHistory, getGitSnapshot } from "../src/core/git.js";
 import { inspectMemoryFreshness, remember } from "../src/core/memories.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
 import type { ProjectLocation } from "../src/core/project.js";
@@ -79,6 +79,57 @@ describe("Git blame retrieval", () => {
     const nonGitRoot = join(temporaryDirectory, "plain");
     mkdirSync(nonGitRoot);
     await expect(getGitBlame(nonGitRoot, "tracked.ts")).rejects.toThrow(/not a Git repository/);
+  });
+});
+
+describe("Git history evidence", () => {
+  it("returns bounded commit metadata and changed paths without inferring sessions", async () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "first.ts"), "export const first = 1;\\n");
+    execFileSync("git", ["add", "src/first.ts"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "add first source"], { cwd: location.rootPath, stdio: "ignore" });
+
+    writeFileSync(join(location.rootPath, "src", "second.ts"), "export const second = 2;\\n");
+    execFileSync("git", ["add", "src/second.ts"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "add second source"], { cwd: location.rootPath, stdio: "ignore" });
+
+    const result = await getGitHistory(location.rootPath, 1, 10);
+    expect(result.commits).toHaveLength(1);
+    expect(result.commits[0]).toMatchObject({
+      author: "CNM Tests",
+      subject: "add second source",
+      files: [{ status: "A", path: "src/second.ts" }],
+    });
+    expect(result.commits[0]?.commit).toMatch(/^[0-9a-f]{40}$/);
+    expect(result.commits[0]?.authoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(result.truncated).toBe(true);
+    expect(result.truncatedPaths).toBe(false);
+
+    const pathLimited = await getGitHistory(location.rootPath, 10, 1);
+    expect(pathLimited.truncatedPaths).toBe(true);
+    expect(pathLimited.commits[0]?.files).toHaveLength(1);
+  });
+
+  it("reports rename destinations with their previous project-relative path", async () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "before.ts"), "export const value = 1;\\n");
+    execFileSync("git", ["add", "before.ts"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "add source file"], { cwd: location.rootPath, stdio: "ignore" });
+    execFileSync("git", ["mv", "before.ts", "after.ts"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "rename source file"], { cwd: location.rootPath, stdio: "ignore" });
+
+    const result = await getGitHistory(location.rootPath, 1, 10);
+    expect(result.commits[0]?.files).toEqual([
+      { status: "R100", path: "after.ts", previousPath: "before.ts" },
+    ]);
+  });
+
+  it("validates budgets and reports unavailable Git", async () => {
+    createProject(false);
+    await expect(getGitHistory(location.rootPath, 0)).rejects.toThrow(/1 and 50/);
+    await expect(getGitHistory(location.rootPath, 1, 501)).rejects.toThrow(/1 and 500/);
+    await expect(getGitHistory(location.rootPath)).rejects.toThrow(/not a Git repository/);
   });
 });
 
