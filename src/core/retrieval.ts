@@ -706,7 +706,8 @@ export function getComponentMap(location: ProjectLocation, options: { from?: str
     let from: string | null = null;
     if (options.from !== undefined) {
       const requested = options.from.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/$/, "");
-      const component = requested.includes("/") ? requested.slice(0, requested.indexOf("/")) : requested;
+      const indexedPath = db.prepare(`SELECT ${COMPONENT_PATH_SQL} AS id FROM files WHERE path = ? LIMIT 1`).get(requested) as { id: string } | undefined;
+      const component = indexedPath?.id ?? requested;
       const exists = db.prepare(`SELECT 1 AS found FROM files WHERE ${COMPONENT_PATH_SQL} = ? LIMIT 1`).get(component) as { found: number } | undefined;
       if (!exists) throw new Error(`Component not found in memory index: ${options.from}`);
       from = component;
