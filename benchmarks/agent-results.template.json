@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "repository": "Daniel9822/codebase-neural-memory",
+  "referenceCommit": "4e57cadc49fedea2f88359a204c10568c3dece48",
+  "environment": {
+    "os": null,
+    "nodeVersion": null,
+    "agentClient": null,
+    "agentClientVersion": null,
+    "model": null,
+    "cnmCommit": null
+  },
+  "runs": [
+    {
+      "taskId": "CNM-AGENT-01",
+      "condition": "without-cnm",
+      "replicate": 1,
+      "elapsedMs": null,
+      "inputTokens": null,
+      "outputTokens": null,
+      "toolCalls": null,
+      "answer": "",
+      "score": {
+        "correctness": null,
+        "completeness": null,
+        "evidence": null,
+        "calibration": null
+      },
+      "taskSuccess": null,
+      "notes": ""
+    }
+  ]
+}
