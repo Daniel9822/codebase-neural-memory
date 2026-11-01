@@ -201,8 +201,9 @@ export interface ProjectMapReport {
     path: string;
     imports: string[];
     unresolvedImports: Array<{ specifier: string; status: string; candidates: string[]; candidatesTotal: number; candidatesTruncated: boolean }>;
-    totals: { imports: number; unresolvedImports: number };
-    truncated: { imports: boolean; unresolvedImports: boolean };
+    importDiagnostics: Array<{ specifier: string; kind: string; code: number; message: string; line: number; column: number; importedName: string | null }>;
+    totals: { imports: number; unresolvedImports: number; importDiagnostics: number };
+    truncated: { imports: boolean; unresolvedImports: boolean; importDiagnostics: boolean };
   }>;
   totalFiles: number;
   limit: number;
@@ -226,6 +227,7 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
       SELECT f.id, f.path,
         (SELECT COUNT(*) FROM relations r WHERE r.source_kind = 'file' AND r.source_id = f.id AND r.kind = 'IMPORTS') AS importsTotal,
         (SELECT COUNT(*) FROM unresolved_imports u WHERE u.source_file_id = f.id) AS unresolvedTotal,
+        (SELECT COUNT(*) FROM import_diagnostics d WHERE d.source_file_id = f.id) AS diagnosticsTotal,
         COALESCE((SELECT json_group_array(path) FROM (
           SELECT target.path AS path FROM relations r
           JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
@@ -238,10 +240,19 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
           SELECT module_specifier AS specifier, status, candidates_json AS candidatesJson
           FROM unresolved_imports WHERE source_file_id = f.id
           ORDER BY module_specifier LIMIT ?
-        )), '[]') AS unresolvedImports
+        )), '[]') AS unresolvedImports,
+        COALESCE((SELECT json_group_array(json_object(
+          'specifier', module_specifier, 'kind', kind, 'code', diagnostic_code,
+          'message', message, 'line', line, 'column', column_number, 'importedName', imported_name
+        )) FROM (
+          SELECT module_specifier, kind, diagnostic_code, message, line, column_number, imported_name
+          FROM import_diagnostics WHERE source_file_id = f.id
+          ORDER BY line, column_number, diagnostic_code LIMIT ?
+        )), '[]') AS importDiagnostics
       FROM files f ORDER BY f.path LIMIT ?
-    `).all(MAX_PROJECT_MAP_PER_FILE, MAX_PROJECT_MAP_PER_FILE, limit) as Array<{
-      path: string; importsTotal: number; unresolvedTotal: number; imports: string; unresolvedImports: string;
+    `).all(MAX_PROJECT_MAP_PER_FILE, MAX_PROJECT_MAP_PER_FILE, MAX_PROJECT_MAP_PER_FILE, limit) as Array<{
+      path: string; importsTotal: number; unresolvedTotal: number; diagnosticsTotal: number;
+      imports: string; unresolvedImports: string; importDiagnostics: string;
     }>;
     const files = rows.map((row) => {
       const imports = JSON.parse(row.imports) as string[];
@@ -252,12 +263,21 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
         candidatesTotal: item.candidates.length,
         candidatesTruncated: item.candidates.length > MAX_PROJECT_MAP_CANDIDATES,
       }));
+      const importDiagnostics = JSON.parse(row.importDiagnostics) as Array<{
+        specifier: string; kind: string; code: number; message: string;
+        line: number; column: number; importedName: string | null;
+      }>;
       return {
-        path: row.path, imports, unresolvedImports,
-        totals: { imports: row.importsTotal, unresolvedImports: row.unresolvedTotal },
+        path: row.path, imports, unresolvedImports, importDiagnostics,
+        totals: {
+          imports: row.importsTotal,
+          unresolvedImports: row.unresolvedTotal,
+          importDiagnostics: row.diagnosticsTotal,
+        },
         truncated: {
           imports: row.importsTotal > imports.length,
           unresolvedImports: row.unresolvedTotal > unresolvedImports.length,
+          importDiagnostics: row.diagnosticsTotal > importDiagnostics.length,
         },
       };
     });
