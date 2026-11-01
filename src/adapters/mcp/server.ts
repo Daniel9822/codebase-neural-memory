@@ -194,9 +194,15 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       task: z.string().min(1),
       maxItems: z.number().int().min(1).max(100).optional(),
       maxCharacters: z.number().int().min(100).max(50000).optional(),
+      anchors: z.object({
+        paths: z.array(z.string().min(1).max(500)).max(20).optional(),
+        symbols: z.array(z.string().min(1).max(200)).max(20).optional(),
+      }).refine((value) => Boolean(value.paths?.length || value.symbols?.length), {
+        message: "anchors must include at least one path or symbol.",
+      }).optional(),
     }),
-  }, async ({ task, maxItems, maxCharacters }) => readResponse(location, options, () =>
-    buildTaskContext(location, task, { ...(maxItems === undefined ? {} : { maxItems }), ...(maxCharacters === undefined ? {} : { maxCharacters }) })));
+  }, async ({ task, maxItems, maxCharacters, anchors }) => readResponse(location, options, () =>
+    buildTaskContext(location, task, { ...(maxItems === undefined ? {} : { maxItems }), ...(maxCharacters === undefined ? {} : { maxCharacters }), ...(anchors === undefined ? {} : { anchors }) })));
 
   server.registerTool("memory_propose", {
     description: "Persist an agent-suggested project memory in proposed status. It is never confirmed automatically and requires explicit human review.",
