@@ -570,6 +570,19 @@ export function indexProject(location: ProjectLocation, force = false, extraExcl
   }
 }
 
+/** Reconcile the working tree using the project's persisted exclusion rules. */
+export function updateProjectIndex(location: ProjectLocation): IndexSummary {
+  const db = openDatabase(location);
+  try {
+    const row = db.prepare("SELECT index_excludes_json FROM projects WHERE id = ?").get(location.id) as { index_excludes_json: string } | undefined;
+    if (!row) throw new Error("This repository has not been initialized. Run `cnm init` first.");
+    const excludes = JSON.parse(row.index_excludes_json) as string[];
+    return indexWithDatabase(db, location, false, excludes);
+  } finally {
+    db.close();
+  }
+}
+
 export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation, force = false, extraExcludes: string[] = []): IndexSummary {
   const gitBefore = getGitSnapshot(location.rootPath);
   const discovery = discoverFiles(location.rootPath, extraExcludes);
