@@ -167,7 +167,7 @@ export async function getGitBlame(
   const requestedLines = endLine - startLine + 1;
   if (requestedLines > 200) throw new Error("Git blame range cannot exceed 200 lines.");
 
-  const normalized = filePath.replaceAll("\\\\", "/");
+  const normalized = filePath.replaceAll("\\", "/");
   if (!normalized || normalized.length > 500 || normalized.startsWith("/") ||
       /^[a-zA-Z]:/.test(normalized) ||
       normalized.split("/").some((part) => !part || part === "." || part === "..")) {
@@ -203,10 +203,10 @@ export async function getGitBlame(
     throw new Error("Git blame failed or exceeded its 2.5-second execution budget; verify that the file is tracked and the requested line range exists.");
   }
 
-  const records = output.split(/\\r?\\n/);
+  const records = output.split(/\r?\n/);
   const lines: GitBlameLine[] = [];
   for (let index = 0; index < records.length;) {
-    const header = /^\\^?([0-9a-f]{40,64}) (\\d+) (\\d+)(?: (\\d+))?$/.exec(records[index] ?? "");
+    const header = /^\^?([0-9a-f]{40,64}) (\d+) (\d+)(?: (\d+))?$/.exec(records[index] ?? "");
     if (!header) { index += 1; continue; }
     const commit = header[1]!;
     const originalLine = Number(header[2]);
@@ -218,7 +218,7 @@ export async function getGitBlame(
     let content = "";
     while (index < records.length) {
       const record = records[index++]!;
-      if (record.startsWith("\\t")) {
+      if (record.startsWith("\t")) {
         content = record.slice(1);
         break;
       }
