@@ -837,7 +837,7 @@ const MAX_SYMBOL_IMPACT_PROCESSED = 10_000;
 /** Traverse symbol CALLS/EXTENDS/IMPLEMENTS edges and report shortest relation distances. */
 export function findSymbolImpact(location: ProjectLocation, name: string, options: SymbolImpactOptions = {}): SymbolImpactReport {
   const normalizedName = name.trim();
-  if (!normalizedName) throw new Error("Symbol name must not be empty.");
+  if (!normalizedName || normalizedName.length > 200) throw new Error("Symbol name must be non-empty and no longer than 200 characters.");
   const direction = options.direction ?? "incoming";
   if (direction !== "incoming" && direction !== "outgoing") throw new Error("Symbol impact direction must be incoming or outgoing.");
   const depth = options.depth ?? DEFAULT_SYMBOL_IMPACT_DEPTH;
@@ -850,7 +850,7 @@ export function findSymbolImpact(location: ProjectLocation, name: string, option
   let normalizedPath: string | undefined;
   if (options.filePath !== undefined) {
     normalizedPath = options.filePath.trim().replaceAll("\\", "/").replace(/^\.\//, "");
-    if (!normalizedPath || normalizedPath.startsWith("/") || /^[a-zA-Z]:/.test(normalizedPath)
+    if (!normalizedPath || normalizedPath.length > 500 || normalizedPath.startsWith("/") || /^[a-zA-Z]:/.test(normalizedPath)
       || normalizedPath.split("/").some((part) => part === ".." || part === "" || part === ".")) {
       throw new Error("Symbol impact filePath must be a normalized project-relative path.");
     }
