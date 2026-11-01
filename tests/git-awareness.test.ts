@@ -57,10 +57,11 @@ describe("Git blame retrieval", () => {
       truncated: false,
       lines: [
         { line: 1, originalLine: 1, author: "CNM Tests", summary: "add tracked declarations", content: "export const first = 1;" },
-        { line: 2, originalLine: 2, author: "CNM Tests", summary: "add tracked declarations", content: "export const second = 2;" },,
+        { line: 2, originalLine: 2, author: "CNM Tests", summary: "add tracked declarations", content: "export const second = 2;" },
+      ],
     });
     expect(result.lines[0]?.commit).toMatch(/^[0-9a-f]{40}$/);
-    expect(result.lines[0]?.authoredAt).toMatch(/^\\d{4}-\\d{2}-\\d{2}T/);
+    expect(result.lines[0]?.authoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
   it("rejects unsafe paths and excessive line ranges", () => {
