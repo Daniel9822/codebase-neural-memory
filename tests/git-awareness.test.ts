@@ -56,9 +56,8 @@ describe("Git blame retrieval", () => {
       endLine: 2,
       truncated: false,
       lines: [
-    writeFileSync(join(location.rootPath, "tracked.ts"), "export const first = 1;\nexport const second = 2;\n");
-        { line: 2, originalLine: 2, author: "CNM Tests", summary: "add tracked declarations", content: "export const second = 2;" },
-      ],
+        { line: 1, originalLine: 1, author: "CNM Tests", summary: "add tracked declarations", content: "export const first = 1;" },
+        { line: 2, originalLine: 2, author: "CNM Tests", summary: "add tracked declarations", content: "export const second = 2;" },,
     });
     expect(result.lines[0]?.commit).toMatch(/^[0-9a-f]{40}$/);
     expect(result.lines[0]?.authoredAt).toMatch(/^\\d{4}-\\d{2}-\\d{2}T/);
