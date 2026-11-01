@@ -49,7 +49,7 @@ Run `cnm index` again after changing the code. Unchanged files are skipped by co
 
 ## Project memory lifecycle
 
-CNM stores project decisions and notes in the local project database. Use `remember` for knowledge explicitly confirmed by the person invoking the command, or `propose` for suggestions that must remain unconfirmed until an explicit transition:
+CNM stores project decisions and notes in the local project database, independently of the coding agent connected to it. During `cnm init`, CNM creates `AGENTS.md` when absent or adds/updates only a marked CNM-managed section in an existing file, preserving the project-authored content. Use `cnm agents-md --check` in CI and `cnm agents-md --print` to inspect the generated instructions. Use `remember` for knowledge explicitly confirmed by the person invoking the command, or `propose` for suggestions that remain unconfirmed until an explicit transition:
 
 ```bash
 cnm propose "Potential API rule" "Review this rule before adopting it." --author "Project Maintainer"
@@ -89,7 +89,7 @@ The server uses stdio and exposes thirteen tools: eleven read/retrieval tools an
 - `task_context` — deterministic, bounded task context from indexed facts and memories; optional exact path/symbol anchors disable broad lexical symbol fallback and label each item origin.
 - `memory_freshness` — source-file fingerprints and Git commit ancestry for linked or commit-referenced memories.
 - `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
-- `memory_propose` — persist an agent suggestion with `proposed` status; a person must explicitly confirm it.
+- `memory_propose` — persist an agent suggestion with `proposed` status; a person must explicitly confirm it.\n- `memory_transition` — explicitly transition a memory lifecycle state; agent confirmation requires clear user authorization.
 
 Use `source_excerpt` after `symbol_lookup` or `task_context` to inspect the actual implementation at a returned path and line range. It accepts a project-relative indexed path, inclusive `startLine` / `endLine`, and optional `maxCharacters` (100–20,000; default 12,000). It returns at most 200 lines and reads source files no larger than 1 MiB, rejects paths outside the project root, and reports `indexStatus: current|stale` by comparing the working-tree SHA-256 with the indexed hash. A stale excerpt is current working-tree content, not a claim that the index describes those bytes.
 
@@ -106,7 +106,7 @@ Auto-update is synchronous. The 50-file guard bounds the number of changed sourc
 
 For focused source inspection, use symbol_lookup with includeSource: { maxLines: 60 } or file_details with inlineSnippets: true (default three symbols). For noisy tasks, pass task_context.anchors with exact paths and/or symbol names; returned items identify whether they came from an explicit anchor, graph expansion, or lexical fallback. See [Agent workflow](docs/AGENT_WORKFLOW.md) for a copyable MCP-first policy and the memory-recall/proposal lifecycle.
 
-The MCP process is bound to the repository resolved from its working directory. Configure the MCP client with an explicit repository `cwd`; do not rely on whichever directory the client happens to inherit. For the exact argument schemas, defaults, limits, bounded freshness/map report metadata, project-binding behavior, and known verification gaps, see [the Phase 6 MCP contract](docs/PHASE_6_MCP_CONTRACT.md).
+The MCP process is bound to the repository resolved from its working directory. Configure the MCP client with an explicit repository `cwd`; do not rely on whichever directory the client happens to inherit. `memory_recall` supports natural-language lexical matching, list mode, and lifecycle/category filters. `memory_transition` applies explicit lifecycle changes; agents must call `status: "confirmed"` only after the user clearly authorizes it. For exact schemas and limits, see [the MCP contract](docs/PHASE_6_MCP_CONTRACT.md).
 
 Example OpenCode configuration (replace the path with the absolute path to the repository and adjust the executable path for your machine):
 
