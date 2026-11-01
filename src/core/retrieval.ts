@@ -97,7 +97,9 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
     const candidateLimit = Math.min(MAX_SEARCH_CANDIDATES, Math.max(limit, limit * 20));
     const ftsQuery = tokens.map((token) => `"${token.replaceAll('"', '""')}"*`).join(" OR ");
     try {
-      const rows = db.prepare(`
+      const rows = tokens.some((token) => /[\\%_]/.test(token))
+        ? []
+        : db.prepare(`
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported,
           bm25(symbols_fts) AS ftsRank
