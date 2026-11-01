@@ -435,6 +435,9 @@ export interface IndexFreshness {
   addedFiles: number;
   changedFiles: number;
   deletedFiles: number;
+  fileChanges: Array<{ path: string; status: "added" | "changed" | "deleted"; oldHash: string | null; newHash: string | null }>;
+  fileChangesTotal: number;
+  fileChangesTruncated: boolean;
   skippedFiles: string[];
   errors: string[];
   limits: { detailItems: number };
@@ -501,7 +504,8 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
     const git = gitFreshness(project, currentGit);
     if (!project.last_indexed_at) {
       return { status: "not-indexed", indexRevision: project.index_revision, checkedFiles: 0, addedFiles: 0,
-        changedFiles: 0, deletedFiles: 0, skippedFiles: [], errors: [], limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS }, totals: { skippedFiles: 0, errors: 0 }, truncated: { skippedFiles: false, errors: false }, git };
+        changedFiles: 0, deletedFiles: 0, fileChanges: [], fileChangesTotal: 0, fileChangesTruncated: false,
+        skippedFiles: [], errors: [], limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS }, totals: { skippedFiles: 0, errors: 0 }, truncated: { skippedFiles: false, errors: false }, git };
     }
     const excludes = JSON.parse(project.index_excludes_json) as string[];
     const discovery = discoverFiles(location.rootPath, excludes);
@@ -509,18 +513,28 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
     const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
     let addedFiles = 0;
     let changedFiles = 0;
+    let deletedFiles = 0;
+    const fileChanges: IndexFreshness["fileChanges"] = [];
     for (const file of discovery.files) {
       const oldHash = indexedByPath.get(file.relativePath);
-      if (oldHash === undefined) addedFiles += 1;
-      else if (oldHash !== file.hash) changedFiles += 1;
+      if (oldHash === undefined) {
+        addedFiles += 1;
+        fileChanges.push({ path: file.relativePath, status: "added", oldHash: null, newHash: file.hash });
+      } else if (oldHash !== file.hash) {
+        changedFiles += 1;
+        fileChanges.push({ path: file.relativePath, status: "changed", oldHash, newHash: file.hash });
+      }
     }
-    let deletedFiles = 0;
     for (const file of indexed) {
       if (discovery.presentPaths.has(file.path)) continue;
       const protectedByReadFailure = [...discovery.protectedDirectories].some((directory) =>
         directory === "" || file.path === directory || file.path.startsWith(directory + "/"));
-      if (!protectedByReadFailure) deletedFiles += 1;
+      if (!protectedByReadFailure) {
+        deletedFiles += 1;
+        fileChanges.push({ path: file.path, status: "deleted", oldHash: file.content_hash, newHash: null });
+      }
     }
+    fileChanges.sort((a, b) => a.path.localeCompare(b.path) || a.status.localeCompare(b.status));
     const gitMetadataUnavailable = git.status === "unavailable" && project.indexed_worktree_status_hash !== null;
     const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0 || gitMetadataUnavailable;
     const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0 || git.status === "changed" || git.status === "unrecorded";
@@ -529,6 +543,9 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
       indexRevision: project.index_revision,
       checkedFiles: discovery.scanned,
       addedFiles, changedFiles, deletedFiles,
+      fileChanges: fileChanges.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
+      fileChangesTotal: fileChanges.length,
+      fileChangesTruncated: fileChanges.length > MAX_FRESHNESS_DETAIL_ITEMS,
       skippedFiles: discovery.skippedFiles.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
       errors: discovery.errors.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
       limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS },
