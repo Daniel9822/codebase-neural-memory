@@ -198,48 +198,45 @@ export async function getGitHistory(
     throw new Error("Git history failed or exceeded its 3-second execution budget; narrow the request or verify repository availability.");
   }
 
-  const tokens = output.split("\0");
   const commits: GitHistoryEntry[] = [];
-  let current: GitHistoryEntry | null = null;
   let totalPaths = 0;
   let truncatedPaths = false;
-  for (let index = 0; index < tokens.length;) {
-    let token = tokens[index++] ?? "";
-    const marker = token.indexOf("\x1e");
-    if (marker >= 0) {
-      if (current) commits.push(current);
-      const metadata = token.slice(marker + 1).replace(/^\r?\n/, "");
-      const [commit, authoredAt, author, ...subjectParts] = metadata.split("\x1f");
-      if (!commit || !/^[0-9a-f]{40,64}$/i.test(commit) || !authoredAt || !author) {
-        current = null;
+  // Split by the explicit record separator first; Git filenames are NUL-delimited
+  // and may contain newlines, so never parse paths by line.
+  const records = output.split("\x1e").filter((record) => record.length > 0);
+  for (const record of records) {
+    const metadataEnd = record.indexOf("\0");
+    if (metadataEnd < 0) continue;
+    const metadata = record.slice(0, metadataEnd).replace(/^\r?\n/, "");
+    const [commit, authoredAt, author, ...subjectParts] = metadata.split("\x1f");
+    if (!commit || !/^[0-9a-f]{40,64}$/i.test(commit) || !authoredAt || !author) continue;
+
+    const entry: GitHistoryEntry = {
+      commit,
+      authoredAt,
+      author,
+      subject: subjectParts.join("\x1f"),
+      files: [],
+    };
+    const pathTokens = record.slice(metadataEnd + 1).split("\0");
+    for (let index = 0; index < pathTokens.length;) {
+      const status = (pathTokens[index++] ?? "").replace(/^\r?\n/, "");
+      if (!/^(?:A|M|D|T|U|X|B|R\d{1,3}|C\d{1,3})$/.test(status)) continue;
+      let path = pathTokens[index++] ?? "";
+      let previousPath: string | undefined;
+      if (/^[RC]/.test(status)) {
+        previousPath = path;
+        path = pathTokens[index++] ?? "";
+      }
+      if (totalPaths >= maxPaths) {
+        truncatedPaths = true;
         continue;
       }
-      current = {
-        commit,
-        authoredAt,
-        author,
-        subject: subjectParts.join("\x1f"),
-        files: [],
-      };
-      continue;
+      entry.files.push({ status, path, ...(previousPath ? { previousPath } : {}) });
+      totalPaths += 1;
     }
-    if (!current || !token) continue;
-    const status = token.replace(/^\r?\n/, "");
-    if (!/^(?:A|M|D|T|U|X|B|R\d{1,3}|C\d{1,3})$/.test(status)) continue;
-    let path = tokens[index++] ?? "";
-    let previousPath: string | undefined;
-    if (/^[RC]/.test(status)) {
-      previousPath = path;
-      path = tokens[index++] ?? "";
-    }
-    if (totalPaths >= maxPaths) {
-      truncatedPaths = true;
-      continue;
-    }
-    current.files.push({ status, path, ...(previousPath ? { previousPath } : {}) });
-    totalPaths += 1;
+    commits.push(entry);
   }
-  if (current) commits.push(current);
   const truncated = commits.length > limit;
   return {
     commits: commits.slice(0, limit),
