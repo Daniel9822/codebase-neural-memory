@@ -257,11 +257,11 @@ describe("MCP adapter protocol contract", () => {
 
     const filtered = await client.request("tools/call", {
       name: "symbol_lookup",
-      arguments: { query: "target", kind: "function", filePath: "main.ts", exported: true, limit: 5 },
+      arguments: { query: "helper", kind: "function", filePath: "helper.ts", exported: true, limit: 5 },
     });
     const filteredResult = filtered.result as { content: Array<{ text: string }> };
     expect(JSON.parse(filteredResult.content[0]!.text)).toEqual([
-      expect.objectContaining({ name: "target", kind: "function", filePath: "main.ts", exported: true }),
+      expect.objectContaining({ name: "helper", kind: "function", filePath: "helper.ts", exported: true }),
     ]);
 
     const proposal = await client.request("tools/call", {
