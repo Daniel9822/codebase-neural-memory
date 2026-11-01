@@ -16,6 +16,7 @@
     "LICENSE"
   ],
   "scripts": {
+    "update": "git pull --ff-only && npm ci && npm run typecheck && npm test && npm run build",
     "build": "tsc -p tsconfig.json",
     "dev": "tsx src/cli/index.ts",
     "start": "node dist/cli/index.js",
