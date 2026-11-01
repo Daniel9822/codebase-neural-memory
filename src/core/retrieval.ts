@@ -26,7 +26,7 @@ function tokenizeQuery(query: string): string[] {
 }
 
 function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (character) => `\${character}`);
+  return value.replace(/[\\%_]/g, (character) => `${character}`);
 }
 
 function isFtsUnavailable(error: unknown): boolean {
@@ -875,13 +875,13 @@ export function findSymbolImpact(location: ProjectLocation, name: string, option
       SELECT s.id, s.stable_id AS stableId, s.name, s.kind, f.path AS filePath,
         s.start_line AS startLine, s.end_line AS endLine
       FROM symbols s JOIN files f ON f.id = s.file_id
-      WHERE \${conditions.join(" AND ")}
+      WHERE ${conditions.join(" AND ")}
       ORDER BY f.path, s.start_line, s.kind, s.stable_id
       LIMIT 51
     `).all(...parameters) as Array<{
       id: number; stableId: string; name: string; kind: string; filePath: string; startLine: number; endLine: number;
     }>;
-    if (rootRows.length === 0) throw new Error(`Symbol not found in index: \${normalizedName}\${normalizedPath ? ` in \${normalizedPath}` : ""}.`);
+    if (rootRows.length === 0) throw new Error(`Symbol not found in index: ${normalizedName}${normalizedPath ? ` in ${normalizedPath}` : ""}.`);
     const toSymbol = (row: typeof rootRows[number]): SymbolImpactSymbol => ({
       stableId: row.stableId, name: row.name, kind: row.kind, filePath: row.filePath, startLine: row.startLine, endLine: row.endLine,
     });
@@ -914,9 +914,9 @@ export function findSymbolImpact(location: ProjectLocation, name: string, option
       JOIN files source_file ON source_file.id = source.file_id
       JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
       JOIN files target_file ON target_file.id = target.file_id
-      WHERE \${direction === "incoming" ? "r.target_kind = 'symbol' AND r.target_id = ?" : "r.source_kind = 'symbol' AND r.source_id = ?"}
-        AND r.kind IN (\${relationPlaceholders})
-      ORDER BY r.kind, \${nextOrder}
+      WHERE ${direction === "incoming" ? "r.target_kind = 'symbol' AND r.target_id = ?" : "r.source_kind = 'symbol' AND r.source_id = ?"}
+        AND r.kind IN (${relationPlaceholders})
+      ORDER BY r.kind, ${nextOrder}
       LIMIT ?
     `);
     type EdgeRow = {
