@@ -688,10 +688,10 @@ export function getSourceExcerpt(
     throw new Error("Source excerpt endLine must be a safe integer greater than or equal to startLine.");
   }
   if (!Number.isSafeInteger(maxCharacters) || maxCharacters < 100 || maxCharacters > MAX_SOURCE_EXCERPT_CHARACTERS) {
-    throw new Error(\`Source excerpt maxCharacters must be between 100 and \${MAX_SOURCE_EXCERPT_CHARACTERS}.\`);
+    throw new Error(`Source excerpt maxCharacters must be between 100 and \${MAX_SOURCE_EXCERPT_CHARACTERS}.`);
   }
   if (endLine - startLine + 1 > MAX_SOURCE_EXCERPT_LINES) {
-    throw new Error(\`Source excerpt range cannot exceed \${MAX_SOURCE_EXCERPT_LINES} lines.\`);
+    throw new Error(`Source excerpt range cannot exceed \${MAX_SOURCE_EXCERPT_LINES} lines.`);
   }
 
   const normalized = filePath.trim().replaceAll("\\", "/").replace(/^\.\//, "");
@@ -714,7 +714,7 @@ export function getSourceExcerpt(
   } finally {
     db.close();
   }
-  if (!indexedFile) throw new Error(\`File not found in memory index: \${normalized}. Run cnm index.\`);
+  if (!indexedFile) throw new Error(`File not found in memory index: \${normalized}. Run cnm index.`);
 
   let canonicalRoot: string;
   let canonicalPath: string;
@@ -722,7 +722,7 @@ export function getSourceExcerpt(
     canonicalRoot = realpathSync(location.rootPath);
     canonicalPath = realpathSync(absolutePath);
   } catch {
-    throw new Error(\`Source file is missing or cannot be resolved: \${normalized}.\`);
+    throw new Error(`Source file is missing or cannot be resolved: \${normalized}.`);
   }
   const canonicalRelative = relative(canonicalRoot, canonicalPath);
   if (canonicalRelative === ".." || canonicalRelative.startsWith(".." + sep) || isAbsolute(canonicalRelative)) {
@@ -731,14 +731,14 @@ export function getSourceExcerpt(
   const fileStat = statSync(canonicalPath);
   if (!fileStat.isFile()) throw new Error("Source excerpt path must reference a regular file.");
   if (fileStat.size > MAX_INDEXED_SOURCE_BYTES) {
-    throw new Error(\`Source file exceeds the \${MAX_INDEXED_SOURCE_BYTES}-byte read limit.\`);
+    throw new Error(`Source file exceeds the \${MAX_INDEXED_SOURCE_BYTES}-byte read limit.`);
   }
 
   const source = readFileSync(canonicalPath, "utf8");
   const contentHash = createHash("sha256").update(source).digest("hex");
   const sourceLines = source.split(/\r?\n/);
   if (startLine > sourceLines.length) {
-    throw new Error(\`Source excerpt startLine \${startLine} exceeds the file's \${sourceLines.length} lines.\`);
+    throw new Error(`Source excerpt startLine \${startLine} exceeds the file's \${sourceLines.length} lines.`);
   }
   const effectiveEndLine = Math.min(endLine, sourceLines.length);
   const selected = sourceLines.slice(startLine - 1, effectiveEndLine);
