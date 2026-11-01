@@ -97,7 +97,7 @@ The server uses stdio and exposes sixteen tools: thirteen read/retrieval tools a
 - `memory_propose` — persist an agent suggestion with `proposed` status; a person must explicitly confirm it.
 - `memory_transition` — explicitly transition a memory lifecycle state; agent confirmation requires clear user authorization.
 
-Use `cnm blame <path> --start-line <n> --end-line <n>` or MCP `git_blame` to inspect Git attribution for at most 200 lines in a tracked project-relative file. Author email is omitted. This does not infer intent or session rationale.
+Use `cnm blame <path> --start-line <n> --end-line <n>` or MCP `git_blame` to inspect Git attribution for at most 200 lines in a tracked project-relative file. Author email is omitted. This does not infer intent or session rationale. Use MCP `git_history` to inspect at most 50 recent commits and 500 changed paths; it is a factual change log, not reconstructed session history.
 
 Use `source_excerpt` after `symbol_lookup` or `task_context` to inspect the actual implementation at a returned path and line range. It accepts a project-relative indexed path, inclusive `startLine` / `endLine`, and optional `maxCharacters` (100–20,000; default 12,000). It returns at most 200 lines and reads source files no larger than 1 MiB, rejects paths outside the project root, and reports `indexStatus: current|stale` by comparing the working-tree SHA-256 with the indexed hash. A stale excerpt is current working-tree content, not a claim that the index describes those bytes.
 
