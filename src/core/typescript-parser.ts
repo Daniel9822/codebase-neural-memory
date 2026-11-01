@@ -22,6 +22,30 @@ function nodeName(node: ts.NamedDeclaration): string | undefined {
   return node.name.getText();
 }
 
+const MAX_SYMBOL_SIGNATURE_CHARACTERS = 1_200;
+
+/** Capture a declaration header, not its implementation body. */
+function declarationSignature(node: ts.Node, sourceFile: ts.SourceFile, source: string, fallback: string): string {
+  const start = node.getStart(sourceFile);
+  let end = node.getEnd();
+
+  if (ts.isFunctionLike(node)) {
+    const body = (node as ts.FunctionLikeDeclaration).body;
+    if (body) end = body.getStart(sourceFile);
+  } else if (ts.isVariableDeclaration(node) && node.initializer &&
+    (ts.isArrowFunction(node.initializer) || ts.isFunctionExpression(node.initializer))) {
+    const body = node.initializer.body;
+    end = body.getStart(sourceFile);
+  } else if (ts.isClassDeclaration(node) || ts.isClassExpression(node) ||
+    ts.isInterfaceDeclaration(node) || ts.isEnumDeclaration(node)) {
+    const openBrace = node.getChildren(sourceFile).find((child) => child.kind === ts.SyntaxKind.OpenBraceToken);
+    if (openBrace) end = openBrace.getStart(sourceFile);
+  }
+
+  const header = source.slice(start, end).replace(/\\s+/g, " ").trim();
+  return (header || fallback).slice(0, MAX_SYMBOL_SIGNATURE_CHARACTERS);
+}
+
 export function parseTypeScriptFile(filePath: string, source: string): ParsedFile {
   const scriptKind = filePath.endsWith(".tsx") || filePath.endsWith(".jsx")
     ? ts.ScriptKind.TSX
@@ -54,12 +78,11 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
     const end = node.getEnd();
     const startLine = sourceFile.getLineAndCharacterOfPosition(start).line + 1;
     const endLine = sourceFile.getLineAndCharacterOfPosition(end).line + 1;
-    const firstLine = source.slice(start, end).split(/\r?\n/, 1)[0]?.trim() ?? name;
     const qualifiedName = owner ? `${owner}.${name}` : name;
     symbols.push({
       name: qualifiedName,
       kind,
-      signature: firstLine.slice(0, 300),
+      signature: declarationSignature(node, sourceFile, source, name),
       startLine,
       endLine,
       exported,
