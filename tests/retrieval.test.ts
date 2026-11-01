@@ -529,6 +529,37 @@ describe("findSymbolImpact", () => {
     expect(findSymbolImpact(location, "shared", { filePath: "one/shared.ts", relationKinds: ["EXTENDS"] }).results).toEqual([]);
   });
 
+  it("maps concrete test cases to the imported symbols they call", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "src", "auth.ts"), "export function refreshAuthToken() { return true; }\n");
+    writeFileSync(join(location.rootPath, "tests", "auth.test.ts"), `import { it } from "vitest";
+import { refreshAuthToken } from "../src/auth";
+describe("auth", () => {
+  it("refreshes tokens", () => {
+    refreshAuthToken();
+  });
+});
+`);
+    indexWithDatabase(database!, location);
+
+    const impact = findSymbolImpact(location, "refreshAuthToken", {
+      filePath: "src/auth.ts",
+      depth: 1,
+      relationKinds: ["CALLS"],
+    });
+    expect(impact.results).toMatchObject([{
+      name: expect.stringContaining("test-case: refreshes tokens @"),
+      kind: "test-case",
+      filePath: "tests/auth.test.ts",
+      distance: 1,
+      relation: "CALLS",
+      chainEvidence: [{
+        source: { kind: "test-case", filePath: "tests/auth.test.ts" },
+        target: { name: "refreshAuthToken", filePath: "src/auth.ts" },
+      }],
+    }]);
+  });
+
   it("enforces result and processing limits and rejects unsafe inputs", () => {
     createProject();
     writeFileSync(join(location.rootPath, "target.ts"), "export function target() { return true; }\n");
