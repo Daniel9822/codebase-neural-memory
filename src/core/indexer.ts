@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, statSync, type Dirent } from "node:fs";
+import { opendirSync, readFileSync, statSync, type Dirent } from "node:fs";
 import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -139,18 +139,20 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
     if (stopped) return;
     const directoryPath = relative(root, directory).replaceAll("\\", "/");
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
-    let entries: Dirent[];
+    let handle;
     try {
-      entries = readdirSync(directory, { withFileTypes: true })
-        .sort((a, b) => a.name.localeCompare(b.name));
+      // Stream directory entries instead of materializing and sorting an
+      // unbounded array. maxProcessed now bounds actual enumeration work too.
+      handle = opendirSync(directory);
     } catch (error) {
       failed += 1;
       errors.push((directoryPath || ".") + ": " + (error instanceof Error ? error.message : String(error)));
       protectedDirectories.add(directoryPath);
       return;
     }
-    for (const entry of entries) {
-      if (stopped) break;
+    try {
+      let entry: Dirent | null;
+      while (!stopped && (entry = handle.readSync()) !== null) {
       processedEntries += 1;
       if (options.maxProcessed !== undefined && processedEntries > options.maxProcessed) {
         truncated = true;
@@ -201,6 +203,12 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
         failed += 1;
         errors.push(relativePath + ": " + (error instanceof Error ? error.message : String(error)));
       }
+    } catch (error) {
+      failed += 1;
+      errors.push((directoryPath || ".") + ": " + (error instanceof Error ? error.message : String(error)));
+      protectedDirectories.add(directoryPath);
+    } finally {
+      try { handle.closeSync(); } catch { /* The directory may already be closed. */ }
     }
   };
   walk(root, [rootScope]);
