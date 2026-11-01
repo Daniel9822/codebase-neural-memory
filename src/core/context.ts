@@ -160,10 +160,10 @@ export function buildTaskContext(
   }
 
   const seenFiles = new Set<string>();
-  const seenImpactFiles = new Set<string>();
   const seenDependencyPaths = new Set<string>();
   const seenTestPaths = new Set<string>();
   let testCandidatesTruncated = false;
+  let dependencyCandidatesTruncated = false;
   const addTestCandidate = (item: TaskContextItem) => {
     if (seenTestPaths.has(item.source)) return;
     if (seenTestPaths.size >= testLimit) { testCandidatesTruncated = true; return; }
@@ -171,7 +171,8 @@ export function buildTaskContext(
     candidates.push(item);
   };
   const addDependencyCandidate = (item: TaskContextItem) => {
-    if (seenDependencyPaths.has(item.source) || seenDependencyPaths.size >= dependencyLimit) return;
+    if (seenDependencyPaths.has(item.source)) return;
+    if (seenDependencyPaths.size >= dependencyLimit) { dependencyCandidatesTruncated = true; return; }
     seenDependencyPaths.add(item.source);
     candidates.push(item);
   };
@@ -197,18 +198,21 @@ export function buildTaskContext(
         const ambiguous = /ambiguous/i.test(unresolved.status) || unresolved.candidates.length > 1;
         warnings.push(`Import "${unresolved.specifier}" in ${symbol.filePath} is ${ambiguous ? "ambiguous" : "unresolved"}; candidates: ${unresolved.candidates.length ? unresolved.candidates.join(", ") : "none"}.`);
       }
-      const dependencies = findDependencies(location, symbol.filePath, 1, 20, 100);
-      for (const dependency of dependencies.dependencies) {
-        candidates.push({
-          kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
-          score: Math.max(1, symbol.score - 10 - dependency.depth),
-          signals: ["direct-import", "dependency-of-matching-file"],
-          detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
-        });
+      const remainingDependencies = dependencyLimit - seenDependencyPaths.size;
+      if (remainingDependencies > 0) {
+        const dependencies = findDependencies(location, symbol.filePath, 1, Math.min(20, remainingDependencies), 100);
+        for (const dependency of dependencies.dependencies) {
+          addDependencyCandidate({
+            kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
+            score: Math.max(1, symbol.score - 10 - dependency.depth),
+            signals: ["direct-import", "dependency-of-matching-file"],
+            detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
+          });
+        }
+        if (dependencies.truncated) warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
       }
-      if (dependencies.truncated) warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
       if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
-        candidates.push({
+        addTestCandidate({
           kind: "test", origin: explicitAnchorMode ? "anchor" : "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
           score: symbol.score + 2, signals: ["test-path", "lexical-match"],
           detail: { startLine: symbol.startLine, endLine: symbol.endLine },
@@ -268,6 +272,7 @@ export function buildTaskContext(
     });
   }
   if (testCandidatesTruncated) warnings.push(`Test candidates were truncated at the configured testLimit of ${testLimit}.`);
+  if (dependencyCandidatesTruncated) warnings.push(`Dependency candidates were truncated at the configured dependencyLimit of ${dependencyLimit}.`);
 
   const memories = (explicitAnchorMode ? [] : recallMemories(location, "", 500))
     .map((memory) => ({ memory, matches: anchors.filter((anchor) =>
