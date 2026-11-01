@@ -6,6 +6,7 @@ import ignore from "ignore";
 import type { ProjectLocation } from "./project.js";
 import { getGitSnapshot, sameGitSnapshot } from "./git.js";
 import { isSupportedSourceFile, parseTypeScriptFile } from "./typescript-parser.js";
+import { analyzeImportDiagnostics } from "./import-diagnostics.js";
 import type { IndexSummary } from "../shared/types.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
 
@@ -423,6 +424,25 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string, indexRevision: n
     if (targetId !== undefined && targetId !== sourceId) {
       insertRelation.run("symbol", sourceId, "symbol", targetId, "CALLS", 0.95, "typescript-ast", indexRevision);
     }
+  }
+  db.prepare("DELETE FROM import_diagnostics").run();
+  const insertImportDiagnostic = db.prepare(`
+    INSERT OR IGNORE INTO import_diagnostics(
+      source_file_id, module_specifier, diagnostic_code, kind, message, line, column_number, imported_name
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `);
+  const importDiagnostics = analyzeImportDiagnostics(
+    rootPath,
+    files.map((file) => file.path),
+    new Set(localPackages.keys()),
+  );
+  for (const diagnostic of importDiagnostics) {
+    const sourceFileId = byPath.get(diagnostic.filePath);
+    if (sourceFileId === undefined) continue;
+    insertImportDiagnostic.run(
+      sourceFileId, diagnostic.moduleSpecifier, diagnostic.code, diagnostic.kind,
+      diagnostic.message, diagnostic.line, diagnostic.column, diagnostic.importedName,
+    );
   }
   return (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
 }
