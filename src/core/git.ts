@@ -198,18 +198,18 @@ export async function getGitHistory(
     throw new Error("Git history failed or exceeded its 3-second execution budget; narrow the request or verify repository availability.");
   }
 
-  const tokens = output.split("\\0");
+  const tokens = output.split("\0");
   const commits: GitHistoryEntry[] = [];
   let current: GitHistoryEntry | null = null;
   let totalPaths = 0;
   let truncatedPaths = false;
   for (let index = 0; index < tokens.length;) {
     let token = tokens[index++] ?? "";
-    const marker = token.indexOf("\\x1e");
+    const marker = token.indexOf("\x1e");
     if (marker >= 0) {
       if (current) commits.push(current);
-      const metadata = token.slice(marker + 1).replace(/^\\r?\\n/, "");
-      const [commit, authoredAt, author, ...subjectParts] = metadata.split("\\x1f");
+      const metadata = token.slice(marker + 1).replace(/^\r?\n/, "");
+      const [commit, authoredAt, author, ...subjectParts] = metadata.split("\x1f");
       if (!commit || !/^[0-9a-f]{40,64}$/i.test(commit) || !authoredAt || !author) {
         current = null;
         continue;
@@ -218,14 +218,14 @@ export async function getGitHistory(
         commit,
         authoredAt,
         author,
-        subject: subjectParts.join("\\x1f"),
+        subject: subjectParts.join("\x1f"),
         files: [],
       };
       continue;
     }
     if (!current || !token) continue;
-    const status = token.replace(/^\\r?\\n/, "");
-    if (!/^(?:A|M|D|T|U|X|B|R\\d{1,3}|C\\d{1,3})$/.test(status)) continue;
+    const status = token.replace(/^\r?\n/, "");
+    if (!/^(?:A|M|D|T|U|X|B|R\d{1,3}|C\d{1,3})$/.test(status)) continue;
     const path = tokens[index++] ?? "";
     let previousPath: string | undefined;
     if (/^[RC]/.test(status)) previousPath = tokens[index++] ?? "";
