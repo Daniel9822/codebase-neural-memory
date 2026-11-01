@@ -681,6 +681,70 @@ export function getSymbolRelations(location: ProjectLocation, name: string, limi
 }
 
 
+
+export interface ComponentMapReport {
+  components: Array<{ id: string; files: number; symbols: number; imports: number; importedBy: number; distanceFrom: number | null; sampleFiles: string[]; filesTruncated: boolean }>;
+  edges: Array<{ from: string; to: string; imports: number }>;
+  totalComponents: number; totalEdges: number; from: string | null; depth: number;
+  truncated: { components: boolean; edges: boolean; files: boolean };
+  limits: { maxComponents: number; maxEdges: number; maxFilesPerComponent: number };
+}
+const MAX_COMPONENT_MAP_COMPONENTS = 100;
+const MAX_COMPONENT_MAP_EDGES = 500;
+const MAX_COMPONENT_MAP_FILES = 20;
+
+/** Directory-boundary grouping of the import graph; this is structural, not semantic inference. */
+export function getComponentMap(location: ProjectLocation, options: { from?: string; depth?: number; limit?: number; fileLimit?: number } = {}): ComponentMapReport {
+  const limit = options.limit ?? 50, fileLimit = options.fileLimit ?? 10, depth = options.depth ?? 5;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_COMPONENT_MAP_COMPONENTS) throw new Error("Component limit must be a positive safe integer no greater than 100.");
+  if (!Number.isSafeInteger(fileLimit) || fileLimit < 1 || fileLimit > MAX_COMPONENT_MAP_FILES) throw new Error("Component file limit must be a positive safe integer no greater than 20.");
+  if (!Number.isSafeInteger(depth) || depth < 1 || depth > 20) throw new Error("Component distance depth must be a positive safe integer no greater than 20.");
+  const db = openDatabase(location);
+  try {
+    const fileRows = db.prepare(`SELECT f.id, f.path, COUNT(s.id) AS symbols FROM files f LEFT JOIN symbols s ON s.file_id = f.id GROUP BY f.id, f.path ORDER BY f.path`).all() as Array<{ id: number; path: string; symbols: number }>;
+    const componentForPath = (path: string) => path.includes("/") ? path.slice(0, path.indexOf("/")) : "(root)";
+    const groups = new Map<string, { files: number; symbols: number; paths: string[] }>(), componentForFile = new Map<number, string>();
+    for (const file of fileRows) {
+      const id = componentForPath(file.path), group = groups.get(id) ?? { files: 0, symbols: 0, paths: [] };
+      componentForFile.set(file.id, id); group.files += 1; group.symbols += Number(file.symbols); group.paths.push(file.path); groups.set(id, group);
+    }
+    const edgeRows = db.prepare(`SELECT source.id AS source_id, target.id AS target_id FROM relations r JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id WHERE r.kind = 'IMPORTS' ORDER BY source.path, target.path`).all() as Array<{ source_id: number; target_id: number }>;
+    const edgeCounts = new Map<string, number>();
+    for (const edge of edgeRows) {
+      const from = componentForFile.get(edge.source_id), to = componentForFile.get(edge.target_id);
+      if (!from || !to || from === to) continue;
+      const key = JSON.stringify([from, to]); edgeCounts.set(key, (edgeCounts.get(key) ?? 0) + 1);
+    }
+    const allEdges = [...edgeCounts.entries()].map(([key, imports]) => { const [from, to] = JSON.parse(key) as [string, string]; return { from, to, imports }; }).sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to));
+    let from: string | null = null; const distances = new Map<string, number>();
+    if (options.from !== undefined) {
+      const requested = options.from.replaceAll("\\\\", "/").replace(/^\\.\\//, "").replace(/\\/$/, "");
+      const component = groups.has(requested) ? requested : componentForPath(requested);
+      if (!groups.has(component)) throw new Error(`Component not found in memory index: ${options.from}`);
+      from = component; distances.set(component, 0);
+      const adjacency = new Map<string, string[]>();
+      for (const edge of allEdges) { const targets = adjacency.get(edge.from) ?? []; targets.push(edge.to); adjacency.set(edge.from, targets); }
+      const queue = [component];
+      for (let cursor = 0; cursor < queue.length; cursor += 1) {
+        const current = queue[cursor]!, distance = distances.get(current)!; if (distance >= depth) continue;
+        for (const target of adjacency.get(current) ?? []) if (!distances.has(target)) { distances.set(target, distance + 1); queue.push(target); }
+      }
+    }
+    const allComponents = [...groups.entries()].map(([id, group]) => ({
+      id, files: group.files, symbols: group.symbols,
+      imports: allEdges.filter((edge) => edge.from === id).length,
+      importedBy: allEdges.filter((edge) => edge.to === id).length,
+      distanceFrom: from === null ? null : (distances.get(id) ?? null),
+      sampleFiles: group.paths.slice(0, fileLimit), filesTruncated: group.paths.length > fileLimit,
+    })).sort((a, b) => a.id.localeCompare(b.id));
+    const components = allComponents.slice(0, limit), included = new Set(components.map((item) => item.id));
+    const edges = allEdges.filter((edge) => included.has(edge.from) && included.has(edge.to)).slice(0, MAX_COMPONENT_MAP_EDGES);
+    return { components, edges, totalComponents: allComponents.length, totalEdges: allEdges.length, from, depth,
+      truncated: { components: allComponents.length > components.length, edges: allEdges.length > edges.length, files: components.some((item) => item.filesTruncated) },
+      limits: { maxComponents: limit, maxEdges: MAX_COMPONENT_MAP_EDGES, maxFilesPerComponent: fileLimit } };
+  } finally { db.close(); }
+}
+
 const MAX_SOURCE_EXCERPT_LINES = 200;
 const MAX_SOURCE_EXCERPT_CHARACTERS = 20_000;
 const MAX_INDEXED_SOURCE_BYTES = 1_048_576;
