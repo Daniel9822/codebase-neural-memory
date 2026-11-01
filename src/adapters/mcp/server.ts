@@ -61,7 +61,14 @@ function readResponse<T>(
       } catch (error) {
         autoUpdateFailureReason = error instanceof Error ? error.message : String(error);
         // A failed refresh must never make the pre-refresh snapshot look current.
-        freshness = getIndexFreshness(location);
+        // If the database is temporarily unavailable, retain the last known stale report
+        // rather than allowing the freshness check itself to bypass strict refusal.
+        try {
+          freshness = getIndexFreshness(location);
+        } catch (freshnessError) {
+          const detail = freshnessError instanceof Error ? freshnessError.message : String(freshnessError);
+          autoUpdateFailureReason += `; freshness re-check also failed: ${detail}`;
+        }
       }
     }
   }
