@@ -84,7 +84,7 @@ function readResponse<T>(
           status: "refused",
           staleness: freshness,
           autoUpdate: {
-            attempted: Boolean(options.autoUpdate && freshness.status !== "current" && !autoUpdateSkippedReason),
+            attempted: Boolean(options.autoUpdate && !autoUpdateSkippedReason),
             refreshed,
             skippedReason: autoUpdateSkippedReason ?? null,
             failureReason: autoUpdateFailureReason ?? null,
