@@ -224,7 +224,7 @@ export async function getGitHistory(
       continue;
     }
     if (!current || !token) continue;
-    const status = token;
+    const status = token.replace(/^\\r?\\n/, "");
     if (!/^(?:A|M|D|T|U|X|B|R\\d{1,3}|C\\d{1,3})$/.test(status)) continue;
     const path = tokens[index++] ?? "";
     let previousPath: string | undefined;
