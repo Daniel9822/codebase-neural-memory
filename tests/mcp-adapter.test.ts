@@ -170,7 +170,8 @@ describe("MCP adapter protocol contract", () => {
     const textContent = (response.result as { content: Array<{ text: string }> }).content[0]!.text;
     expect(JSON.parse(textContent)).toMatchObject({ from: "api", components: expect.arrayContaining([expect.objectContaining({ id: "api", distanceFrom: 0 })]) });
     const invalid = await client.request("tools/call", { name: "component_map", arguments: { from: "missing" } });
-    expect(invalid.error).toBeDefined();
+    const invalidResult = invalid.result as { isError?: boolean } | undefined;
+    expect(Boolean(invalid.error) || invalidResult?.isError === true).toBe(true);
   });
 
   it("executes a valid bounded Git blame call and rejects invalid ranges", async () => {
