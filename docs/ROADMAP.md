@@ -346,6 +346,7 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Document cross-agent continuity: memories remain in the project database and are available to any connected agent using the same project binding.
 - [x] Validate external package imports and named import bindings (NP2 from Contract v2); bounded diagnostics are persisted and exposed through `project_map` and `file_details` (PRs #59 and #60).
 - [x] Retain opt-in auto-refresh and strict freshness policies from the previous agent workflow work; do not add a second refresh mechanism.
+- [x] Harden auto-update against incomplete or changing source snapshots, roll back failed indexing transactions, and return explicit strict/non-strict failure states without serving stale data as current (PR #61; regression coverage includes incomplete discovery, safety limits, rollback, and concurrent reads).
 - [x] Add full regression coverage and cross-platform CI evidence for the new generator, retrieval ranking, and memory transition tool before merge (PR #58; Ubuntu/Windows verification and Ubuntu/Windows/macOS benchmark matrix passed).
 
 **Acceptance:** a fresh project gets useful agent instructions from `cnm init`; an existing `AGENTS.md` retains its original content; natural-language queries discover relevant confirmed and proposed memories; and only an explicit user approval allows the agent to confirm a proposal.
