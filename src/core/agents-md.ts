@@ -44,7 +44,7 @@ ${toolNote}
 ## 3. Freshness and source verification
 - Trust indexed structure only when the result is current. A freshness warning or \`indexStatus: stale\` means verify the current file before editing or describing exact line ranges.
 - Source excerpts include hashes. Compare them with indexed hashes and do not mix metadata from one revision with source from another.
-- Inspect `file_details.importDiagnostics` (and `project_map.importDiagnostics`) for TypeScript semantic import diagnostics, including missing packages and missing exports. These diagnostics cover supported indexed files and are not a complete compiler run; absence of a diagnostic is not proof that every import or binding is valid.
+- Inspect \`file_details.importDiagnostics\` (and \`project_map.importDiagnostics\`) for TypeScript semantic import diagnostics, including missing packages and missing exports. These diagnostics cover supported indexed files and are not a complete compiler run; absence of a diagnostic is not proof that every import or binding is valid.
 
 ## 4. External reads and safety boundaries
 - Read files outside the index when needed for Markdown, assets, JSON/configuration, package manifests, tests, compiler output, or files CNM cannot represent.
@@ -67,7 +67,7 @@ ${toolNote}
 
 ## 7. Known limitations
 - CNM retrieval is lexical and structural, not a guarantee of semantic completeness. Read source bodies and tests before inferring behavior.
-- CNM records TypeScript semantic import diagnostics for supported indexed files and exposes them through `file_details` and `project_map`. Coverage depends on TypeScript project configuration and supported static imports; dynamic resolution and unindexed files may remain outside the analysis. Run the project's compiler/build and tests before claiming a change is healthy.
+- CNM records TypeScript semantic import diagnostics for supported indexed files and exposes them through \`file_details\` and \`project_map\`. Coverage depends on TypeScript project configuration and supported static imports; dynamic resolution and unindexed files may remain outside the analysis. Run the project's compiler/build and tests before claiming a change is healthy.
 - A clean index does not prove the application works; run the project's validation commands.
 
 ## 8. End-of-task memory review
