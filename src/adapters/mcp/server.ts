@@ -247,7 +247,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
         requiresExplicitUserAuthorization: status === "confirmed",
       }, null, 2) }],
     };
-  }));
+  });
 
   server.registerTool("memory_freshness", {
     description: "Inspect source-file fingerprints and referenced Git commit ancestry for project memories without changing memory status.",
