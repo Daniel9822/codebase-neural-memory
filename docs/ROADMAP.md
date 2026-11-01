@@ -56,7 +56,7 @@ Tasks:
 - Finalize common node and edge model.
 - Define stable identifiers and foreign-key/lifecycle rules.
 - Resolve relative imports conservatively, including supported extensions and index files.
-- [ ] Add a bounded TypeScript semantic pass for unresolved external packages and invalid named/default export bindings; expose diagnostics through `project_map` without treating them as a replacement for compiler/build validation.
+- [x] Add a bounded TypeScript semantic pass for unresolved external packages and invalid named/default export bindings; expose diagnostics through `project_map` without treating them as a replacement for compiler/build validation (implemented in PR #59; per-file diagnostics exposed by PR #60).
 - Evaluate tsconfig path aliases and package exports.
 - Resolve same-file and cross-file symbol references where static evidence is sufficient.
 - Add reverse and forward graph traversal.
@@ -344,8 +344,9 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Make proposed memories discoverable by natural-language recall and list mode, with lifecycle and category filters; proposed entries remain visibly unconfirmed.
 - [x] Add an explicit MCP `memory_transition` operation. An agent may transition a proposal to `confirmed` only after clear user authorization; the tool itself does not infer consent.
 - [x] Document cross-agent continuity: memories remain in the project database and are available to any connected agent using the same project binding.
-- [ ] Validate external package imports and named import bindings (NP2 from Contract v2). The structural import graph is not a substitute for compiler diagnostics.
+- [x] Validate external package imports and named import bindings (NP2 from Contract v2); bounded diagnostics are persisted and exposed through `project_map` and `file_details` (PRs #59 and #60).
 - [x] Retain opt-in auto-refresh and strict freshness policies from the previous agent workflow work; do not add a second refresh mechanism.
-- [ ] Add full regression coverage and cross-platform CI evidence for the new generator, retrieval ranking, and memory transition tool before merge.
+- [x] Harden auto-update against incomplete or changing source snapshots, roll back failed indexing transactions, and return explicit strict/non-strict failure states without serving stale data as current (PR #61; regression coverage includes incomplete discovery, safety limits, rollback, and concurrent reads).
+- [x] Add full regression coverage and cross-platform CI evidence for the new generator, retrieval ranking, and memory transition tool before merge (PR #58; Ubuntu/Windows verification and Ubuntu/Windows/macOS benchmark matrix passed).
 
 **Acceptance:** a fresh project gets useful agent instructions from `cnm init`; an existing `AGENTS.md` retains its original content; natural-language queries discover relevant confirmed and proposed memories; and only an explicit user approval allows the agent to confirm a proposal.
