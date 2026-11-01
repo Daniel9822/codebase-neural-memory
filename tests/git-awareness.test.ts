@@ -43,13 +43,13 @@ afterEach(() => {
 });
 
 describe("Git blame retrieval", () => {
-  it("returns bounded line attribution with commit, author, date, and summary", () => {
+  it("returns bounded line attribution with commit, author, date, and summary", async () => {
     createProject();
     writeFileSync(join(location.rootPath, "tracked.ts"), "export const first = 1;\nexport const second = 2;\n");
     execFileSync("git", ["add", "tracked.ts"], { cwd: location.rootPath });
     execFileSync("git", ["commit", "-m", "add tracked declarations"], { cwd: location.rootPath, stdio: "ignore" });
 
-    const result = getGitBlame(location.rootPath, "tracked.ts", 1, 2);
+    const result = await getGitBlame(location.rootPath, "tracked.ts", 1, 2);
     expect(result).toMatchObject({
       path: "tracked.ts",
       startLine: 1,
@@ -64,21 +64,21 @@ describe("Git blame retrieval", () => {
     expect(result.lines[0]?.authoredAt).toMatch(/^\d{4}-\d{2}-\d{2}T/);
   });
 
-  it("rejects unsafe paths and excessive line ranges", () => {
+  it("rejects unsafe paths and excessive line ranges", async () => {
     createProject();
-    expect(() => getGitBlame(location.rootPath, "../outside.ts")).toThrow(/project-relative/);
-    expect(() => getGitBlame(location.rootPath, "tracked.ts", 1, 201)).toThrow(/200 lines/);
-    expect(() => getGitBlame(location.rootPath, "C:/outside.ts")).toThrow(/project-relative/);
+    await expect(getGitBlame(location.rootPath, "../outside.ts")).rejects.toThrow(/project-relative/);
+    await expect(getGitBlame(location.rootPath, "tracked.ts", 1, 201)).rejects.toThrow(/200 lines/);
+    await expect(getGitBlame(location.rootPath, "C:/outside.ts")).rejects.toThrow(/project-relative/);
   });
 
-  it("reports an actionable error for untracked files and unavailable Git", () => {
+  it("reports an actionable error for untracked files and unavailable Git", async () => {
     createProject();
     writeFileSync(join(location.rootPath, "untracked.ts"), "export const value = 1;\\n");
-    expect(() => getGitBlame(location.rootPath, "untracked.ts")).toThrow(/tracked/);
+    await expect(getGitBlame(location.rootPath, "untracked.ts")).rejects.toThrow(/tracked/);
 
     const nonGitRoot = join(temporaryDirectory, "plain");
     mkdirSync(nonGitRoot);
-    expect(() => getGitBlame(nonGitRoot, "tracked.ts")).toThrow(/not a Git repository/);
+    await expect(getGitBlame(nonGitRoot, "tracked.ts")).rejects.toThrow(/not a Git repository/);
   });
 });
 
