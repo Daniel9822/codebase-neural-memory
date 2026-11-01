@@ -228,6 +228,23 @@ export function migrate(db: MemoryDatabase): void {
     db.exec("ALTER TABLE projects ADD COLUMN indexed_worktree_changed_paths INTEGER");
   }
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (10, ?)`).run(now);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS import_diagnostics (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source_file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+      module_specifier TEXT NOT NULL,
+      diagnostic_code INTEGER NOT NULL,
+      kind TEXT NOT NULL CHECK(kind IN ('missing-package', 'missing-export')),
+      message TEXT NOT NULL,
+      line INTEGER NOT NULL,
+      column_number INTEGER NOT NULL,
+      imported_name TEXT,
+      UNIQUE(source_file_id, module_specifier, diagnostic_code, line, column_number)
+    );
+    CREATE INDEX IF NOT EXISTS idx_import_diagnostics_source ON import_diagnostics(source_file_id);
+  `);
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (11, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {
