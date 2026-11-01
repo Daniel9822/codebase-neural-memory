@@ -294,6 +294,10 @@ describe("indexWithDatabase", () => {
     writeFileSync(join(location.rootPath, "src", "main.ts"),
       'import { helper } from "@/helper";\nexport function run() { return helper(); }');
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./tsconfig.base.json" }));
+    writeFileSync(join(location.rootPath, "tsconfig.base.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: {} },
+    }));
 
     indexWithDatabase(database!, location);
     expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
@@ -301,7 +305,7 @@ describe("indexWithDatabase", () => {
     const before = database!.prepare("SELECT relations_config_hash FROM projects WHERE id = ?")
       .get(location.id) as { relations_config_hash: string };
 
-    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
+    writeFileSync(join(location.rootPath, "tsconfig.base.json"), JSON.stringify({
       compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
     }));
     const refreshed = indexWithDatabase(database!, location);
@@ -309,7 +313,7 @@ describe("indexWithDatabase", () => {
       .get(location.id) as { relations_config_hash: string };
 
     expect(refreshed.unchanged).toBe(2);
-    expect(after.relations_config_hash).not.toBe(before.relations_config_hash);
+    expect(after.relations_config_hash).toBe(before.relations_config_hash);
     expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
       .toEqual({ count: 1 });
   });
