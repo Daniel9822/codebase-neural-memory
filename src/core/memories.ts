@@ -277,7 +277,7 @@ function normalizeMemoryText(value: string): string {
 const MEMORY_QUERY_STOP_WORDS = new Set([
   "a", "al", "algo", "como", "con", "de", "del", "el", "en", "es", "esta", "este",
   "la", "las", "lo", "los", "mas", "o", "para", "por", "que", "se", "sin", "su",
-  "un", "una", "uno", "y",
+  "un", "una", "uno", "y", "how", "does", "the", "what", "when", "where", "why", "is", "are", "of", "to", "and", "this", "that", "with", "from", "about",
 ]);
 
 function memoryMatchScore(row: MemoryRecord, query: string, tokens: string[]): number {
