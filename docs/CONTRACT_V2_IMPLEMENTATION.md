@@ -63,7 +63,7 @@ Add reproducible agent-task scenarios for symbol discovery, implementation expla
 
 - [x] `file_details` returns bounded semantic import diagnostics with totals and truncation metadata.
 - [x] Missing package and missing named-export cases are covered by retrieval tests.
-- [ ] MCP adapter test verifies the same diagnostics are present in the actual `file_details` tool response.
+- [x] MCP adapter test verifies the same diagnostics are present in the actual `file_details` tool response.
 - [ ] Full typecheck, complete tests, build, smoke, and cross-platform CI pass on the final PR head.
 - [ ] P2 failure-mode matrix is covered by tests.
 - [ ] Agent behavior scenarios are exercised against a real supported MCP client.
