@@ -152,6 +152,12 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
       if (entry.isDirectory() && selectedPaths.length > 0 &&
         !selectedPaths.some((selected) => selected === relativePath || selected.startsWith(relativePath + "/") || relativePath.startsWith(selected + "/"))) continue;
       const selected = isWithinIndexScope(relativePath, selectedPaths, includeMatcher);
+      if (selected && isSupportedSourceFile(relativePath) &&
+        options.maxFiles !== undefined && scanned >= options.maxFiles) {
+        truncated = true;
+        stopped = true;
+        break;
+      }
       if (entry.isSymbolicLink()) {
         if (selected && isSupportedSourceFile(relativePath)) {
           scanned += 1;
@@ -165,11 +171,6 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
         continue;
       }
       if (!entry.isFile() || !isSupportedSourceFile(relativePath) || !selected) continue;
-      if (options.maxFiles !== undefined && output.length >= options.maxFiles) {
-        truncated = true;
-        stopped = true;
-        break;
-      }
       presentPaths.add(relativePath);
       scanned += 1;
       try {
