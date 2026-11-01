@@ -1,4 +1,4 @@
-import { findDependencies, getFileDetails, searchSymbols } from "./retrieval.js";
+import { findDependencies, findImpact, getFileDetails, searchSymbols } from "./retrieval.js";
 import { inspectMemoryFreshness, recallMemories } from "./memories.js";
 import type { ProjectLocation } from "./project.js";
 import { openDatabase } from "../storage/database.js";
@@ -163,6 +163,7 @@ export function buildTaskContext(
   }
 
   const seenFiles = new Set<string>();
+  const seenImpactFiles = new Set<string>();
   const seenDependencyPaths = new Set<string>();
   const seenTestPaths = new Set<string>();
   let testCandidatesTruncated = false;
@@ -223,6 +224,23 @@ export function buildTaskContext(
           dependencyCandidatesTruncated = true;
           warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
         }
+      }
+      // Map the indexed source file back to tests through actual reverse-import
+      // relations, rather than relying only on test filenames containing task words.
+      if (!seenImpactFiles.has(symbol.filePath)) {
+        seenImpactFiles.add(symbol.filePath);
+        const impacted = findImpact(location, symbol.filePath, 20, 100);
+        for (const path of impacted.affectedFiles) {
+          // Recognize tests under test directories and colocated *.test/spec.* files.
+          if (!/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path)) continue;
+          addTestCandidate({
+            kind: "test", origin: "graph", title: `Import-dependent test: ${path}`, source: path,
+            score: symbol.score + 3,
+            signals: ["reverse-import-dependent", "test-to-source-file"],
+            detail: { target: symbol.filePath, relationship: "direct-or-transitive-import-dependent" },
+          });
+        }
+        if (impacted.truncated) warnings.push(`Test dependency lookup for ${symbol.filePath} was truncated by retrieval limits.`);
       }
     } catch {
       warnings.push(`Could not load indexed details for ${symbol.filePath}; the index may have changed.`);
