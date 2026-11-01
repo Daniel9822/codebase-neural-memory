@@ -78,7 +78,7 @@ When both are enabled, auto-update runs first and strict mode evaluates the resu
 
 ## Read-only boundary
 
-Most MCP tools are read-only. Four explicit local write operations are available: `index_update` reconciles the index incrementally, preserving configured exclusions; `memory_propose` persists only a `proposed` record; `memory_transition` applies one allowed lifecycle transition; and memory updates/deletion remain explicit CLI operations. `memory_transition` does not infer user approval: an agent must call `status: "confirmed"` only after the user has clearly authorized confirmation. Neither memory operation modifies repository source files.
+Most MCP tools are read-only. Three explicit MCP local write operations are available: `index_update` reconciles the index incrementally, preserving configured exclusions; `memory_propose` persists only a `proposed` record; and `memory_transition` applies one allowed lifecycle transition. Memory updates and deletion remain explicit CLI operations. `memory_transition` does not infer user approval: an agent must call `status: "confirmed"` only after the user has clearly authorized confirmation. Neither memory operation modifies repository source files.
 
 ## Validation and error contract
 
