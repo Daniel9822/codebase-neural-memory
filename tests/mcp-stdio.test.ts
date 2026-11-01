@@ -114,7 +114,8 @@ describe("MCP stdio process lifecycle", () => {
 
     const list = await first.request("tools/list");
     const tools = (list.result as { tools: Array<{ name: string }> }).tools;
-    expect(tools).toHaveLength(10);
+    expect(tools).toHaveLength(11);
+    expect(tools.map((tool) => tool.name)).toContain("source_excerpt");
 
     const call = await first.request("tools/call", {
       name: "symbol_lookup",
@@ -123,6 +124,14 @@ describe("MCP stdio process lifecycle", () => {
     const result = call.result as { isError?: boolean; content?: Array<{ text?: string }> };
     expect(result.isError).not.toBe(true);
     expect(result.content?.[0]?.text).toContain("stdioProbe");
+
+    const excerpt = await first.request("tools/call", {
+      name: "source_excerpt",
+      arguments: { path: "entry.ts", startLine: 1, endLine: 1 },
+    });
+    const excerptResult = excerpt.result as { isError?: boolean; content?: Array<{ text?: string }> };
+    expect(excerptResult.isError).not.toBe(true);
+    expect(excerptResult.content?.[0]?.text).toContain("export function stdioProbe");
 
     first.child.stdin.end();
     const [exitCode] = await once(first.child, "exit") as [number | null];

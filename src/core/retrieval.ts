@@ -1,3 +1,6 @@
+import { createHash } from "node:crypto";
+import { readFileSync, realpathSync, statSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
 import type { SearchHit } from "../shared/types.js";
@@ -23,7 +26,7 @@ function tokenizeQuery(query: string): string[] {
 }
 
 function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (character) => `\\${character}`);
+  return value.replace(/[\\%_]/g, (character) => `\${character}`);
 }
 
 function isFtsUnavailable(error: unknown): boolean {
@@ -644,4 +647,131 @@ export function getSymbolRelations(location: ProjectLocation, name: string, limi
   } finally {
     db.close();
   }
+}
+
+
+const MAX_SOURCE_EXCERPT_LINES = 200;
+const MAX_SOURCE_EXCERPT_CHARACTERS = 20_000;
+const MAX_INDEXED_SOURCE_BYTES = 1_048_576;
+
+export interface SourceExcerpt {
+  path: string;
+  startLine: number;
+  endLine: number;
+  requestedStartLine: number;
+  requestedEndLine: number;
+  totalLines: number;
+  content: string;
+  contentHash: string;
+  indexedContentHash: string;
+  indexStatus: "current" | "stale";
+  indexedAt: string;
+  truncated: boolean;
+  limits: { maxLines: number; maxCharacters: number };
+}
+
+/** Read a bounded excerpt from an indexed file and explicitly compare it with indexed bytes. */
+export function getSourceExcerpt(
+  location: ProjectLocation,
+  filePath: string,
+  startLine: number,
+  endLine: number,
+  maxCharacters = 12_000,
+): SourceExcerpt {
+  if (typeof filePath !== "string" || !filePath.trim() || filePath.includes("\0")) {
+    throw new Error("Source excerpt path must be a non-empty project-relative path.");
+  }
+  if (!Number.isSafeInteger(startLine) || startLine < 1) {
+    throw new Error("Source excerpt startLine must be a positive safe integer.");
+  }
+  if (!Number.isSafeInteger(endLine) || endLine < startLine) {
+    throw new Error("Source excerpt endLine must be a safe integer greater than or equal to startLine.");
+  }
+  if (!Number.isSafeInteger(maxCharacters) || maxCharacters < 100 || maxCharacters > MAX_SOURCE_EXCERPT_CHARACTERS) {
+    throw new Error(`Source excerpt maxCharacters must be between 100 and ${MAX_SOURCE_EXCERPT_CHARACTERS}.`);
+  }
+  if (endLine - startLine + 1 > MAX_SOURCE_EXCERPT_LINES) {
+    throw new Error(`Source excerpt range cannot exceed ${MAX_SOURCE_EXCERPT_LINES} lines.`);
+  }
+
+  const normalized = filePath.trim().replaceAll("\\", "/").replace(/^\.\//, "");
+  if (!normalized || normalized.startsWith("/") || /^[a-zA-Z]:\//.test(normalized) ||
+      normalized.split("/").some((segment) => segment === ".." || segment === "")) {
+    throw new Error("Source excerpt path must be a normalized project-relative path.");
+  }
+  const absolutePath = resolve(location.rootPath, normalized);
+  const lexicalRelative = relative(location.rootPath, absolutePath);
+  if (lexicalRelative === ".." || lexicalRelative.startsWith(".." + sep) || isAbsolute(lexicalRelative)) {
+    throw new Error("Source excerpt path must stay inside the project root.");
+  }
+
+  const db = openDatabase(location);
+  let indexedFile: { path: string; contentHash: string; indexedAt: string } | undefined;
+  try {
+    indexedFile = db.prepare(
+      "SELECT path, content_hash AS contentHash, indexed_at AS indexedAt FROM files WHERE path = ?",
+    ).get(normalized) as { path: string; contentHash: string; indexedAt: string } | undefined;
+  } finally {
+    db.close();
+  }
+  if (!indexedFile) throw new Error(`File not found in memory index: ${normalized}. Run cnm index.`);
+
+  let canonicalRoot: string;
+  let canonicalPath: string;
+  try {
+    canonicalRoot = realpathSync(location.rootPath);
+    canonicalPath = realpathSync(absolutePath);
+  } catch {
+    throw new Error(`Source file is missing or cannot be resolved: ${normalized}.`);
+  }
+  const canonicalRelative = relative(canonicalRoot, canonicalPath);
+  if (canonicalRelative === ".." || canonicalRelative.startsWith(".." + sep) || isAbsolute(canonicalRelative)) {
+    throw new Error("Source excerpt path resolves outside the project root.");
+  }
+  const fileStat = statSync(canonicalPath);
+  if (!fileStat.isFile()) throw new Error("Source excerpt path must reference a regular file.");
+  if (fileStat.size > MAX_INDEXED_SOURCE_BYTES) {
+    throw new Error(`Source file exceeds the ${MAX_INDEXED_SOURCE_BYTES}-byte read limit.`);
+  }
+
+  const source = readFileSync(canonicalPath, "utf8");
+  const contentHash = createHash("sha256").update(source).digest("hex");
+  const sourceLines = source.split(/\r?\n/);
+  if (startLine > sourceLines.length) {
+    throw new Error(`Source excerpt startLine ${startLine} exceeds the file's ${sourceLines.length} lines.`);
+  }
+  const effectiveEndLine = Math.min(endLine, sourceLines.length);
+  const selected = sourceLines.slice(startLine - 1, effectiveEndLine);
+  const output: string[] = [];
+  let usedCharacters = 0;
+  let truncated = endLine > sourceLines.length;
+  for (const line of selected) {
+    const separatorCharacters = output.length === 0 ? 0 : 1;
+    const available = maxCharacters - usedCharacters - separatorCharacters;
+    if (available <= 0) { truncated = true; break; }
+    if (line.length > available) {
+      output.push(line.slice(0, available));
+      usedCharacters += available + separatorCharacters;
+      truncated = true;
+      break;
+    }
+    output.push(line);
+    usedCharacters += line.length + separatorCharacters;
+  }
+
+  return {
+    path: indexedFile.path,
+    startLine,
+    endLine: startLine + output.length - 1,
+    requestedStartLine: startLine,
+    requestedEndLine: endLine,
+    totalLines: sourceLines.length,
+    content: output.join("\n"),
+    contentHash,
+    indexedContentHash: indexedFile.contentHash,
+    indexStatus: contentHash === indexedFile.contentHash ? "current" : "stale",
+    indexedAt: indexedFile.indexedAt,
+    truncated,
+    limits: { maxLines: MAX_SOURCE_EXCERPT_LINES, maxCharacters },
+  };
 }

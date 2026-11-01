@@ -214,3 +214,8 @@ No initialization or indexing operation may upload repository content. No team s
 CNM succeeds when, on representative repositories and controlled tasks, it can retrieve the correct files, symbols, dependencies, rules, and tests more efficiently than repeated manual repository exploration, while keeping output compact and verifiable. Conceptual component retrieval is a separate future capability and must not be implied by the current lexical/structural API.
 
 Improvement must be measured against a baseline. Do not promise a fixed reduction in tokens, latency, or task failures before benchmarks support it.
+
+
+## Bounded source-code inspection
+
+Coding agents can retrieve actual implementation text through the read-only MCP `source_excerpt` tool after locating a symbol or file. The tool is restricted to indexed project-relative files, inclusive line ranges, at most 200 lines, 20,000 output characters, and source files no larger than 1 MiB. It reports whether the current working-tree bytes match the indexed SHA-256; stale source is labeled rather than silently represented as index-consistent. This is targeted source inspection, not repository-wide file dumping or semantic retrieval.
