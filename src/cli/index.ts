@@ -84,10 +84,19 @@ program.command("agents-md")
 program.command("index")
   .description("Index JavaScript and TypeScript files; later runs update changed files only.")
   .option("--force", "Reparse every supported file")
+  .option("--path <path>", "Select a project-relative file or directory (repeatable)", (value: string, previous: string[]) => [...previous, value], [])
+  .option("--include <pattern>", "Select matching project-relative glob paths (repeatable)", (value: string, previous: string[]) => [...previous, value], [])
   .option("--exclude <pattern>", "Additional ignore pattern (repeatable)", (value: string, previous: string[]) => [...previous, value], [])
-  .action((options: { force?: boolean; exclude: string[] }) => {
+  .option("--max-files <number>", "Maximum selected source files to read (1-10000)", parsePositiveInteger)
+  .option("--max-processed <number>", "Maximum directory entries to examine (1-100000)", parsePositiveInteger)
+  .action((options: { force?: boolean; path: string[]; include: string[]; exclude: string[]; maxFiles?: number; maxProcessed?: number }) => {
     const location = ensureInitialized();
-    const result = indexProject(location, Boolean(options.force), options.exclude);
+    const result = indexProject(location, Boolean(options.force), options.exclude, {
+      ...(options.path.length === 0 ? {} : { paths: options.path }),
+      ...(options.include.length === 0 ? {} : { include: options.include }),
+      ...(options.maxFiles === undefined ? {} : { maxFiles: options.maxFiles }),
+      ...(options.maxProcessed === undefined ? {} : { maxProcessed: options.maxProcessed }),
+    });
     console.log("Index completed:");
     console.table(result);
     if (result.skippedFiles.length > 0) {
