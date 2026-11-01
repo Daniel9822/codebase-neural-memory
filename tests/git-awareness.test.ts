@@ -111,6 +111,20 @@ describe("Git history evidence", () => {
     expect(pathLimited.commits[0]?.files).toHaveLength(1);
   });
 
+  it("reports rename destinations with their previous project-relative path", async () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "before.ts"), "export const value = 1;\\n");
+    execFileSync("git", ["add", "before.ts"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "add source file"], { cwd: location.rootPath, stdio: "ignore" });
+    execFileSync("git", ["mv", "before.ts", "after.ts"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "rename source file"], { cwd: location.rootPath, stdio: "ignore" });
+
+    const result = await getGitHistory(location.rootPath, 1, 10);
+    expect(result.commits[0]?.files).toEqual([
+      { status: "R100", path: "after.ts", previousPath: "before.ts" },
+    ]);
+  });
+
   it("validates budgets and reports unavailable Git", async () => {
     createProject(false);
     await expect(getGitHistory(location.rootPath, 0)).rejects.toThrow(/1 and 50/);
