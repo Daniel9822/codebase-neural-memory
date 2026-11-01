@@ -1,4 +1,8 @@
-# Changelog\n\n## Unreleased\n\n- Preserve bounded multiline TypeScript/JavaScript declaration headers in indexed symbol signatures; keep implementation bodies available only through bounded source retrieval.
+# Changelog
+
+## Unreleased
+
+- Preserve bounded multiline TypeScript/JavaScript declaration headers in indexed symbol signatures; keep implementation bodies available only through bounded source retrieval.
 
 ## Unreleased
 
