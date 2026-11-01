@@ -314,10 +314,11 @@ export function recallMemories(
   }
   const db = openDatabase(location);
   try {
+    const includeRejected = options.statuses?.includes("rejected") ?? false;
     const rows = db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
       commit_sha AS commitSha, source_hash AS sourceHash, author, updated_by AS updatedBy,
       created_at AS createdAt, updated_at AS updatedAt FROM memories
-      WHERE status != 'rejected' ORDER BY updated_at DESC, id LIMIT 5000`).all() as MemoryRecord[];
+      ${includeRejected ? "" : "WHERE status != 'rejected'"} ORDER BY updated_at DESC, id LIMIT 5000`).all() as MemoryRecord[];
     const statuses = options.statuses ? new Set(options.statuses) : null;
     const category = options.category ? normalizeMemoryText(options.category) : null;
     const filtered = rows.filter((row) =>
