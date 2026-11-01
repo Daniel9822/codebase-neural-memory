@@ -674,8 +674,8 @@ export function updateProjectIndex(location: ProjectLocation): IndexSummary {
 }
 
 function sameDiscoveredSnapshot(left: DiscoveryResult, right: DiscoveryResult): boolean {
-  if (left.failed !== 0 || left.skipped !== 0 || left.protectedDirectories.size !== 0 ||
-      right.failed !== 0 || right.skipped !== 0 || right.protectedDirectories.size !== 0) return false;
+  if (left.failed !== 0 || left.skipped !== 0 || left.truncated || left.protectedDirectories.size !== 0 ||
+      right.failed !== 0 || right.skipped !== 0 || right.truncated || right.protectedDirectories.size !== 0) return false;
   if (left.files.length !== right.files.length) return false;
   return left.files.every((file, index) =>
     file.relativePath === right.files[index]?.relativePath && file.hash === right.files[index]?.hash);
@@ -792,7 +792,7 @@ export function indexWithDatabase(
     summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
     if (options.requireCompleteSnapshot) {
-      const finalDiscovery = discoverFiles(location.rootPath, extraExcludes);
+      const finalDiscovery = discoverFiles(location.rootPath, extraExcludes, options);
       if (!sameDiscoveredSnapshot(discovery, finalDiscovery)) {
         throw new Error("Index update aborted: source files changed or discovery became incomplete during reconciliation; no index changes were committed. Retry the update.");
       }
