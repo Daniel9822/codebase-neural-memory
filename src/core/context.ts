@@ -10,10 +10,12 @@ export interface TaskContextOptions {
   symbolLimit?: number;
   memoryLimit?: number;
   fileLimit?: number;
+  anchors?: { paths?: string[]; symbols?: string[] };
 }
 
 export interface TaskContextItem {
   kind: "symbol" | "file" | "dependency" | "memory" | "test";
+  origin: "anchor" | "graph" | "fallback";
   title: string;
   source: string;
   score: number;
@@ -94,17 +96,28 @@ export function buildTaskContext(
     if (!Number.isSafeInteger(value) || value < 1 || value > max) throw new Error(`${name} must be between 1 and ${max}.`);
   }
 
-  const anchors = anchorsFor(normalizedTask);
+  const lexicalAnchors = anchorsFor(normalizedTask);
+  const explicitAnchorMode = options.anchors !== undefined;
+  const anchorPaths = [...new Set((options.anchors?.paths ?? []).map((path) => path.trim().replaceAll("\\\\", "/").replace(/^\\.\\//, "")))];
+  const anchorSymbols = [...new Set((options.anchors?.symbols ?? []).map((symbol) => symbol.trim()).filter(Boolean))];
+  if (explicitAnchorMode && anchorPaths.length + anchorSymbols.length === 0) throw new Error("anchors must include at least one path or symbol.");
+  if (anchorPaths.length > 20 || anchorSymbols.length > 20 || anchorPaths.some((path) => !path || path.startsWith("/") || path.split("/").some((part) => part === ".." || part === ""))) {
+    throw new Error("anchors accepts up to 20 normalized project-relative paths and 20 non-empty symbol names.");
+  }
+  const anchors = explicitAnchorMode ? [...anchorSymbols, ...anchorPaths] : lexicalAnchors;
   const candidates: TaskContextItem[] = [];
   const warnings: string[] = [];
   const indexFreshness = getIndexFreshness(location);
   if (indexFreshness.status !== "current") {
     warnings.push(`Indexed source is ${indexFreshness.status}; context may omit newer or unreadable files (added: ${indexFreshness.addedFiles}, changed: ${indexFreshness.changedFiles}, deleted: ${indexFreshness.deletedFiles}).`);
   }
-  const symbols = searchSymbols(location, normalizedTask, symbolLimit);
+  const symbols = explicitAnchorMode
+    ? anchorSymbols.flatMap((name) => searchSymbols(location, name, symbolLimit).filter((symbol) => symbol.name === name)).slice(0, symbolLimit)
+    : searchSymbols(location, normalizedTask, symbolLimit);
   for (const symbol of symbols) {
     candidates.push({
       kind: "symbol",
+      origin: explicitAnchorMode ? "anchor" : "fallback",
       title: `${symbol.name} (${symbol.kind})`,
       source: `${symbol.filePath}:${symbol.startLine}-${symbol.endLine}`,
       score: symbol.score,
@@ -120,7 +133,7 @@ export function buildTaskContext(
     try {
       const detail = getFileDetails(location, symbol.filePath, 20);
       candidates.push({
-        kind: "file", title: symbol.filePath, source: symbol.filePath,
+        kind: "file", origin: explicitAnchorMode ? "anchor" : "fallback", title: symbol.filePath, source: symbol.filePath,
         score: Math.max(1, symbol.score - 5),
         signals: ["contains-matching-symbol", "indexed-file"],
         detail: {
@@ -139,7 +152,7 @@ export function buildTaskContext(
       const dependencies = findDependencies(location, symbol.filePath, 1, 20, 100);
       for (const dependency of dependencies.dependencies) {
         candidates.push({
-          kind: "dependency", title: dependency.path, source: dependency.path,
+          kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
           score: Math.max(1, symbol.score - 10 - dependency.depth),
           signals: ["direct-import", "dependency-of-matching-file"],
           detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
@@ -148,7 +161,7 @@ export function buildTaskContext(
       if (dependencies.truncated) warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
       if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
         candidates.push({
-          kind: "test", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
+          kind: "test", origin: "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
           score: symbol.score + 2, signals: ["test-path", "lexical-match"],
           detail: { startLine: symbol.startLine, endLine: symbol.endLine },
         });
@@ -156,6 +169,29 @@ export function buildTaskContext(
     } catch {
       warnings.push(`Could not load indexed details for ${symbol.filePath}; the index may have changed.`);
     }
+  }
+
+  for (const path of anchorPaths) {
+    const detail = getFileDetails(location, path, 20);
+    candidates.push({
+      kind: "file", origin: "anchor", title: path, source: path, score: 100,
+      signals: ["explicit-path-anchor", "indexed-file"],
+      detail: {
+        indexRevision: detail.indexRevision, contentHash: detail.contentHash,
+        symbols: detail.symbols.slice(0, 10).map((entry) => ({ name: entry.name, kind: entry.kind, startLine: entry.startLine, endLine: entry.endLine })),
+        imports: detail.imports.slice(0, 10), unresolvedImports: detail.unresolvedImports.slice(0, 5),
+        relations: detail.relations.slice(0, 10),
+      },
+    });
+    const dependencies = findDependencies(location, path, 1, 20, 100);
+    for (const dependency of dependencies.dependencies) {
+      candidates.push({
+        kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
+        score: Math.max(1, 90 - dependency.depth), signals: ["direct-import", "dependency-of-explicit-path-anchor"],
+        detail: { from: path, chain: dependency.chain, evidence: dependency.evidence },
+      });
+    }
+    if (dependencies.truncated) warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
   }
 
   const testDb = openDatabase(location);
@@ -174,7 +210,7 @@ export function buildTaskContext(
     // one lexical task anchor to be considered a task-context candidate.
     if (matchingAnchors.length === 0) continue;
     candidates.push({
-      kind: "test", title: `Test source: ${path}`, source: path,
+      kind: "test", origin: "fallback", title: `Test source: ${path}`, source: path,
       score: 12 + matchingAnchors.length * 8,
       signals: ["test-path", "task-anchor-in-path"],
       detail: { matchingAnchors },
@@ -196,7 +232,7 @@ export function buildTaskContext(
     if (sourceFreshness?.requiresReview) signals.push(`source:${sourceFreshness.status}`);
     const statusPenalty = memory.status === "confirmed" ? 0 : memory.status === "proposed" ? -8 : -15;
     candidates.push({
-      kind: "memory", title: memory.title, source: memory.sourcePath ?? `memory:${memory.id}`,
+      kind: "memory", origin: "fallback", title: memory.title, source: memory.sourcePath ?? `memory:${memory.id}`,
       score: 30 + statusPenalty, signals, status: memory.status,
       detail: { id: memory.id, category: memory.category, content: memory.content, author: memory.author, updatedBy: memory.updatedBy },
     });
