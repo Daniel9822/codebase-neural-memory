@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 import { getMemoryFreshnessReport, recallMemories, proposeMemory, transitionMemory, type MemoryStatus } from "../../core/memories.js";
-import { getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
+import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
 import { getGitBlame } from "../../core/git.js";
@@ -128,6 +128,22 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }, async () => ({
     content: [{ type: "text", text: JSON.stringify(updateProjectIndex(location), null, 2) }],
   }));
+
+  server.registerTool("component_map", {
+    description: "Aggregate indexed file imports into deterministic first-directory groups. Reports directed cross-group import counts and optional shortest dependency distances. Groups are structural directory boundaries, not inferred semantic components.",
+    inputSchema: z.object({
+      from: z.string().min(1).max(500).optional(),
+      depth: z.number().int().min(1).max(20).optional(),
+      limit: z.number().int().min(1).max(100).optional(),
+      fileLimit: z.number().int().min(1).max(20).optional(),
+    }),
+  }, async ({ from, depth, limit, fileLimit }) => readResponse(location, options, () =>
+    getComponentMap(location, {
+      ...(from === undefined ? {} : { from }),
+      ...(depth === undefined ? {} : { depth }),
+      ...(limit === undefined ? {} : { limit }),
+      ...(fileLimit === undefined ? {} : { fileLimit }),
+    })));
 
   server.registerTool("project_map", {
     description: "List indexed source files and their locally resolved imports.",
