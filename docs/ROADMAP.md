@@ -240,6 +240,7 @@ Tasks:
 - [x] Evaluate symbol retrieval precision@5, recall@5, MRR, and top-1 accuracy against ten labeled queries.
 - [x] Define an eight-task read-only agent evaluation suite and controlled comparison protocol (`benchmarks/agent-tasks.json`, `docs/AGENT_EVALUATION_PROTOCOL.md`).
 - [ ] Execute paired agent tasks with and without CNM under controlled, comparable conditions.
+- [x] Add bounded MCP source excerpts so agents can inspect indexed symbol implementations after structural retrieval; verify path confinement, output limits, and indexed-vs-working-tree freshness.
 - [x] Repeat the same benchmark suite on Linux, Windows, and macOS; all three matrix jobs passed in CI run [41254663323](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41254663323).
 - [ ] Add regression thresholds only after repeated stable measurements across supported platforms.
 - [ ] Profile before adding caches or parallelism.

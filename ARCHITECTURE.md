@@ -72,3 +72,8 @@ The server registration in `src/adapters/mcp/server.ts` is the source of truth f
 - No training, fine-tuning, or model-weight modification.
 - No automatic semantic claims presented as confirmed project rules.
 - No direct source-code editing.
+
+
+## MCP source inspection
+
+The MCP adapter exposes `source_excerpt` as a read-only follow-up to structural retrieval. It reads only files already present in the project's index, requires an inclusive project-relative line range, enforces a 200-line / 20,000-character / 1 MiB-file ceiling, and rejects lexical or canonical paths outside the selected project root. It returns the actual working-tree excerpt together with its SHA-256, the indexed SHA-256, and an explicit `current` / `stale` status. This keeps source text out of the broad `task_context` bundle while allowing agents to verify implementation details on demand.
