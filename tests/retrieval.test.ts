@@ -107,6 +107,7 @@ describe("getComponentMap", () => {
       expect.objectContaining({ id: "shared", distanceFrom: 2 }),
       expect.objectContaining({ id: "(root)", distanceFrom: null }),
     ]));
+    expect(getComponentMap(location, { from: "unrelated.ts" }).from).toBe("(root)");
     expect(() => getComponentMap(location, { from: "missing" })).toThrow("Component not found in memory index");
     expect(() => getComponentMap(location, { limit: 101 })).toThrow("Component limit");
   });
