@@ -227,6 +227,11 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       task: z.string().min(1),
       maxItems: z.number().int().min(1).max(100).optional(),
       maxCharacters: z.number().int().min(100).max(50000).optional(),
+      symbolLimit: z.number().int().min(1).max(50).optional(),
+      fileLimit: z.number().int().min(1).max(50).optional(),
+      dependencyLimit: z.number().int().min(1).max(50).optional(),
+      testLimit: z.number().int().min(1).max(50).optional(),
+      memoryLimit: z.number().int().min(1).max(50).optional(),
       anchors: z.object({
         paths: z.array(z.string().min(1).max(500)).max(20).optional(),
         symbols: z.array(z.string().min(1).max(200)).max(20).optional(),
@@ -234,8 +239,17 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
         message: "anchors must include at least one path or symbol.",
       }).optional(),
     }),
-  }, async ({ task, maxItems, maxCharacters, anchors }) => readResponse(location, options, () =>
-    buildTaskContext(location, task, { ...(maxItems === undefined ? {} : { maxItems }), ...(maxCharacters === undefined ? {} : { maxCharacters }), ...(anchors === undefined ? {} : { anchors: { ...(anchors.paths === undefined ? {} : { paths: anchors.paths }), ...(anchors.symbols === undefined ? {} : { symbols: anchors.symbols }) } }) })));
+  }, async ({ task, maxItems, maxCharacters, symbolLimit, fileLimit, dependencyLimit, testLimit, memoryLimit, anchors }) => readResponse(location, options, () =>
+    buildTaskContext(location, task, {
+      ...(maxItems === undefined ? {} : { maxItems }),
+      ...(maxCharacters === undefined ? {} : { maxCharacters }),
+      ...(symbolLimit === undefined ? {} : { symbolLimit }),
+      ...(fileLimit === undefined ? {} : { fileLimit }),
+      ...(dependencyLimit === undefined ? {} : { dependencyLimit }),
+      ...(testLimit === undefined ? {} : { testLimit }),
+      ...(memoryLimit === undefined ? {} : { memoryLimit }),
+      ...(anchors === undefined ? {} : { anchors: { ...(anchors.paths === undefined ? {} : { paths: anchors.paths }), ...(anchors.symbols === undefined ? {} : { symbols: anchors.symbols }) } }),
+    })));
 
   server.registerTool("memory_propose", {
     description: "Persist an agent-suggested project memory in proposed status. It is never confirmed automatically and requires explicit human review.",

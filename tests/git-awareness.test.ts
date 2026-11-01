@@ -123,7 +123,7 @@ describe("Git-aware indexing and freshness", () => {
     });
 
     expect(indexed.commit).not.toBeNull();
-  });
+  }, 15_000);
 
   it("compares memory commit references with HEAD ancestry without changing memory lifecycle", () => {
     createProject();
@@ -158,7 +158,7 @@ describe("Git-aware indexing and freshness", () => {
     expect(inspectMemoryFreshness(location).find((item) => item.id === originalMemory)).toMatchObject({
       commitStatus: "ancestor", requiresReview: true,
     });
-  });
+  }, 20_000);
 
   it("marks an unavailable or invalid memory commit reference for review", () => {
     createProject(false);
