@@ -211,7 +211,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       }).optional(),
     }),
   }, async ({ task, maxItems, maxCharacters, anchors }) => readResponse(location, options, () =>
-    buildTaskContext(location, task, { ...(maxItems === undefined ? {} : { maxItems }), ...(maxCharacters === undefined ? {} : { maxCharacters }), ...(anchors === undefined ? {} : { anchors }) })));
+    buildTaskContext(location, task, { ...(maxItems === undefined ? {} : { maxItems }), ...(maxCharacters === undefined ? {} : { maxCharacters }), ...(anchors === undefined ? {} : { anchors: { ...(anchors.paths === undefined ? {} : { paths: anchors.paths }), ...(anchors.symbols === undefined ? {} : { symbols: anchors.symbols }) } }) })));
 
   server.registerTool("memory_propose", {
     description: "Persist an agent-suggested project memory in proposed status. It is never confirmed automatically and requires explicit human review.",
