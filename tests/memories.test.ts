@@ -203,6 +203,25 @@ describe("explicit memory lifecycle", () => {
     expect(recallMemories(otherLocation)[0]).toMatchObject({ id: otherId });
   });
 
+  it("finds memories from natural-language terms and exposes lifecycle/category filters", () => {
+    createProject();
+    const confirmed = remember(location, "Play command execution pipeline", "The handlePlay flow validates input, dispatches the command, and records the result.", "convention");
+    const proposed = proposeMemory(location, "Potential play handler gotcha", "The play handler may need a retry guard.", "gotcha");
+    remember(location, "Billing architecture boundary", "Billing does not own user identity.", "architectural");
+
+    expect(recallMemories(location, "how does the play command work")).toEqual(
+      expect.arrayContaining([expect.objectContaining({ id: confirmed, status: "confirmed" })]),
+    );
+    expect(recallMemories(location, "", 20, { status: undefined, list: true }).map((item) => item.id))
+      .toContain(proposed);
+    expect(recallMemories(location, "", 20, { statuses: ["proposed"] })).toEqual([
+      expect.objectContaining({ id: proposed, status: "proposed" }),
+    ]);
+    expect(recallMemories(location, "", 20, { category: "architectural" })).toEqual([
+      expect.objectContaining({ category: "architectural" }),
+    ]);
+  });
+
   it("validates recall limits", () => {
     createProject();
     expect(() => recallMemories(location, "", 0)).toThrow("Memory limit");
