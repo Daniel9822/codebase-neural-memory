@@ -16,6 +16,7 @@ export interface McpServerOptions {
 
 type TextBlock = { type: "text"; text: string };
 type ToolResponse = { content: TextBlock[]; isError?: boolean };
+const MAX_AUTO_UPDATE_FILE_CHANGES = 50;
 
 function freshnessWarning(report: ReturnType<typeof getIndexFreshness>): string {
   const paths = report.fileChanges.slice(0, 20).map((change) => change.path);
@@ -37,10 +38,17 @@ function readResponse<T>(
 ): ToolResponse {
   let freshness = getIndexFreshness(location);
   let refreshed = false;
+  let autoUpdateSkippedReason: string | undefined;
   if (options.autoUpdate && freshness.status !== "current") {
-    updateProjectIndex(location);
-    freshness = getIndexFreshness(location);
-    refreshed = true;
+    if (freshness.status === "incomplete") {
+      autoUpdateSkippedReason = "automatic refresh was skipped because file discovery is incomplete; resolve skipped/unreadable files and run index_update manually.";
+    } else if (freshness.fileChangesTotal > MAX_AUTO_UPDATE_FILE_CHANGES) {
+      autoUpdateSkippedReason = `automatic refresh was skipped because ${freshness.fileChangesTotal} source changes exceed the safety limit of ${MAX_AUTO_UPDATE_FILE_CHANGES}; run index_update explicitly.`;
+    } else {
+      updateProjectIndex(location);
+      freshness = getIndexFreshness(location);
+      refreshed = true;
+    }
   }
   if (options.strictFreshness && freshness.status !== "current") {
     return {
@@ -58,6 +66,7 @@ function readResponse<T>(
   const result = operation();
   const content: TextBlock[] = [{ type: "text", text: JSON.stringify(result, null, 2) }];
   if (freshness.status !== "current") content.push({ type: "text", text: freshnessWarning(freshness) });
+  if (autoUpdateSkippedReason) content.push({ type: "text", text: `CNM AUTO-UPDATE SKIPPED: ${autoUpdateSkippedReason}` });
   if (refreshed) content.push({ type: "text", text: "CNM AUTO-UPDATE: the index was incrementally reconciled before this read." });
   return { content };
 }
