@@ -180,6 +180,13 @@ export function buildTaskContext(
     candidates.push(item);
   };
   for (const symbol of symbols) {
+    if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
+      addTestCandidate({
+        kind: "test", origin: explicitAnchorMode ? "anchor" : "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
+        score: symbol.score + 2, signals: ["test-path", "lexical-match"],
+        detail: { startLine: symbol.startLine, endLine: symbol.endLine },
+      });
+    }
     if (seenFiles.has(symbol.filePath) || seenFiles.size >= fileLimit) continue;
     seenFiles.add(symbol.filePath);
     try {
@@ -216,13 +223,6 @@ export function buildTaskContext(
           dependencyCandidatesTruncated = true;
           warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
         }
-      }
-      if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
-        addTestCandidate({
-          kind: "test", origin: explicitAnchorMode ? "anchor" : "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
-          score: symbol.score + 2, signals: ["test-path", "lexical-match"],
-          detail: { startLine: symbol.startLine, endLine: symbol.endLine },
-        });
       }
     } catch {
       warnings.push(`Could not load indexed details for ${symbol.filePath}; the index may have changed.`);
