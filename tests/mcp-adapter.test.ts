@@ -120,7 +120,8 @@ describe("MCP adapter protocol contract", () => {
     const tools = result.tools;
 
     expect(tools.map((tool) => tool.name).sort()).toEqual([
-      "change_impact",\n      "component_map",
+      "change_impact",
+      "component_map",
       "dependency_graph",
       "file_details",
       "git_blame",
@@ -142,7 +143,8 @@ describe("MCP adapter protocol contract", () => {
       project_overview: [],
       index_freshness: [],
       index_update: [],
-      project_map: ["limit"],\n      component_map: ["depth", "fileLimit", "from", "limit"],
+      project_map: ["limit"],
+      component_map: ["depth", "fileLimit", "from", "limit"],
       symbol_lookup: ["exported", "filePath", "includeSource", "kind", "limit", "query"],
       dependency_graph: ["depth", "limit", "maxProcessed", "path"],
       file_details: ["inlineSnippets", "limit", "path", "snippetLimit", "snippetMaxLines"],
