@@ -17,6 +17,17 @@ export interface ImportDiagnostic {
 const IMPORT_DIAGNOSTIC_CODES = new Set([2307, 2305, 2614, 2724, 1192]);
 const BUILTINS = new Set(builtinModules.flatMap((name) => [name, name.replace(/^node:/, "")]));
 
+function nodeAtPosition(sourceFile: ts.SourceFile, position: number): ts.Node {
+  let best: ts.Node = sourceFile;
+  const visit = (node: ts.Node): void => {
+    if (position < node.getFullStart() || position >= node.getEnd()) return;
+    best = node;
+    node.forEachChild(visit);
+  };
+  visit(sourceFile);
+  return best;
+}
+
 function moduleContext(node: ts.Node): { specifier: string; importedName: string | null } | undefined {
   let current: ts.Node | undefined = node;
   let importedName: string | null = null;
@@ -99,7 +110,7 @@ export function analyzeImportDiagnostics(
     for (const diagnostic of program.getSemanticDiagnostics(sourceFile)) {
       if (diagnostic.start === undefined || !IMPORT_DIAGNOSTIC_CODES.has(diagnostic.code)) continue;
       const position = sourceFile.getLineAndCharacterOfPosition(diagnostic.start);
-      const context = moduleContext(ts.getTokenAtPosition(sourceFile, diagnostic.start));
+      const context = moduleContext(nodeAtPosition(sourceFile, diagnostic.start));
       if (!context || !isBareExternalSpecifier(context.specifier, localPackages, options)) continue;
       const resolvedModule = ts.resolveModuleName(context.specifier, sourceFile.fileName, options, ts.sys).resolvedModule;
       if (resolvedModule) {
