@@ -65,7 +65,9 @@ describe("generated agent instructions", () => {
     const original = readFileSync(path, "utf8");
     writeFileSync(path, original.replace("MCP-first source retrieval", "Broken instructions"), "utf8");
     expect(checkAgentInstructions(location).status).toBe("outdated");
-    expect(ensureAgentInstructions(location).status).toBe("updated");
+    expect(ensureAgentInstructions(location).status).toBe("outdated");
+    expect(readFileSync(path, "utf8")).toContain("Broken instructions");
+    expect(ensureAgentInstructions(location, "generic", true).status).toBe("updated");
     expect(checkAgentInstructions(location).status).toBe("current");
   });
 });
