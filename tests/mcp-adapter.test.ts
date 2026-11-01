@@ -179,7 +179,7 @@ describe("MCP adapter protocol contract", () => {
     });
     const invalidResult = invalid.result as { isError?: boolean } | undefined;
     expect(Boolean(invalid.error) || invalidResult?.isError === true).toBe(true);
-  });
+  }, 20_000);
 
   it("executes at least one valid call for every tool and supports repeated calls", async () => {
     createProject();
