@@ -402,3 +402,17 @@ The following capabilities remain open: signature-regex search, semantic impact/
 - **PR-head CI:** [GitHub Actions #41285903567](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41285903567) — all verify and benchmark jobs passed.
 - **Commands passed:** `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, `npm run smoke`, and benchmark on Ubuntu, Windows, and macOS.
 - **Manual client verification:** still open. The new warnings, strict refusal, auto-update, inline source, and anchor schemas have automated MCP adapter coverage; a post-merge OpenCode and VS Code/Copilot manual check is not claimed.
+
+
+## Agent readiness and durable memory
+
+- [ ] `cnm init` creates a root `AGENTS.md` with accurate CNM usage instructions when none exists.
+- [ ] If `AGENTS.md` already exists, initialization preserves all user-authored content and adds or updates only the CNM-managed section.
+- [ ] Re-running initialization is idempotent; the managed block includes a version and content hash.
+- [ ] `cnm agents-md --check` exits 0 when synchronized, 1 when outdated, and 2 when missing.
+- [ ] `cnm agents-md --print` prints without writing; supported tool flavors are validated.
+- [ ] `memory_recall` finds relevant memories from natural-language terms, supports list/status/category filters, and includes proposed memories by default without mislabeling their status.
+- [ ] An agent can call `memory_transition` to confirm a proposal only after the user explicitly authorizes it; no automatic promotion is allowed.
+- [ ] A different agent using the same initialized project can recall the same local memories.
+- [ ] Compiler/build validation remains required for external package existence and named export binding correctness until semantic import validation is implemented.
+- [ ] Full typecheck, tests, build, smoke, and cross-platform CI pass before merge.
