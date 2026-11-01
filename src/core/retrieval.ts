@@ -558,7 +558,7 @@ export function getFileDetails(
     }));
     const importDiagnostics = db.prepare(`
       SELECT module_specifier AS specifier, kind, diagnostic_code AS code, message, line,
-        column_number AS column, imported_name AS importedName
+        column_number AS "column", imported_name AS importedName
       FROM import_diagnostics WHERE source_file_id = ?
       ORDER BY line, column_number, diagnostic_code LIMIT ?
     `).all(file.id, limit) as FileDetails["importDiagnostics"];
