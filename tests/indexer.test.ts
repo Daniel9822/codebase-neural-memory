@@ -35,6 +35,82 @@ afterEach(() => {
 });
 
 describe("indexWithDatabase", () => {
+  it("reindexes only an explicitly selected file and preserves every out-of-scope record", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "a.ts"), "export const before = true;");
+    writeFileSync(join(location.rootPath, "src", "b.ts"), "export const untouched = true;");
+    indexWithDatabase(database!, location);
+
+    writeFileSync(join(location.rootPath, "src", "a.ts"), "export const after = true;");
+    rmSync(join(location.rootPath, "src", "b.ts"));
+    const summary = indexWithDatabase(database!, location, false, [], { paths: ["src/a.ts"] });
+
+    expect(summary.updated).toBe(1);
+    expect(summary.deleted).toBe(0);
+    expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([
+      { path: "src/a.ts" }, { path: "src/b.ts" },
+    ]);
+    expect(database!.prepare("SELECT name FROM symbols ORDER BY name").all()).toEqual([
+      { name: "after" }, { name: "untouched" },
+    ]);
+  });
+
+  it("selects directory descendants and intersects path selectors with include globs", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src", "nested"), { recursive: true });
+    mkdirSync(join(location.rootPath, "tests"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "root.ts"), "export const root = true;");
+    writeFileSync(join(location.rootPath, "src", "nested", "match.ts"), "export const match = true;");
+    writeFileSync(join(location.rootPath, "src", "nested", "skip.js"), "export const skip = true;");
+    writeFileSync(join(location.rootPath, "tests", "test.ts"), "export const test = true;");
+
+    const summary = indexWithDatabase(database!, location, false, [], {
+      paths: ["src"], include: ["src/**/*.ts"],
+    });
+
+    expect(summary.added).toBe(2);
+    expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([
+      { path: "src/nested/match.ts" }, { path: "src/root.ts" },
+    ]);
+  });
+
+  it("stops at maxFiles and reports truncation without deleting unselected files", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "a.ts"), "export const a = true;");
+    writeFileSync(join(location.rootPath, "b.ts"), "export const b = true;");
+    writeFileSync(join(location.rootPath, "c.ts"), "export const c = true;");
+
+    const summary = indexWithDatabase(database!, location, false, [], { maxFiles: 1 });
+
+    expect(summary.scanned).toBe(1);
+    expect(summary.added).toBe(1);
+    expect(summary.truncated).toBe(true);
+    expect(summary.deleted).toBe(0);
+    expect(database!.prepare("SELECT path FROM files").all()).toEqual([{ path: "a.ts" }]);
+  });
+
+  it("stops directory traversal at maxProcessed and marks the result incomplete", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "a.ts"), "export const a = true;");
+    writeFileSync(join(location.rootPath, "b.ts"), "export const b = true;");
+
+    const summary = indexWithDatabase(database!, location, false, [], { maxProcessed: 1 });
+
+    expect(summary.truncated).toBe(true);
+    expect(summary.deleted).toBe(0);
+    expect(summary.scanned).toBeLessThanOrEqual(1);
+  });
+
+  it("rejects traversal paths and invalid processing limits", () => {
+    createProject();
+    expect(() => indexWithDatabase(database!, location, false, [], { paths: ["../outside.ts"] }))
+      .toThrow("project-relative");
+    expect(() => indexWithDatabase(database!, location, false, [], { maxFiles: 10_001 }))
+      .toThrow("maxFiles");
+    expect(() => indexWithDatabase(database!, location, false, [], { maxProcessed: 0 }))
+      .toThrow("maxProcessed");
+  });
   it("keeps stable file and symbol identifiers across forced reindex and line shifts", () => {
     createProject();
     const filePath = join(location.rootPath, "src", "stable.ts");
