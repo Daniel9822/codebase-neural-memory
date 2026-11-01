@@ -22,8 +22,8 @@ class McpTestClient {
   private readonly server: ReturnType<typeof createMcpServer>;
   private connected = false;
 
-  constructor(private readonly location: ProjectLocation) {
-    this.server = createMcpServer(location);
+  constructor(private readonly location: ProjectLocation, options: { autoUpdate?: boolean; strictFreshness?: boolean } = {}) {
+    this.server = createMcpServer(location, options);
     [this.clientTransport, this.serverTransport] = InMemoryTransport.createLinkedPair();
     this.clientTransport.onmessage = (message) => {
       if (!("id" in message) || typeof message.id !== "number") return;
@@ -94,8 +94,8 @@ function createProject(): void {
   remember(location, "MCP adapter fixture", "A confirmed memory for protocol read tests", "decision", "main.ts");
 }
 
-async function connectClient(): Promise<McpTestClient> {
-  const client = new McpTestClient(location);
+async function connectClient(options: { autoUpdate?: boolean; strictFreshness?: boolean } = {}): Promise<McpTestClient> {
+  const client = new McpTestClient(location, options);
   clients.push(client);
   await client.connect();
   return client;
@@ -139,9 +139,9 @@ describe("MCP adapter protocol contract", () => {
       index_freshness: [],
       index_update: [],
       project_map: ["limit"],
-      symbol_lookup: ["exported", "filePath", "kind", "limit", "query"],
+      symbol_lookup: ["exported", "filePath", "includeSource", "kind", "limit", "query"],
       dependency_graph: ["depth", "limit", "maxProcessed", "path"],
-      file_details: ["limit", "path"],
+      file_details: ["inlineSnippets", "limit", "path", "snippetLimit", "snippetMaxLines"],
       source_excerpt: ["endLine", "maxCharacters", "path", "startLine"],
       change_impact: ["limit", "maxProcessed", "path"],
       task_context: ["maxCharacters", "maxItems", "task"],
@@ -159,9 +159,9 @@ describe("MCP adapter protocol contract", () => {
       ["index_freshness", {}],
       ["index_update", {}],
       ["project_map", { limit: 10 }],
-      ["symbol_lookup", { query: "target", limit: 5 }],
+      ["symbol_lookup", { query: "target", limit: 5, includeSource: { maxLines: 5 } }],
       ["dependency_graph", { path: "main.ts", depth: 1 }],
-      ["file_details", { path: "main.ts", limit: 10 }],
+      ["file_details", { path: "main.ts", limit: 10, inlineSnippets: true, snippetLimit: 1 }],
       ["source_excerpt", { path: "main.ts", startLine: 1, endLine: 2 }],
       ["change_impact", { path: "helper.ts", limit: 10 }],
       ["task_context", { task: "understand target helper", maxItems: 10 }],
@@ -272,6 +272,41 @@ describe("MCP adapter protocol contract", () => {
     const saved = JSON.parse(proposalResult.content[0]!.text) as { id: string; status: string; requiresHumanConfirmation: boolean };
     expect(saved).toMatchObject({ status: "proposed", requiresHumanConfirmation: true });
     expect(database!.prepare("SELECT status FROM memories WHERE id = ?").get(saved.id)).toEqual({ status: "proposed" });
+  });
+
+  it("warns on stale reads, refuses them in strict mode, and refreshes them when auto-update is enabled", async () => {
+    createProject();
+    const warningClient = await connectClient();
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function refreshedHelper() { return true; }\\n");
+
+    const warning = await warningClient.request("tools/call", {
+      name: "symbol_lookup",
+      arguments: { query: "helper", limit: 5 },
+    });
+    const warningResult = warning.result as { content: Array<{ text: string }> };
+    expect(warningResult.content[1]?.text).toContain("CNM FRESHNESS WARNING");
+    expect(warningResult.content[1]?.text).toContain("helper.ts");
+
+    await warningClient.close();
+    const strictClient = await connectClient({ strictFreshness: true });
+    const refused = await strictClient.request("tools/call", {
+      name: "symbol_lookup",
+      arguments: { query: "helper", limit: 5 },
+    });
+    expect((refused.result as { isError?: boolean }).isError).toBe(true);
+    expect((refused.result as { content: Array<{ text: string }> }).content[0]!.text).toContain('"status": "refused"');
+
+    await strictClient.close();
+    const autoClient = await connectClient({ autoUpdate: true });
+    const refreshed = await autoClient.request("tools/call", {
+      name: "symbol_lookup",
+      arguments: { query: "refreshedHelper", limit: 5 },
+    });
+    const refreshedResult = refreshed.result as { content: Array<{ text: string }> };
+    expect(JSON.parse(refreshedResult.content[0]!.text)).toEqual([
+      expect.objectContaining({ name: "refreshedHelper", filePath: "helper.ts" }),
+    ]);
+    expect(refreshedResult.content.some((item) => item.text.includes("CNM AUTO-UPDATE"))).toBe(true);
   });
 
   it("supports clean close and a fresh reconnection", async () => {
