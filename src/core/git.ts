@@ -146,6 +146,105 @@ export function compareGitCommits(
 }
 
 
+export interface GitHistoryEntry {
+  commit: string;
+  authoredAt: string;
+  author: string;
+  subject: string;
+  files: Array<{ status: string; path: string; previousPath?: string }>;
+}
+
+export interface GitHistoryResult {
+  commits: GitHistoryEntry[];
+  truncated: boolean;
+  truncatedPaths: boolean;
+}
+
+/**
+ * Return bounded commit and changed-path evidence. Commit boundaries are not
+ * developer sessions, and commit subjects are not proof of intent.
+ */
+export async function getGitHistory(
+  rootPath: string,
+  limit = 20,
+  maxPaths = 200,
+): Promise<GitHistoryResult> {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 50) {
+    throw new Error("Git history limit must be between 1 and 50 commits.");
+  }
+  if (!Number.isSafeInteger(maxPaths) || maxPaths < 1 || maxPaths > 500) {
+    throw new Error("Git history maxPaths must be between 1 and 500 paths.");
+  }
+
+  let output: string;
+  try {
+    const result = await execFileAsync("git", [
+      "log", "--no-show-signature", "--no-decorate", "--date=iso-strict",
+      `--format=%x1e%H%x1f%aI%x1f%an%x1f%s`,
+      "-z", "--name-status", "-n", String(limit + 1),
+    ], {
+      cwd: rootPath,
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 3_000,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+    output = result.stdout;
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
+    if (/not a git repository/i.test(detail)) {
+      throw new Error("Git history is unavailable because the project root is not a Git repository.");
+    }
+    throw new Error("Git history failed or exceeded its 3-second execution budget; narrow the request or verify repository availability.");
+  }
+
+  const tokens = output.split("\\0");
+  const commits: GitHistoryEntry[] = [];
+  let current: GitHistoryEntry | null = null;
+  let totalPaths = 0;
+  let truncatedPaths = false;
+  for (let index = 0; index < tokens.length;) {
+    let token = tokens[index++] ?? "";
+    const marker = token.indexOf("\\x1e");
+    if (marker >= 0) {
+      if (current) commits.push(current);
+      const metadata = token.slice(marker + 1).replace(/^\\r?\\n/, "");
+      const [commit, authoredAt, author, ...subjectParts] = metadata.split("\\x1f");
+      if (!commit || !/^[0-9a-f]{40,64}$/i.test(commit) || !authoredAt || !author) {
+        current = null;
+        continue;
+      }
+      current = {
+        commit,
+        authoredAt,
+        author,
+        subject: subjectParts.join("\\x1f"),
+        files: [],
+      };
+      continue;
+    }
+    if (!current || !token) continue;
+    const status = token;
+    if (!/^(?:A|M|D|T|U|X|B|R\\d{1,3}|C\\d{1,3})$/.test(status)) continue;
+    const path = tokens[index++] ?? "";
+    let previousPath: string | undefined;
+    if (/^[RC]/.test(status)) previousPath = tokens[index++] ?? "";
+    if (totalPaths >= maxPaths) {
+      truncatedPaths = true;
+      continue;
+    }
+    current.files.push({ status, path, ...(previousPath ? { previousPath } : {}) });
+    totalPaths += 1;
+  }
+  if (current) commits.push(current);
+  const truncated = commits.length > limit;
+  return {
+    commits: commits.slice(0, limit),
+    truncated,
+    truncatedPaths,
+  };
+}
+
 export interface GitBlameLine {
   line: number;
   originalLine: number;
