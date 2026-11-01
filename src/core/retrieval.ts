@@ -718,7 +718,7 @@ export function getComponentMap(location: ProjectLocation, options: { from?: str
     const allEdges = [...edgeCounts.entries()].map(([key, imports]) => { const [from, to] = JSON.parse(key) as [string, string]; return { from, to, imports }; }).sort((a, b) => a.from.localeCompare(b.from) || a.to.localeCompare(b.to));
     let from: string | null = null; const distances = new Map<string, number>();
     if (options.from !== undefined) {
-      const requested = options.from.replaceAll("\\\\", "/").replace(/^\\.\\//, "").replace(/\\/$/, "");
+      const requested = options.from.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/$/, "");
       const component = groups.has(requested) ? requested : componentForPath(requested);
       if (!groups.has(component)) throw new Error(`Component not found in memory index: ${options.from}`);
       from = component; distances.set(component, 0);
