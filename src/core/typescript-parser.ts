@@ -47,6 +47,7 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
   const shadowedImportedNames = new Set<string>();
   const isTestFile = /(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(filePath);
   const testRegistrationNames = new Set(["it", "test", "specify", "fit", "xit", "xtest"]);
+  const testCaseOccurrences = new Map<string, number>();
 
   const addSymbol = (node: ts.Node, name: string, kind: SymbolKind, exported: boolean, owner?: string) => {
     const start = node.getStart(sourceFile);
@@ -98,10 +99,11 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
       if (canonicalRegistrationName && testRegistrationNames.has(canonicalRegistrationName) && callback) {
         const titleArgument = node.arguments[0];
         const title = titleArgument && (ts.isStringLiteral(titleArgument) || ts.isNoSubstitutionTemplateLiteral(titleArgument))
-          ? titleArgument.text.trim().slice(0, 160)
-          : "";
-        const line = sourceFile.getLineAndCharacterOfPosition(callback.getStart(sourceFile)).line + 1;
-        const testCaseName = `test-case: ${title || "unnamed test"} @${line}`;
+          ? titleArgument.text.trim().replace(/\s+/g, " ").slice(0, 160)
+          : "unnamed test";
+        const occurrence = (testCaseOccurrences.get(title) ?? 0) + 1;
+        testCaseOccurrences.set(title, occurrence);
+        const testCaseName = `test-case: ${title}#${occurrence}`;
         addSymbol(callback, testCaseName, "test-case", false);
         nextOwner = testCaseName;
         isTestRegistration = true;
