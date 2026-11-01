@@ -311,7 +311,7 @@ describe("MCP adapter protocol contract", () => {
   it("warns on stale reads, refuses them in strict mode, and refreshes them when auto-update is enabled", async () => {
     createProject();
     const warningClient = await connectClient();
-    writeFileSync(join(location.rootPath, "helper.ts"), "export function refreshedHelper() { return true; }\\n");
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function refreshedHelper() { return true; }\n");
 
     const warning = await warningClient.request("tools/call", {
       name: "symbol_lookup",
