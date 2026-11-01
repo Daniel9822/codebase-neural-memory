@@ -252,6 +252,13 @@ describe("MCP adapter protocol contract", () => {
       : (result?.content ?? []).map((item) => item.text ?? "").join("\n");
     expect(errorText.length).toBeGreaterThan(0);
 
+    const invalidSymbolImpact = await client.request("tools/call", {
+      name: "symbol_impact",
+      arguments: { symbol: "target", direction: "sideways" },
+    });
+    const invalidSymbolImpactResult = invalidSymbolImpact.result as { isError?: boolean } | undefined;
+    expect(Boolean(invalidSymbolImpact.error) || invalidSymbolImpactResult?.isError === true).toBe(true);
+
     const coreError = await client.request("tools/call", {
       name: "dependency_graph",
       arguments: { path: "missing-from-index.ts" },
@@ -280,6 +287,7 @@ describe("MCP adapter protocol contract", () => {
       ["file_details", { path: "main.ts" }],
       ["source_excerpt", { path: "main.ts", startLine: 1, endLine: 2 }],
       ["change_impact", { path: "helper.ts" }],
+      ["symbol_impact", { symbol: "helper", filePath: "helper.ts" }],
       ["task_context", { task: "target helper" }],
       ["memory_freshness", {}],
       ["memory_recall", {}],
