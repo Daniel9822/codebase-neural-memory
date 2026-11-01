@@ -361,6 +361,23 @@ describe("indexWithDatabase", () => {
     ]);
   });
 
+  it("does not report invalid bindings from baseUrl-resolved local modules as external exports", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", module: "NodeNext", moduleResolution: "NodeNext" },
+    }));
+    writeFileSync(join(location.rootPath, "src", "local.ts"), "export const present = true;");
+    writeFileSync(join(location.rootPath, "main.ts"), [
+      'import { absent } from "src/local";',
+      "void absent;",
+    ].join("\n"));
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM import_diagnostics").get()).toEqual({ count: 0 });
+  });
+
   it("does not misclassify local workspace packages without exports maps", () => {
     createProject();
     const packageRoot = join(location.rootPath, "packages", "shared-local");
