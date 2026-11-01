@@ -47,15 +47,32 @@ function readResponse<T>(
   let freshness = getIndexFreshness(location);
   let refreshed = false;
   let autoUpdateSkippedReason: string | undefined;
+  let autoUpdateFailureReason: string | undefined;
   if (options.autoUpdate && freshness.status !== "current") {
     if (freshness.status === "incomplete") {
       autoUpdateSkippedReason = "automatic refresh was skipped because file discovery is incomplete; resolve skipped/unreadable files and run index_update manually.";
     } else if (freshness.fileChangesTotal > MAX_AUTO_UPDATE_FILE_CHANGES) {
       autoUpdateSkippedReason = `automatic refresh was skipped because ${freshness.fileChangesTotal} source changes exceed the safety limit of ${MAX_AUTO_UPDATE_FILE_CHANGES}; run index_update explicitly.`;
     } else {
-      updateProjectIndex(location);
-      freshness = getIndexFreshness(location);
-      refreshed = true;
+      try {
+        updateProjectIndex(location);
+        freshness = getIndexFreshness(location);
+        refreshed = freshness.status === "current";
+        if (!refreshed) {
+          autoUpdateFailureReason = `post-update freshness verification returned status "${freshness.status}"; the read will not be treated as current.`;
+        }
+      } catch (error) {
+        autoUpdateFailureReason = error instanceof Error ? error.message : String(error);
+        // A failed refresh must never make the pre-refresh snapshot look current.
+        // If the database is temporarily unavailable, retain the last known stale report
+        // rather than allowing the freshness check itself to bypass strict refusal.
+        try {
+          freshness = getIndexFreshness(location);
+        } catch (freshnessError) {
+          const detail = freshnessError instanceof Error ? freshnessError.message : String(freshnessError);
+          autoUpdateFailureReason += `; freshness re-check also failed: ${detail}`;
+        }
+      }
     }
   }
   if (options.strictFreshness && freshness.status !== "current") {
@@ -66,6 +83,12 @@ function readResponse<T>(
         text: JSON.stringify({
           status: "refused",
           staleness: freshness,
+          autoUpdate: {
+            attempted: Boolean(options.autoUpdate && !autoUpdateSkippedReason),
+            refreshed,
+            skippedReason: autoUpdateSkippedReason ?? null,
+            failureReason: autoUpdateFailureReason ?? null,
+          },
           hint: "Run index_update, resolve any unreadable/skipped files, then retry. Strict freshness never serves an unverified indexed result.",
         }, null, 2),
       }],
@@ -76,7 +99,8 @@ function readResponse<T>(
   if (freshness.status !== "current") content.push({ type: "text", text: freshnessWarning(freshness) });
   else if (containsStaleSource(result)) content.push({ type: "text", text: "CNM SOURCE WARNING: at least one inline excerpt hash differs from the indexed hash (indexStatus: stale). The excerpt is actual working-tree text, but indexed metadata may describe older bytes; refresh the index and repeat the read." });
   if (autoUpdateSkippedReason) content.push({ type: "text", text: `CNM AUTO-UPDATE SKIPPED: ${autoUpdateSkippedReason}` });
-  if (refreshed) content.push({ type: "text", text: "CNM AUTO-UPDATE: the index was incrementally reconciled before this read." });
+  if (autoUpdateFailureReason) content.push({ type: "text", text: `CNM AUTO-UPDATE FAILED: ${autoUpdateFailureReason}. The previous index snapshot was preserved; do not rely on stale indexed results.` });
+  if (refreshed && freshness.status === "current") content.push({ type: "text", text: "CNM AUTO-UPDATE: the index was incrementally reconciled and verified before this read." });
   return { content };
 }
 

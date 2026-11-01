@@ -599,15 +599,38 @@ export function updateProjectIndex(location: ProjectLocation): IndexSummary {
     const row = db.prepare("SELECT index_excludes_json FROM projects WHERE id = ?").get(location.id) as { index_excludes_json: string } | undefined;
     if (!row) throw new Error("This repository has not been initialized. Run `cnm init` first.");
     const excludes = JSON.parse(row.index_excludes_json) as string[];
-    return indexWithDatabase(db, location, false, excludes);
+    return indexWithDatabase(db, location, false, excludes, { requireCompleteSnapshot: true });
   } finally {
     db.close();
   }
 }
 
-export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation, force = false, extraExcludes: string[] = []): IndexSummary {
+export interface IndexOptions {
+  /** Abort and roll back if discovery, parsing, or source snapshot validation is incomplete. */
+  requireCompleteSnapshot?: boolean;
+}
+
+function sameDiscoveredSnapshot(left: DiscoveryResult, right: DiscoveryResult): boolean {
+  if (left.failed !== 0 || left.skipped !== 0 || left.protectedDirectories.size !== 0 ||
+      right.failed !== 0 || right.skipped !== 0 || right.protectedDirectories.size !== 0) return false;
+  if (left.files.length !== right.files.length) return false;
+  return left.files.every((file, index) =>
+    file.relativePath === right.files[index]?.relativePath && file.hash === right.files[index]?.hash);
+}
+
+export function indexWithDatabase(
+  db: MemoryDatabase,
+  location: ProjectLocation,
+  force = false,
+  extraExcludes: string[] = [],
+  options: IndexOptions = {},
+): IndexSummary {
   const gitBefore = getGitSnapshot(location.rootPath);
   const discovery = discoverFiles(location.rootPath, extraExcludes);
+  if (options.requireCompleteSnapshot &&
+      (discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0)) {
+    throw new Error("Index update aborted: source discovery is incomplete; no index changes were committed. Resolve skipped or unreadable files and retry.");
+  }
   const { files: discovered, presentPaths } = discovery;
   return db.transaction(() => {
     db.prepare("UPDATE projects SET index_excludes_json = ? WHERE id = ?").run(JSON.stringify(extraExcludes), location.id);
@@ -677,6 +700,9 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
       } catch (error) {
         summary.failed += 1;
         summary.errors.push(file.relativePath + ": " + (error instanceof Error ? error.message : String(error)));
+        if (options.requireCompleteSnapshot) {
+          throw new Error("Index update aborted while parsing " + file.relativePath + "; no index changes were committed.");
+        }
       }
     }
 
@@ -699,6 +725,12 @@ export function indexWithDatabase(db: MemoryDatabase, location: ProjectLocation,
     if (!revisionRow) throw new Error("Project record is missing; run cnm init first.");
     summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
+    if (options.requireCompleteSnapshot) {
+      const finalDiscovery = discoverFiles(location.rootPath, extraExcludes);
+      if (!sameDiscoveredSnapshot(discovery, finalDiscovery)) {
+        throw new Error("Index update aborted: source files changed or discovery became incomplete during reconciliation; no index changes were committed. Retry the update.");
+      }
+    }
     const gitAfter = getGitSnapshot(location.rootPath);
     if (!sameGitSnapshot(gitBefore, gitAfter)) {
       throw new Error("Git repository state changed during indexing; rerun `cnm index` to capture a consistent snapshot.");
