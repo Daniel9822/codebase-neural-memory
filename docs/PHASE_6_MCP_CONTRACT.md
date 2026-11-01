@@ -11,7 +11,7 @@
 - Project-root and project-ID resolution: `src/core/project.ts`
 - SDK dependency: `@modelcontextprotocol/server ^2.3.1` in `package.json`
 
-The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The original Phase 6 registration contained ten tools. The current registration includes the original retrieval tools plus `source_excerpt`, `index_update`, `memory_propose`, and `memory_transition`; this file must be reconciled with `server.ts` whenever a tool or schema changes.
+The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The original Phase 6 registration contained ten tools. The current registration includes the original retrieval tools plus `source_excerpt`, `index_update`, `memory_propose`, `memory_transition`, and `git_blame`; this file must be reconciled with `server.ts` whenever a tool or schema changes.
 
 ## Project binding and startup
 
