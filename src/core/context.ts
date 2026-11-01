@@ -130,6 +130,7 @@ export function buildTaskContext(
   }
 
   const seenFiles = new Set<string>();
+  const seenImpactFiles = new Set<string>();
   for (const symbol of symbols) {
     if (seenFiles.has(symbol.filePath) || seenFiles.size >= fileLimit) continue;
     seenFiles.add(symbol.filePath);
@@ -164,17 +165,20 @@ export function buildTaskContext(
       if (dependencies.truncated) warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
       // Map the indexed source file back to tests through actual reverse-import
       // relations, rather than relying only on test filenames containing task words.
-      const impacted = findImpact(location, symbol.filePath, 20, 100);
-      for (const path of impacted.affectedFiles) {
-        if (!/(^|[/\\\\])tests?([/\\\\.-]|$)|\\.(test|spec)\\.[cm]?[jt]sx?$/i.test(path)) continue;
-        candidates.push({
-          kind: "test", origin: "graph", title: `Import-dependent test: ${path}`, source: path,
-          score: symbol.score + 3,
-          signals: ["reverse-import-dependent", "test-to-source-file"],
-          detail: { target: symbol.filePath, relationship: "direct-or-transitive-import-dependent" },
-        });
+      if (!seenImpactFiles.has(symbol.filePath)) {
+        seenImpactFiles.add(symbol.filePath);
+        const impacted = findImpact(location, symbol.filePath, 20, 100);
+        for (const path of impacted.affectedFiles) {
+          if (!/(^|[/\\\\])tests?([/\\\\.-]|$)|\\.(test|spec)\\.[cm]?[jt]sx?$/i.test(path)) continue;
+          candidates.push({
+            kind: "test", origin: "graph", title: `Import-dependent test: ${path}`, source: path,
+            score: symbol.score + 3,
+            signals: ["reverse-import-dependent", "test-to-source-file"],
+            detail: { target: symbol.filePath, relationship: "direct-or-transitive-import-dependent" },
+          });
+        }
+        if (impacted.truncated) warnings.push(`Test dependency lookup for ${symbol.filePath} was truncated by retrieval limits.`);
       }
-      if (impacted.truncated) warnings.push(`Test dependency lookup for ${symbol.filePath} was truncated by retrieval limits.`);
       if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
         candidates.push({
           kind: "test", origin: explicitAnchorMode ? "anchor" : "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
