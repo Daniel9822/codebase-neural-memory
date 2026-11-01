@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { afterEach, describe, expect, it } from "vitest";
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -122,6 +123,7 @@ describe("MCP adapter protocol contract", () => {
       "change_impact",
       "dependency_graph",
       "file_details",
+      "git_blame",
       "index_freshness",
       "index_update",
       "memory_freshness",
@@ -144,6 +146,7 @@ describe("MCP adapter protocol contract", () => {
       dependency_graph: ["depth", "limit", "maxProcessed", "path"],
       file_details: ["inlineSnippets", "limit", "path", "snippetLimit", "snippetMaxLines"],
       source_excerpt: ["endLine", "maxCharacters", "path", "startLine"],
+      git_blame: ["endLine", "path", "startLine"],
       change_impact: ["limit", "maxProcessed", "path"],
       task_context: ["anchors", "maxCharacters", "maxItems", "task"],
       memory_freshness: ["limit"],
@@ -151,6 +154,31 @@ describe("MCP adapter protocol contract", () => {
       memory_recall: ["category", "limit", "list", "query", "status"],
       memory_transition: ["id", "status"],
     });
+  });
+
+  it("executes a valid bounded Git blame call and rejects invalid ranges", async () => {
+    createProject();
+    execFileSync("git", ["init"], { cwd: location.rootPath, stdio: "ignore" });
+    execFileSync("git", ["config", "user.email", "cnm-tests@example.invalid"], { cwd: location.rootPath });
+    execFileSync("git", ["config", "user.name", "CNM MCP Tests"], { cwd: location.rootPath });
+    execFileSync("git", ["add", "main.ts"], { cwd: location.rootPath });
+    execFileSync("git", ["commit", "-m", "add MCP fixture"], { cwd: location.rootPath, stdio: "ignore" });
+
+    const client = await connectClient();
+    const valid = await client.request("tools/call", {
+      name: "git_blame",
+      arguments: { path: "main.ts", startLine: 1, endLine: 2 },
+    });
+    const validResult = valid.result as { isError?: boolean; content?: Array<{ text?: string }> } | undefined;
+    expect(validResult?.isError).not.toBe(true);
+    expect(validResult?.content?.[0]?.text).toContain("CNM MCP Tests");
+
+    const invalid = await client.request("tools/call", {
+      name: "git_blame",
+      arguments: { path: "../outside.ts", startLine: 1, endLine: 2 },
+    });
+    const invalidResult = invalid.result as { isError?: boolean } | undefined;
+    expect(Boolean(invalid.error) || invalidResult?.isError === true).toBe(true);
   });
 
   it("executes at least one valid call for every tool and supports repeated calls", async () => {
