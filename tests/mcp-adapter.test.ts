@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly sixteen tools and publishes the expected input schemas", async () => {
+  it("discovers exactly seventeen tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -120,7 +120,7 @@ describe("MCP adapter protocol contract", () => {
     const tools = result.tools;
 
     expect(tools.map((tool) => tool.name).sort()).toEqual([
-      "change_impact",
+      "change_impact",\n      "component_map",
       "dependency_graph",
       "file_details",
       "git_blame",
@@ -142,7 +142,7 @@ describe("MCP adapter protocol contract", () => {
       project_overview: [],
       index_freshness: [],
       index_update: [],
-      project_map: ["limit"],
+      project_map: ["limit"],\n      component_map: ["depth", "fileLimit", "from", "limit"],
       symbol_lookup: ["exported", "filePath", "includeSource", "kind", "limit", "query"],
       dependency_graph: ["depth", "limit", "maxProcessed", "path"],
       file_details: ["inlineSnippets", "limit", "path", "snippetLimit", "snippetMaxLines"],
@@ -156,6 +156,19 @@ describe("MCP adapter protocol contract", () => {
       memory_recall: ["category", "limit", "list", "query", "status"],
       memory_transition: ["id", "status"],
     });
+  });
+
+  it("returns structural component groups and rejects unknown origins", async () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "api"), { recursive: true });
+    writeFileSync(join(location.rootPath, "api", "route.ts"), 'import { helper } from "../helper"; export const route = () => helper();');
+    indexWithDatabase(database!, location);
+    const client = await connectClient();
+    const response = await client.request("tools/call", { name: "component_map", arguments: { from: "api", depth: 2 } });
+    const textContent = (response.result as { content: Array<{ text: string }> }).content[0]!.text;
+    expect(JSON.parse(textContent)).toMatchObject({ from: "api", components: expect.arrayContaining([expect.objectContaining({ id: "api", distanceFrom: 0 })]) });
+    const invalid = await client.request("tools/call", { name: "component_map", arguments: { from: "missing" } });
+    expect(invalid.error).toBeDefined();
   });
 
   it("executes a valid bounded Git blame call and rejects invalid ranges", async () => {
