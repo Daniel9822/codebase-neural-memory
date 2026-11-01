@@ -270,7 +270,9 @@ function resolvePackageExportBases(specifier: string, packages: Map<string, Loca
   const parts = packageSpecifierParts(specifier);
   if (!parts) return { recognized: false, bases: [] };
   const localPackages = packages.get(parts.name);
-  if (!localPackages) return { recognized: false, bases: [] };
+  if (!localPackages || !localPackages.some((localPackage) => localPackage.exports !== undefined)) {
+    return { recognized: false, bases: [] };
+  }
   const bases: string[] = [];
   for (const localPackage of localPackages) {
     const target = selectPackageExport(localPackage.exports, parts.subpath);
