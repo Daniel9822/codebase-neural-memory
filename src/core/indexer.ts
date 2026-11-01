@@ -648,12 +648,16 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
 export function indexProject(
   location: ProjectLocation,
   force = false,
-  extraExcludes: string[] = [],
+  extraExcludes?: string[],
   options: IndexOptions = {},
 ): IndexSummary {
   const db = openDatabase(location);
   try {
-    return indexWithDatabase(db, location, force, extraExcludes, options);
+    const excludes = extraExcludes ?? (() => {
+      const row = db.prepare("SELECT index_excludes_json FROM projects WHERE id = ?").get(location.id) as { index_excludes_json: string } | undefined;
+      return row ? JSON.parse(row.index_excludes_json) as string[] : [];
+    })();
+    return indexWithDatabase(db, location, force, excludes, options);
   } finally {
     db.close();
   }
