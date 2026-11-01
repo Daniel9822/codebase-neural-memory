@@ -48,6 +48,47 @@ describe("auth", () => {
     expect(shifted.symbols.find((symbol) => symbol.kind === "test-case")?.name).toBe(testCase?.name);
   });
 
+  it("captures bounded multiline declaration headers without indexing implementation bodies", () => {
+    const source = `export async function loadRecord(
+  recordId: string,
+  options: { includeArchived?: boolean; retries: number },
+): Promise<Readonly<Record<string, unknown>>> {
+  const secretImplementationDetail = "not part of the signature";
+  return Promise.resolve({ recordId, secretImplementationDetail });
+}
+
+export const mapRecord = (
+  record: Readonly<Record<string, unknown>>,
+): string => {
+  const localImplementationDetail = "also not part of the signature";
+  return String(record.id ?? localImplementationDetail);
+};
+
+export class RecordService extends BaseService implements RecordReader {
+  async readRecord(
+    recordId: string,
+    includeArchived = false,
+  ): Promise<RecordValue> {
+    return this.load(recordId, includeArchived);
+  }
+}`;
+    const parsed = parseTypeScriptFile("src/records.ts", source);
+    const load = parsed.symbols.find((symbol) => symbol.name === "loadRecord");
+    const map = parsed.symbols.find((symbol) => symbol.name === "mapRecord");
+    const read = parsed.symbols.find((symbol) => symbol.name === "RecordService.readRecord");
+    const service = parsed.symbols.find((symbol) => symbol.name === "RecordService");
+
+    expect(load?.signature).toContain("recordId: string");
+    expect(load?.signature).toContain("Promise<Readonly<Record<string, unknown>>>");
+    expect(load?.signature).not.toContain("secretImplementationDetail");
+    expect(map?.signature).toContain("Readonly<Record<string, unknown>>");
+    expect(map?.signature).not.toContain("localImplementationDetail");
+    expect(read?.signature).toContain("includeArchived = false");
+    expect(read?.signature).toContain("Promise<RecordValue>");
+    expect(service?.signature).toContain("extends BaseService implements RecordReader");
+    expect([load, map, read, service].every((symbol) => (symbol?.signature.length ?? 0) <= 1_200)).toBe(true);
+  });
+
   it("rejects malformed source and includes a source location", () => {
     expect(() => parseTypeScriptFile("broken.ts", "export function broken( {"))
       .toThrow(/broken\.ts:1:/);
