@@ -193,3 +193,8 @@ cnm context "Fix authentication token refresh and update tests" --max-items 20 -
 ```
 
 The JSON response includes lexical anchors, ranked symbols/files/memories/test paths, source references, lifecycle and freshness warnings, total budget usage, and per-category limits/usage/truncation metadata. Memory statuses are not collapsed: proposed and obsolete records are labeled and accompanied by warnings. The MCP adapter exposes the same capability as `task_context`. Retrieval remains lexical/structural and does not claim semantic completeness.
+
+
+### Structural component overview
+
+Use `cnm components` or MCP `component_map` to aggregate the indexed import graph by first project-relative directory. For example, `cnm components --from src --depth 3` reports directed cross-directory imports and shortest dependency distances. These groups are deterministic structural boundaries, not semantic or business-domain component inference; root-level files are grouped under `(root)`. Output is bounded and includes truncation metadata.
