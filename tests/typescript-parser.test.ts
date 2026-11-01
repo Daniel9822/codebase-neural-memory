@@ -36,7 +36,7 @@ describe("auth", () => {
 });`;
     const parsed = parseTypeScriptFile("tests/auth.test.ts", source);
     const testCase = parsed.symbols.find((symbol) => symbol.kind === "test-case");
-    expect(testCase?.name).toContain("test-case: refreshes tokens @");
+    expect(testCase?.name).toContain("test-case: refreshes tokens#1");
     expect(parsed.calls).toContainEqual({
       callerName: testCase?.name,
       calleeName: "refreshAuthToken",
