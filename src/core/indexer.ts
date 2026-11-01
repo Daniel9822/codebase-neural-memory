@@ -215,7 +215,9 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
   walk(root, [rootScope]);
   return {
     files: output.sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
-    presentPaths, protectedDirectories, scanned, skipped, failed, truncated, errors, skippedFiles,
+    presentPaths, protectedDirectories, scanned, skipped, failed, truncated,
+    errors: errors.sort((a, b) => a.localeCompare(b)),
+    skippedFiles: skippedFiles.sort((a, b) => a.localeCompare(b)),
   };
 }
 function stableIdentifier(value: unknown): string {
