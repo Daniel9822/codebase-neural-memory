@@ -47,6 +47,9 @@ program.command("init")
     console.log(`Private database: ${location.databasePath}`);
     const agentInstructions = ensureAgentInstructions(location);
     console.log(`Agent instructions: ${agentInstructions.status} (${agentInstructions.path}).`);
+    if (agentInstructions.status === "outdated") {
+      console.log("The CNM-managed section appears manually edited and was preserved. Run cnm agents-md --force to replace that section.");
+    }
   });
 
 program.command("agents-md")
