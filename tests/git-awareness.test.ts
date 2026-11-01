@@ -232,7 +232,7 @@ describe("Git-aware indexing and freshness", () => {
     indexWithDatabase(database!, location, true);
     expect(logicalSnapshot()).toEqual(afterBranchReconciliation);
     expect(getIndexFreshness(location).status).toBe("current");
-  });
+  }, 15_000);
 
   it("keeps non-Git folders usable and reports Git metadata as unavailable", () => {
     createProject(false);

@@ -79,7 +79,7 @@ The server uses stdio and exposes thirteen tools: eleven read/retrieval tools an
 
 - `project_overview` — local repository/index summary.
 - `index_freshness` — source-file and Git commit/branch/working-tree freshness versus the index.
-- `project_map` — indexed files and resolved/unresolved imports.
+- `project_map` — indexed files, resolved/unresolved imports, and bounded TypeScript-backed external import diagnostics (`missing-package` / `missing-export`).
 - `symbol_lookup` — bounded lexical symbol search with optional kind, file-path-prefix, export filters, and opt-in verified inline source (`includeSource`).
 - `index_update` — incrementally reconcile changed/deleted/added source files while retaining configured exclusions.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
@@ -148,7 +148,7 @@ Common generated/dependency folders and sensitive files such as `.env`, private 
 
 ## Current limitations
 
-- Import resolution supports relative imports, explicit `compilerOptions.paths` aliases from the repository-root `tsconfig.json`, and `exports` targets from local packages whose `package.json` files are in indexed source directories or their ancestors. Root and subpath exports, simple wildcard mappings, and the `types`, `import`, `node`, `default`, and `require` conditions are supported; multiple indexed targets are reported as ambiguous, and missing or unsafe local targets remain unresolved. External packages and `baseUrl`-only resolution are not inferred.
+- Import resolution supports relative imports, explicit `compilerOptions.paths` aliases from the repository-root `tsconfig.json`, and `exports` targets from local packages whose `package.json` files are in indexed source directories or their ancestors. Root and subpath exports, simple wildcard mappings, and the `types`, `import`, `node`, `default`, and `require` conditions are supported; multiple indexed targets are reported as ambiguous, and missing or unsafe local targets remain unresolved. A separate TypeScript semantic pass reports unresolved external packages and invalid named/default export bindings in `project_map`; these are focused import diagnostics, not a replacement for the repository compiler or build. It uses the project `tsconfig.json` when available and excludes Node built-ins and recognized local workspace packages.
 - Class and interface `extends` / class `implements` relationships are recorded when the target is a unique local symbol or a uniquely resolved named import. Complex heritage expressions and unresolved or ambiguous targets are not inferred.
 - Call relationships are resolved within a file and across statically imported named exports (including aliased imports) when the import resolves to one indexed file and one exported symbol. Shadowed imports, default/namespace imports, re-exports, dynamic calls, and runtime-generated relationships are not inferred.
 - Dynamic imports, framework-specific dependency injection, reflection, and runtime-generated relationships are not inferred.

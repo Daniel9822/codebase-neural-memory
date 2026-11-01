@@ -105,6 +105,7 @@ Phase 0 is complete only after results are recorded, including exact environment
 - [x] Forward and reverse traversal return expected neighbors on graph fixtures (dependency and symbol-relation retrieval tests).
 - [x] Transitive traversal handles cycles without infinite loops (dependency traversal fixture).
 - [x] Unresolved or ambiguous imports are reported as unresolved instead of guessed (relative, tsconfig alias, and package export fixtures).
+- [ ] External package resolution and named/default import bindings are checked with the project TypeScript resolver; missing packages and missing exports are persisted and exposed through bounded `project_map` diagnostics (`tests/indexer.test.ts`).
 - [x] Cross-file symbol edges are created only when static evidence supports the resolution (named exports, aliases, shadowing, non-exported symbols, and ambiguous heritage fixtures).
 
 ## 6. Phase 3 — Retrieval

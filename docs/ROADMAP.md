@@ -56,6 +56,7 @@ Tasks:
 - Finalize common node and edge model.
 - Define stable identifiers and foreign-key/lifecycle rules.
 - Resolve relative imports conservatively, including supported extensions and index files.
+- [ ] Add a bounded TypeScript semantic pass for unresolved external packages and invalid named/default export bindings; expose diagnostics through `project_map` without treating them as a replacement for compiler/build validation.
 - Evaluate tsconfig path aliases and package exports.
 - Resolve same-file and cross-file symbol references where static evidence is sufficient.
 - Add reverse and forward graph traversal.

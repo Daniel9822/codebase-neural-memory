@@ -95,6 +95,7 @@ The repository currently documents and contains an initial JavaScript/TypeScript
 - Deterministic lexical symbol ranking over exact names, name terms, signature terms, export status, and FTS5 BM25, with a safely escaped LIKE fallback.
 - Project map, incoming/outgoing symbol relations, direct/transitive dependency traversal with per-edge chain evidence and explicit limits, and reverse-import impact lookup.
 - Bounded file details with source metadata, symbols, resolved/unresolved imports, relations, per-collection totals, and truncation flags.
+- Bounded TypeScript-backed import diagnostics for unresolved external packages and invalid named/default export bindings, exposed through `project_map`; compiler/build validation remains authoritative for full program correctness.
 - Read-only source and Git freshness reports: `cnm freshness` / `index_freshness` record indexed commit/branch and working-tree state; `cnm memory freshness` / `memory_freshness` compare memory commit references with current Git ancestry and file fingerprints. These checks do not change memory lifecycle state. Reconciliation uses deterministic scans; no background watcher is implemented.
 - Explicit local memories, currently saved as confirmed records by the CLI.
 - MCP tools registered in `src/adapters/mcp/server.ts` (13): `project_overview`, `index_freshness`, `index_update`, `project_map`, `symbol_lookup`, `dependency_graph`, `file_details`, `source_excerpt`, `change_impact`, `task_context`, `memory_freshness`, `memory_propose`, and `memory_recall`.
