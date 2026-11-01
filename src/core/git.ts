@@ -25,20 +25,6 @@ function runGit(rootPath: string, args: string[]): string | null {
   }
 }
 
-function normalizeRepositoryPath(value: string): string {
-  let normalized = value.replaceAll("\\", "/");
-  if (process.platform === "win32") {
-    // Git for Windows and Node may represent the same path as C:/...,
-    // /c/... or with the Win32 extended-length prefix (\\?\C:\...).
-    normalized = normalized
-      .replace(/^\/\/\?\/UNC\//i, "//")
-      .replace(/^\/\/\?\//, "")
-      .replace(/^\/([a-z])\//i, "$1:/");
-  }
-  const resolved = resolve(normalized).replaceAll("\\", "/").replace(/\/+$/, "");
-  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
-}
-
 /** Read only the repository identity and working-tree state; never changes Git metadata. */
 export function getGitSnapshot(rootPath: string): GitSnapshot {
   // Do not parse or realpath Git's --show-toplevel output: Git for Windows may
