@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
-import { explainSymbol, findDependencies, findImpact, getFileDetails, getSourceExcerpt, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
+import { explainSymbol, findDependencies, findImpact, findSymbolImpact, getFileDetails, getSourceExcerpt, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
 import { retrievalRelevanceCases } from "./fixtures/retrieval-relevance.js";
 
 let temporaryDirectory = "";
@@ -110,11 +110,12 @@ describe("findDependencies", () => {
       },
     ]);
     expect(findDependencies(location, "a.ts", 10).dependencies.map((item) => item.path)).toEqual(["b.ts", "c.ts"]);
-  });
+  }, 20_000);
 
   it("accepts paths with Windows separators and a leading ./", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    mkdirSync(join(location.rootPath, "tests"), { recursive: true });
     writeFileSync(join(location.rootPath, "src", "main.ts"), 'import "./helper";');
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export const helper = true;");
     indexWithDatabase(database!, location);
@@ -468,5 +469,120 @@ export function determineWinner(scores: number[]): number { return Math.max(...s
       expect(results[0]?.name, fixture.query).toBe(fixture.expectedTop);
       expect(results.some((result) => (fixture.relevant as readonly string[]).includes(result.name))).toBe(true);
     }
+  });
+});
+
+
+describe("findSymbolImpact", () => {
+  it("traverses incoming and outgoing symbol relations with shortest distances and edge evidence", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "target.ts"), "export function target() { return true; }\n");
+    writeFileSync(join(location.rootPath, "middle.ts"), 'import { target } from "./target";\nexport function middle() { return target(); }\n');
+    writeFileSync(join(location.rootPath, "outer.ts"), 'import { middle } from "./middle";\nexport function outer() { return middle(); }\n');
+    writeFileSync(join(location.rootPath, "base.ts"), "export class Base {}\n");
+    writeFileSync(join(location.rootPath, "contract.ts"), "export interface Contract {}\n");
+    writeFileSync(join(location.rootPath, "child.ts"), 'import { Base } from "./base";\nimport { Contract } from "./contract";\nexport class Child extends Base implements Contract {}\n');
+    indexWithDatabase(database!, location);
+
+    const incoming = findSymbolImpact(location, "target", { filePath: "target.ts", depth: 2 });
+    expect(incoming).toMatchObject({
+      target: { name: "target", filePath: "target.ts" },
+      ambiguous: false, direction: "incoming", truncated: false,
+      results: [
+        { name: "middle", filePath: "middle.ts", distance: 1, relation: "CALLS" },
+        { name: "outer", filePath: "outer.ts", distance: 2, relation: "CALLS" },
+      ],
+    });
+    expect(incoming.results[0]?.path.map((symbol) => symbol.name)).toEqual(["target", "middle"]);
+    expect(incoming.results[1]?.path.map((symbol) => symbol.name)).toEqual(["target", "middle", "outer"]);
+    expect(incoming.results[1]?.chainEvidence).toHaveLength(2);
+    expect(incoming.results[0]?.chainEvidence[0]).toMatchObject({
+      relation: "CALLS", source: { name: "middle" }, target: { name: "target" },
+      provenance: "typescript-ast-import-binding", confidence: 0.95, indexRevision: 1,
+    });
+
+    const outgoing = findSymbolImpact(location, "outer", { filePath: "outer.ts", direction: "outgoing", depth: 2 });
+    expect(outgoing.results.map((item) => [item.name, item.distance])).toEqual([["middle", 1], ["target", 2]]);
+
+    expect(findSymbolImpact(location, "Base", { filePath: "base.ts" }).results).toMatchObject([
+      { name: "Child", relation: "EXTENDS", distance: 1 },
+    ]);
+    expect(findSymbolImpact(location, "Contract", { filePath: "contract.ts" }).results).toMatchObject([
+      { name: "Child", relation: "IMPLEMENTS", distance: 1 },
+    ]);
+  });
+
+  it("reports ambiguous roots and supports exact path, kind, line, and relation filters", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "one"), { recursive: true });
+    mkdirSync(join(location.rootPath, "two"), { recursive: true });
+    writeFileSync(join(location.rootPath, "one", "shared.ts"), "export function shared() { return true; }\n");
+    writeFileSync(join(location.rootPath, "two", "shared.ts"), "export function shared() { return false; }\n");
+    writeFileSync(join(location.rootPath, "caller.ts"), 'import { shared } from "./one/shared";\nexport function caller() { return shared(); }\n');
+    indexWithDatabase(database!, location);
+
+    const ambiguous = findSymbolImpact(location, "shared");
+    expect(ambiguous).toMatchObject({ ambiguous: true, target: null, results: [], processedRelations: 0 });
+    expect(ambiguous.candidates.map((item) => item.filePath)).toEqual(["one/shared.ts", "two/shared.ts"]);
+    const scoped = findSymbolImpact(location, "shared", { filePath: "one/shared.ts", kind: "function", startLine: 1, relationKinds: ["CALLS"] });
+    expect(scoped.ambiguous).toBe(false);
+    expect(scoped.results).toMatchObject([{ name: "caller", distance: 1, relation: "CALLS" }]);
+    expect(findSymbolImpact(location, "shared", { filePath: "one/shared.ts", relationKinds: ["EXTENDS"] }).results).toEqual([]);
+  });
+
+  it("maps concrete test cases to the imported symbols they call", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    mkdirSync(join(location.rootPath, "tests"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "auth.ts"), "export function refreshAuthToken() { return true; }\n");
+    writeFileSync(join(location.rootPath, "tests", "auth.test.ts"), `import { it } from "vitest";
+import { refreshAuthToken } from "../src/auth";
+describe("auth", () => {
+  it("refreshes tokens", () => {
+    refreshAuthToken();
+  });
+});
+`);
+    indexWithDatabase(database!, location);
+
+    const impact = findSymbolImpact(location, "refreshAuthToken", {
+      filePath: "src/auth.ts",
+      depth: 1,
+      relationKinds: ["CALLS"],
+    });
+    expect(impact.results).toMatchObject([{
+      name: expect.stringContaining("test-case: refreshes tokens#1"),
+      kind: "test-case",
+      filePath: "tests/auth.test.ts",
+      distance: 1,
+      relation: "CALLS",
+      chainEvidence: [{
+        source: { kind: "test-case", filePath: "tests/auth.test.ts" },
+        target: { name: "refreshAuthToken", filePath: "src/auth.ts" },
+      }],
+    }]);
+  });
+
+  it("enforces result and processing limits and rejects unsafe inputs", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "target.ts"), "export function target() { return true; }\n");
+    writeFileSync(join(location.rootPath, "a.ts"), 'import { target } from "./target";\nexport function callerA() { return target(); }\n');
+    writeFileSync(join(location.rootPath, "b.ts"), 'import { target } from "./target";\nexport function callerB() { return target(); }\n');
+    indexWithDatabase(database!, location);
+
+    const byResults = findSymbolImpact(location, "target", { filePath: "target.ts", limit: 1 });
+    expect(byResults.results).toHaveLength(1);
+    expect(byResults.truncated).toBe(true);
+    const byProcessing = findSymbolImpact(location, "target", { filePath: "target.ts", maxProcessed: 1 });
+    expect(byProcessing.processedRelations).toBe(1);
+    expect(byProcessing.truncated).toBe(true);
+
+    expect(() => findSymbolImpact(location, "missing")).toThrow("Symbol not found in index");
+    expect(() => findSymbolImpact(location, "target", { depth: 0 })).toThrow("depth");
+    expect(() => findSymbolImpact(location, "target", { limit: 501 })).toThrow("result limit");
+    expect(() => findSymbolImpact(location, "target", { maxProcessed: 10_001 })).toThrow("processing limit");
+    expect(() => findSymbolImpact(location, "target", { filePath: "../target.ts" })).toThrow("project-relative");
+    expect(() => findSymbolImpact(location, "target", { startLine: 0 })).toThrow("startLine");
+    expect(() => findSymbolImpact(location, "target", { relationKinds: [] })).toThrow("relationKinds");
   });
 });

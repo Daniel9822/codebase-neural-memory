@@ -5,7 +5,7 @@ import { basename } from "node:path";
 import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
 import { getIndexFreshness, indexProject } from "../core/indexer.js";
-import { explainSymbol, findDependencies, findImpact, getFileDetails, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
+import { explainSymbol, findDependencies, findImpact, findSymbolImpact, getFileDetails, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
 import { deleteMemory, inspectMemoryFreshness, proposeMemory, recallMemories, remember, transitionMemory, updateMemory, type MemoryStatus } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
@@ -161,6 +161,27 @@ program.command("relations <symbol>")
       return;
     }
     console.log(JSON.stringify(relations, null, 2));
+  });
+
+program.command("symbol-impact <symbol>")
+  .description("Traverse symbol callers or dependencies with shortest relation distances and edge evidence.")
+  .option("--file <path>", "Disambiguate the symbol by project-relative file path")
+  .option("--kind <kind>", "Disambiguate by symbol kind")
+  .option("--start-line <number>", "Disambiguate by symbol start line", parsePositiveInteger)
+  .option("--direction <direction>", "Traversal direction: incoming or outgoing", "incoming")
+  .option("--depth <number>", "Maximum relation distance (1-20)", parsePositiveInteger, 3)
+  .option("--limit <number>", "Maximum unique symbols (1-500)", parsePositiveInteger, 100)
+  .option("--max-processed <number>", "Maximum symbol relations examined (1-10000)", parsePositiveInteger, 1000)
+  .option("--relation <kind>", "Relationship type to include (repeatable)", (value: string, previous: string[]) => [...previous, value], [])
+  .action((symbol: string, options: { file?: string; kind?: string; startLine?: number; direction: string; depth: number; limit: number; maxProcessed: number; relation: string[] }) => {
+    console.log(JSON.stringify(findSymbolImpact(ensureInitialized(), symbol, {
+      ...(options.file === undefined ? {} : { filePath: options.file }),
+      ...(options.kind === undefined ? {} : { kind: options.kind }),
+      ...(options.startLine === undefined ? {} : { startLine: options.startLine }),
+      direction: options.direction as "incoming" | "outgoing",
+      depth: options.depth, limit: options.limit, maxProcessed: options.maxProcessed,
+      ...(options.relation.length === 0 ? {} : { relationKinds: options.relation as Array<"CALLS" | "EXTENDS" | "IMPLEMENTS"> }),
+    }), null, 2));
   });
 
 program.command("impact <file>")

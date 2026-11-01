@@ -45,6 +45,9 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
   const heritage: ParsedHeritage[] = [];
   const importedBindings = new Map<string, { moduleSpecifier: string; importedName: string }>();
   const shadowedImportedNames = new Set<string>();
+  const isTestFile = /(^|[/\\])(?:tests?|__tests__)([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(filePath);
+  const testRegistrationNames = new Set(["it", "test", "specify", "fit", "xit", "xtest"]);
+  const testCaseOccurrences = new Map<string, number>();
 
   const addSymbol = (node: ts.Node, name: string, kind: SymbolKind, exported: boolean, owner?: string) => {
     const start = node.getStart(sourceFile);
@@ -81,6 +84,31 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
     }
 
     let nextOwner = owner;
+    let isTestRegistration = false;
+    if (isTestFile && ts.isCallExpression(node)) {
+      const registrationName = ts.isIdentifier(node.expression)
+        ? node.expression.text
+        : ts.isPropertyAccessExpression(node.expression) && ts.isIdentifier(node.expression.expression)
+          ? node.expression.expression.text
+          : undefined;
+      const canonicalRegistrationName = registrationName
+        ? importedBindings.get(registrationName)?.importedName ?? registrationName
+        : undefined;
+      const callback = [...node.arguments].reverse().find((argument) =>
+        ts.isArrowFunction(argument) || ts.isFunctionExpression(argument));
+      if (canonicalRegistrationName && testRegistrationNames.has(canonicalRegistrationName) && callback) {
+        const titleArgument = node.arguments[0];
+        const title = titleArgument && (ts.isStringLiteral(titleArgument) || ts.isNoSubstitutionTemplateLiteral(titleArgument))
+          ? titleArgument.text.trim().replace(/\s+/g, " ").slice(0, 160)
+          : "unnamed test";
+        const occurrence = (testCaseOccurrences.get(title) ?? 0) + 1;
+        testCaseOccurrences.set(title, occurrence);
+        const testCaseName = `test-case: ${title}#${occurrence}`;
+        addSymbol(callback, testCaseName, "test-case", false);
+        nextOwner = testCaseName;
+        isTestRegistration = true;
+      }
+    }
     if (ts.isClassDeclaration(node) || ts.isInterfaceDeclaration(node)) {
       const ownerName = nodeName(node);
       if (ownerName && node.heritageClauses) {
@@ -133,7 +161,7 @@ export function parseTypeScriptFile(filePath: string, source: string): ParsedFil
       }
     }
 
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression)) {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && !isTestRegistration) {
       const calleeName = node.expression.text;
       const importedBinding = importedBindings.get(calleeName);
       calls.push({
