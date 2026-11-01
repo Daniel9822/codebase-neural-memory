@@ -239,8 +239,10 @@ Tasks:
 - [x] Measure initial, unchanged incremental, and changed incremental indexing; record search, graph, and freshness latency.
 - [x] Record SQLite database size and process peak RSS.
 - [x] Evaluate symbol retrieval precision@5, recall@5, MRR, and top-1 accuracy against ten labeled queries.
-- [x] Define an eight-task read-only agent evaluation suite and controlled comparison protocol (`benchmarks/agent-tasks.json`, `docs/AGENT_EVALUATION_PROTOCOL.md`).
-- [ ] Execute paired agent tasks with and without CNM under controlled, comparable conditions.
+- [x] Define an eight-task read-only CNM-specific evaluation suite and controlled comparison protocol (`benchmarks/agent-tasks.json`, `docs/AGENT_EVALUATION_PROTOCOL.md`).
+- [x] Audit the 2026-11-01 exploratory transcript artifact and document why it is not a valid paired benchmark (different/unverified commits, agent/client metadata gaps, prompt drift, missing metrics, provisional unblinded scores, and unequal source-inspection availability).
+- [ ] Execute new paired agent tasks with and without CNM under controlled, comparable conditions; the exploratory transcript artifact is diagnostic only and must not be used to claim a winner.
+- [ ] Add separate task suites and controlled runs for small, medium, and large repositories; the existing CNM-specific tasks cover only this repository.
 - [x] Add bounded MCP source excerpts so agents can inspect indexed symbol implementations after structural retrieval; verify path confinement, output limits, and indexed-vs-working-tree freshness.
 - [x] Repeat the same benchmark suite on Linux, Windows, and macOS; all three matrix jobs passed in CI run [41254663323](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41254663323).
 - [ ] Add regression thresholds only after repeated stable measurements across supported platforms.

@@ -103,6 +103,14 @@ Retrieval metrics were identical across the three scales because the labeled dom
 | Mean recall@5 | 0.817 |
 | Mean reciprocal rank | 1.000 |
 
+## Agent evaluation status
+
+The exploratory transcript artifact `benchmarks/agent-results-2026-11-01.json` is retained for diagnostic context, but it is not a valid paired benchmark. The protocol audit found unverified/mismatched repository commits, different agent identities and missing client/model metadata, prompt drift for at least one task, missing timing/token metrics, provisional unblinded scoring, and unequal source-inspection capability between conditions.
+
+Consequently, its provisional scores and winner labels must not be aggregated or cited as evidence that CNM helps or harms agent performance. The artifact is useful only for identifying an integration issue to investigate: the CNM-enabled sessions reported that `source_excerpt` was unavailable to the client, while the control agent could inspect source directly. This must be diagnosed at the client/tool-discovery boundary before interpreting agent outcomes.
+
+The reproducible protocol and comparability gates are in [AGENT_EVALUATION_PROTOCOL.md](AGENT_EVALUATION_PROTOCOL.md). The current eight tasks are specific to this repository; controlled small/medium/large repository suites and paired runs remain outstanding.
+
 ## Interpretation and limitations
 
 - These are descriptive baseline measurements from one GitHub-hosted Linux runner, not universal performance guarantees.

@@ -150,9 +150,9 @@
     }
   ],
   "comparison": {
-    "provisionalWinner": "without-cnm",
-    "scoreDifference": 5,
-    "interpretation": "The no-CNM agent produced a more complete source-level explanation in this run. The CNM-enabled agent did make real MCP calls and obtained a live freshness result, but lacked source_excerpt in its exposed tool set and therefore could not inspect implementation bodies. This single pair does not establish that using CNM reduces agent performance; it identifies a tool-discovery/availability and source-inspection gap in this specific session.",
+    "provisionalWinner": "not-comparable",
+    "scoreDifference": null,
+    "interpretation": "No quantitative winner can be assigned: this exploratory record fails the paired-comparability gates in docs/AGENT_EVALUATION_PROTOCOL.md. Retain observations only as diagnostic context.",
     "validityLimitations": [
       "The exact checked-out commit SHA for each local worktree was not included in the pasted execution records, so same-commit comparability is unverified.",
       "No elapsed time, token counts, model identity, exact client versions, or complete raw tool payloads were supplied.",
@@ -326,9 +326,9 @@
         }
       ],
       "comparison": {
-        "provisionalWinner": "without-cnm",
-        "scoreDifference": 5,
-        "interpretation": "The no-CNM agent again delivered the complete source-level semantics. The CNM agent successfully discovered symbols, relationships, and live memory-freshness output, but the environment contained no memory records and did not expose source_excerpt, preventing verification of fingerprint and requiresReview logic. This repeated gap is specifically about source-body access in the CNM-enabled sessions, not evidence that CNM generally reduces performance.",
+        "provisionalWinner": "not-comparable",
+        "scoreDifference": null,
+        "interpretation": "No quantitative winner can be assigned: this exploratory record fails the paired-comparability gates in docs/AGENT_EVALUATION_PROTOCOL.md. Retain observations only as diagnostic context.",
         "validityLimitations": [
           "Exact checked-out SHA for each worktree was not supplied; same-commit comparability remains unverified.",
           "Only one replicate per condition for this task.",
@@ -540,9 +540,9 @@
         }
       ],
       "comparison": {
-        "provisionalWinner": "without-cnm",
-        "scoreDifference": 5,
-        "interpretation": "The no-CNM agent again produced the complete source-level explanation, including path handling, traversal direction, cycle prevention, counters, truncation conditions and test coverage. The CNM agent contributed valuable live tool evidence, including real result counts and error cases, but could not inspect the implementation body. This is the third consecutive task in which the no-CNM agent scored higher in the current single-pair evaluations.",
+        "provisionalWinner": "not-comparable",
+        "scoreDifference": null,
+        "interpretation": "No quantitative winner can be assigned: this exploratory record fails the paired-comparability gates in docs/AGENT_EVALUATION_PROTOCOL.md. Retain observations only as diagnostic context.",
         "validityLimitations": [
           "Exact SHA checked out in both worktrees was not supplied; same-commit comparability remains unverified.",
           "Only one replicate per condition for this task.",
@@ -553,5 +553,18 @@
       }
     }
   ],
-  "completedTaskCount": 3
+  "completedTaskCount": 3,
+  "evaluationClassification": "exploratory-not-comparable",
+  "evaluationValidity": {
+    "eligibleForQuantitativeComparison": false,
+    "reasons": [
+      "Repository commit identity is unverified or differs from the task-set reference commit.",
+      "Agent identities differ and model/client versions are missing.",
+      "At least one recorded task prompt differs from the checked-in task prompt.",
+      "Timing, token, and complete raw transcript metrics are missing.",
+      "Scores are provisional and were not assigned blind.",
+      "CNM and control conditions had unequal source-inspection availability."
+    ],
+    "use": "Diagnostic integration evidence only; do not aggregate scores or infer a CNM advantage or disadvantage."
+  }
 }
