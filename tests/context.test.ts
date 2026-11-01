@@ -20,9 +20,12 @@ function setup(): void {
   location = { id: "task-context-test", rootPath, dataDirectory: join(temp, "data"), databasePath: join(temp, "data", "memory.sqlite") };
   db = openDatabase(location);
   ensureProject(db, location);
-  writeFileSync(join(rootPath, "src", "auth.ts"), "import { normalizeToken } from './token';\nimport './missing-module';\nexport function refreshAuthToken() { return normalizeToken(); }\n");
+  writeFileSync(join(rootPath, "src", "auth.ts"), "import { normalizeToken } from './token';\nimport './extra';\nimport './missing-module';\nexport function refreshAuthToken() { return normalizeToken(); }\n");
   writeFileSync(join(rootPath, "src", "token.ts"), "export function normalizeToken() { return true; }\n");
-  writeFileSync(join(rootPath, "tests", "auth.test.ts"), "import { refreshAuthToken } from '../src/auth';\n");
+  writeFileSync(join(rootPath, "src", "extra.ts"), "export function extraAuthHelper() { return true; }\n");
+
+  writeFileSync(join(rootPath, "tests", "auth.test.ts"), "import { refreshAuthToken } from '../src/auth';\n");  writeFileSync(join(rootPath, "tests", "auth.spec.ts"), "import { refreshAuthToken } from '../src/auth';\n");
+
   writeFileSync(join(rootPath, "src", "auth.test.ts"), "import { refreshAuthToken } from './auth';\n");
   writeFileSync(join(rootPath, "tests", "billing.test.ts"), "export function calculatesInvoiceTotal() { return 42; }\\n");
   indexWithDatabase(db, location);
@@ -76,6 +79,39 @@ describe("task-oriented context builder", () => {
     expect((followUp[0].detail as { imports: unknown[] }).imports.length).toBeGreaterThan(0);
     expect(() => lookupTaskContextDetails(location, context, ["src/not-in-context.ts"])).toThrow("not referenced");
   });
+
+  it("enforces independent per-kind context budgets and reports their usage", () => {
+    setup();
+    remember(location, "Refresh auth token", "Rotate the refresh token safely.", "decision", "src/auth.ts");
+    proposeMemory(location, "Auth edge case", "Review expiration boundaries.", "note");
+    const result = buildTaskContext(location, "refresh auth token tests", {
+      maxItems: 20,
+      maxCharacters: 12000,
+      symbolLimit: 1,
+      fileLimit: 1,
+      dependencyLimit: 1,
+      testLimit: 1,
+      memoryLimit: 1,
+    });
+    const counts = Object.fromEntries(
+      ["symbol", "file", "dependency", "test", "memory"].map((kind) => [
+        kind, result.items.filter((item) => item.kind === kind).length,
+      ]),
+    );
+    expect(counts).toEqual({ symbol: 1, file: 1, dependency: 1, test: 1, memory: 1 });
+    expect(result.budget.perKind).toEqual({
+      symbol: { limit: 1, used: 1 },
+      file: { limit: 1, used: 1 },
+      dependency: { limit: 1, used: 1 },
+      test: { limit: 1, used: 1 },
+      memory: { limit: 1, used: 1 },
+    });
+    expect(result.budget.truncatedKinds).toEqual(expect.arrayContaining(["symbol", "file", "dependency", "test", "memory"]));
+    expect(result.budget.truncated).toBe(true);
+    expect(() => buildTaskContext(location, "refresh auth", { dependencyLimit: 0 })).toThrow("dependencyLimit");
+    expect(() => buildTaskContext(location, "refresh auth", { testLimit: 51 })).toThrow("testLimit");
+  });
+
 
   it("marks context as stale when indexed source files have changed", () => {
     setup();

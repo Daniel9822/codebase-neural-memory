@@ -374,9 +374,12 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 - [x] Read-only protocol tests continue to prove that read calls do not mutate source, index, or memory state.
 - [x] Full CI passes on the final PR head, including typecheck, tests, build, smoke, and benchmark matrix.
 
+- [x] Bounded symbol-level impact traverses `CALLS`, `EXTENDS`, and `IMPLEMENTS` edges with shortest distances, ambiguity handling, edge provenance, and result/processing limits (`findSymbolImpact`; `tests/retrieval.test.ts`).
+- [x] Recognized test callback registrations create `test-case` symbols and imported calls inside them create source-linked `CALLS` edges; `symbol_impact` exposes exact static test-to-symbol links (`tests/typescript-parser.test.ts`, `tests/retrieval.test.ts`). This is not runtime test coverage.
+
 - [x] Bounded Git blame returns line-level commit, author, timestamp, and summary for tracked project-relative paths; rejects unsafe paths and ranges over 200 lines (`tests/git-awareness.test.ts`). Attribution is not treated as inferred rationale.
 
-The following capabilities remain open: signature-regex search, semantic impact/distance and public-contract analysis, test-to-symbol mapping, finer task-context budget categories, and Git session rationale. Inline source retrieval, explicit task anchors, and freshness-aware read policies are covered by the follow-up criteria below.
+The following capabilities remain open: signature-regex search, public-contract analysis, finer task-context budget categories (PR #64), and Git session rationale. Inline source retrieval, explicit task anchors, and freshness-aware read policies are covered by the follow-up criteria below.
 
 
 ## 16. Agent-trust and context-quality follow-up

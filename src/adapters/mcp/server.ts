@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 import { getMemoryFreshnessReport, recallMemories, proposeMemory, transitionMemory, type MemoryStatus } from "../../core/memories.js";
-import { getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
+import { getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
 import { getGitBlame } from "../../core/git.js";
@@ -239,12 +239,42 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }, async ({ path, limit, maxProcessed }) => readResponse(location, options, () =>
     findImpact(location, path, limit ?? 100, maxProcessed ?? 1000)));
 
+  server.registerTool("symbol_impact", {
+    description: "Traverse indexed symbol CALLS, EXTENDS, and IMPLEMENTS relationships to find incoming impact or outgoing dependencies with shortest distances, source locations, and per-edge evidence. Ambiguous symbol names are returned as candidates instead of being merged.",
+    inputSchema: z.object({
+      symbol: z.string().min(1).max(200),
+      filePath: z.string().min(1).max(500).optional(),
+      kind: z.string().min(1).max(100).optional(),
+      startLine: z.number().int().min(1).optional(),
+      direction: z.enum(["incoming", "outgoing"]).optional(),
+      depth: z.number().int().min(1).max(20).optional(),
+      limit: z.number().int().min(1).max(500).optional(),
+      maxProcessed: z.number().int().min(1).max(10000).optional(),
+      relationKinds: z.array(z.enum(["CALLS", "EXTENDS", "IMPLEMENTS"])).min(1).max(3).optional(),
+    }),
+  }, async ({ symbol, filePath, kind, startLine, direction, depth, limit, maxProcessed, relationKinds }) => readResponse(location, options, () =>
+    findSymbolImpact(location, symbol, {
+      ...(filePath === undefined ? {} : { filePath }),
+      ...(kind === undefined ? {} : { kind }),
+      ...(startLine === undefined ? {} : { startLine }),
+      ...(direction === undefined ? {} : { direction }),
+      ...(depth === undefined ? {} : { depth }),
+      ...(limit === undefined ? {} : { limit }),
+      ...(maxProcessed === undefined ? {} : { maxProcessed }),
+      ...(relationKinds === undefined ? {} : { relationKinds }),
+    })));
+
   server.registerTool("task_context", {
     description: "Build deterministic, bounded task context from indexed symbols, file relationships, local memories, and matching test paths. Results include ranking signals, lifecycle status, source references, and freshness warnings.",
     inputSchema: z.object({
       task: z.string().min(1),
       maxItems: z.number().int().min(1).max(100).optional(),
       maxCharacters: z.number().int().min(100).max(50000).optional(),
+      symbolLimit: z.number().int().min(1).max(50).optional(),
+      fileLimit: z.number().int().min(1).max(50).optional(),
+      dependencyLimit: z.number().int().min(1).max(50).optional(),
+      testLimit: z.number().int().min(1).max(50).optional(),
+      memoryLimit: z.number().int().min(1).max(50).optional(),
       anchors: z.object({
         paths: z.array(z.string().min(1).max(500)).max(20).optional(),
         symbols: z.array(z.string().min(1).max(200)).max(20).optional(),
@@ -252,8 +282,17 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
         message: "anchors must include at least one path or symbol.",
       }).optional(),
     }),
-  }, async ({ task, maxItems, maxCharacters, anchors }) => readResponse(location, options, () =>
-    buildTaskContext(location, task, { ...(maxItems === undefined ? {} : { maxItems }), ...(maxCharacters === undefined ? {} : { maxCharacters }), ...(anchors === undefined ? {} : { anchors: { ...(anchors.paths === undefined ? {} : { paths: anchors.paths }), ...(anchors.symbols === undefined ? {} : { symbols: anchors.symbols }) } }) })));
+  }, async ({ task, maxItems, maxCharacters, symbolLimit, fileLimit, dependencyLimit, testLimit, memoryLimit, anchors }) => readResponse(location, options, () =>
+    buildTaskContext(location, task, {
+      ...(maxItems === undefined ? {} : { maxItems }),
+      ...(maxCharacters === undefined ? {} : { maxCharacters }),
+      ...(symbolLimit === undefined ? {} : { symbolLimit }),
+      ...(fileLimit === undefined ? {} : { fileLimit }),
+      ...(dependencyLimit === undefined ? {} : { dependencyLimit }),
+      ...(testLimit === undefined ? {} : { testLimit }),
+      ...(memoryLimit === undefined ? {} : { memoryLimit }),
+      ...(anchors === undefined ? {} : { anchors: { ...(anchors.paths === undefined ? {} : { paths: anchors.paths }), ...(anchors.symbols === undefined ? {} : { symbols: anchors.symbols }) } }),
+    })));
 
   server.registerTool("memory_propose", {
     description: "Persist an agent-suggested project memory in proposed status. It is never confirmed automatically and requires explicit human review.",

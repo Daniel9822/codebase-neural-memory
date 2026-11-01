@@ -26,7 +26,7 @@ function tokenizeQuery(query: string): string[] {
 }
 
 function escapeLikePattern(value: string): string {
-  return value.replace(/[\\%_]/g, (character) => `\${character}`);
+  return value.replace(/[\\%_]/g, (character) => "\\" + character);
 }
 
 function isFtsUnavailable(error: unknown): boolean {
@@ -97,7 +97,9 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
     const candidateLimit = Math.min(MAX_SEARCH_CANDIDATES, Math.max(limit, limit * 20));
     const ftsQuery = tokens.map((token) => `"${token.replaceAll('"', '""')}"*`).join(" OR ");
     try {
-      const rows = db.prepare(`
+      const rows = tokens.some((token) => /[\\%_]/.test(token))
+        ? []
+        : db.prepare(`
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported,
           bm25(symbols_fts) AS ftsRank
@@ -803,4 +805,176 @@ export function getSourceExcerpt(
     truncated,
     limits: { maxLines: MAX_SOURCE_EXCERPT_LINES, maxCharacters },
   };
+}
+
+
+export type SymbolImpactRelationKind = "CALLS" | "EXTENDS" | "IMPLEMENTS";
+export type SymbolImpactDirection = "incoming" | "outgoing";
+export interface SymbolImpactOptions {
+  filePath?: string; kind?: string; startLine?: number; direction?: SymbolImpactDirection;
+  depth?: number; limit?: number; maxProcessed?: number; relationKinds?: SymbolImpactRelationKind[];
+}
+export interface SymbolImpactSymbol {
+  stableId: string; name: string; kind: string; filePath: string; startLine: number; endLine: number;
+}
+export interface SymbolImpactEvidence {
+  relation: SymbolImpactRelationKind; source: SymbolImpactSymbol; target: SymbolImpactSymbol;
+  confidence: number; provenance: string; indexRevision: number;
+}
+export interface SymbolImpactHit extends SymbolImpactSymbol {
+  distance: number; relation: SymbolImpactRelationKind; path: SymbolImpactSymbol[]; chainEvidence: SymbolImpactEvidence[];
+}
+export interface SymbolImpactReport {
+  target: SymbolImpactSymbol | null; ambiguous: boolean; candidates: SymbolImpactSymbol[];
+  direction: SymbolImpactDirection; results: SymbolImpactHit[]; processedRelations: number; truncated: boolean;
+  limits: { depth: number; maxResults: number; maxProcessed: number; relationKinds: SymbolImpactRelationKind[] };
+}
+const DEFAULT_SYMBOL_IMPACT_DEPTH = 3;
+const DEFAULT_SYMBOL_IMPACT_RESULTS = 100;
+const DEFAULT_SYMBOL_IMPACT_PROCESSED = 1_000;
+const MAX_SYMBOL_IMPACT_DEPTH = 20;
+const MAX_SYMBOL_IMPACT_RESULTS = 500;
+const MAX_SYMBOL_IMPACT_PROCESSED = 10_000;
+
+/** Traverse symbol CALLS/EXTENDS/IMPLEMENTS edges and report shortest relation distances. */
+export function findSymbolImpact(location: ProjectLocation, name: string, options: SymbolImpactOptions = {}): SymbolImpactReport {
+  const normalizedName = name.trim();
+  if (!normalizedName || normalizedName.length > 200) throw new Error("Symbol name must be non-empty and no longer than 200 characters.");
+  const direction = options.direction ?? "incoming";
+  if (direction !== "incoming" && direction !== "outgoing") throw new Error("Symbol impact direction must be incoming or outgoing.");
+  const depth = options.depth ?? DEFAULT_SYMBOL_IMPACT_DEPTH;
+  const limit = options.limit ?? DEFAULT_SYMBOL_IMPACT_RESULTS;
+  const maxProcessed = options.maxProcessed ?? DEFAULT_SYMBOL_IMPACT_PROCESSED;
+  if (!Number.isSafeInteger(depth) || depth < 1 || depth > MAX_SYMBOL_IMPACT_DEPTH) throw new Error("Symbol impact depth must be between 1 and 20.");
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_SYMBOL_IMPACT_RESULTS) throw new Error("Symbol impact result limit must be between 1 and 500.");
+  if (!Number.isSafeInteger(maxProcessed) || maxProcessed < 1 || maxProcessed > MAX_SYMBOL_IMPACT_PROCESSED) throw new Error("Symbol impact processing limit must be between 1 and 10000.");
+
+  let normalizedPath: string | undefined;
+  if (options.filePath !== undefined) {
+    normalizedPath = options.filePath.trim().replaceAll("\\", "/").replace(/^\.\//, "");
+    if (!normalizedPath || normalizedPath.length > 500 || normalizedPath.startsWith("/") || /^[a-zA-Z]:/.test(normalizedPath)
+      || normalizedPath.split("/").some((part) => part === ".." || part === "" || part === ".")) {
+      throw new Error("Symbol impact filePath must be a normalized project-relative path.");
+    }
+  }
+  if (options.kind !== undefined && (!options.kind.trim() || options.kind.length > 100)) throw new Error("Symbol impact kind must be a non-empty string no longer than 100 characters.");
+  if (options.startLine !== undefined && (!Number.isSafeInteger(options.startLine) || options.startLine < 1)) throw new Error("Symbol impact startLine must be a positive safe integer.");
+
+  const allowedKinds: SymbolImpactRelationKind[] = ["CALLS", "EXTENDS", "IMPLEMENTS"];
+  const relationKinds = options.relationKinds ?? allowedKinds;
+  if (!Array.isArray(relationKinds) || relationKinds.length < 1 || relationKinds.length > allowedKinds.length
+    || relationKinds.some((relation) => !allowedKinds.includes(relation)) || new Set(relationKinds).size !== relationKinds.length) {
+    throw new Error("Symbol impact relationKinds must contain unique CALLS, EXTENDS, or IMPLEMENTS values.");
+  }
+
+  const db = openDatabase(location);
+  try {
+    const conditions = ["s.name = ?"];
+    const parameters: Array<string | number> = [normalizedName];
+    if (normalizedPath !== undefined) { conditions.push("f.path = ?"); parameters.push(normalizedPath); }
+    if (options.kind !== undefined) { conditions.push("s.kind = ?"); parameters.push(options.kind.trim()); }
+    if (options.startLine !== undefined) { conditions.push("s.start_line = ?"); parameters.push(options.startLine); }
+    const rootRows = db.prepare(`
+      SELECT s.id, s.stable_id AS stableId, s.name, s.kind, f.path AS filePath,
+        s.start_line AS startLine, s.end_line AS endLine
+      FROM symbols s JOIN files f ON f.id = s.file_id
+      WHERE ${conditions.join(" AND ")}
+      ORDER BY f.path, s.start_line, s.kind, s.stable_id
+      LIMIT 51
+    `).all(...parameters) as Array<{
+      id: number; stableId: string; name: string; kind: string; filePath: string; startLine: number; endLine: number;
+    }>;
+    if (rootRows.length === 0) throw new Error(`Symbol not found in index: ${normalizedName}${normalizedPath ? ` in ${normalizedPath}` : ""}.`);
+    const toSymbol = (row: typeof rootRows[number]): SymbolImpactSymbol => ({
+      stableId: row.stableId, name: row.name, kind: row.kind, filePath: row.filePath, startLine: row.startLine, endLine: row.endLine,
+    });
+    if (rootRows.length > 1) {
+      return {
+        target: null, ambiguous: true, candidates: rootRows.slice(0, 50).map(toSymbol), direction,
+        results: [], processedRelations: 0, truncated: rootRows.length > 50,
+        limits: { depth, maxResults: limit, maxProcessed, relationKinds: [...relationKinds] },
+      };
+    }
+
+    const root = rootRows[0]!;
+    const target = toSymbol(root);
+    const relationPlaceholders = relationKinds.map(() => "?").join(", ");
+    const nextOrder = direction === "incoming"
+      ? "source_file.path, source.start_line, source.name, source.stable_id"
+      : "target_file.path, target.start_line, target.name, target.stable_id";
+    const edgeQuery = db.prepare(`
+      SELECT
+        source.id AS sourceId, source.stable_id AS sourceStableId, source.name AS sourceName,
+        source.kind AS sourceKind, source_file.path AS sourceFilePath,
+        source.start_line AS sourceStartLine, source.end_line AS sourceEndLine,
+        target.id AS targetId, target.stable_id AS targetStableId, target.name AS targetName,
+        target.kind AS targetKind, target_file.path AS targetFilePath,
+        target.start_line AS targetStartLine, target.end_line AS targetEndLine,
+        r.kind AS relation, r.confidence AS confidence, r.provenance AS provenance,
+        r.index_revision AS indexRevision
+      FROM relations r
+      JOIN symbols source ON r.source_kind = 'symbol' AND source.id = r.source_id
+      JOIN files source_file ON source_file.id = source.file_id
+      JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
+      JOIN files target_file ON target_file.id = target.file_id
+      WHERE ${direction === "incoming" ? "r.target_kind = 'symbol' AND r.target_id = ?" : "r.source_kind = 'symbol' AND r.source_id = ?"}
+        AND r.kind IN (${relationPlaceholders})
+      ORDER BY r.kind, ${nextOrder}
+      LIMIT ?
+    `);
+    type EdgeRow = {
+      sourceId: number; sourceStableId: string; sourceName: string; sourceKind: string;
+      sourceFilePath: string; sourceStartLine: number; sourceEndLine: number;
+      targetId: number; targetStableId: string; targetName: string; targetKind: string;
+      targetFilePath: string; targetStartLine: number; targetEndLine: number;
+      relation: SymbolImpactRelationKind; confidence: number; provenance: string; indexRevision: number;
+    };
+    const visited = new Set<number>([root.id]);
+    const queue: Array<{ id: number; distance: number; path: SymbolImpactSymbol[]; chainEvidence: SymbolImpactEvidence[] }> = [
+      { id: root.id, distance: 0, path: [target], chainEvidence: [] },
+    ];
+    const results: SymbolImpactHit[] = [];
+    let processedRelations = 0;
+    let truncated = false;
+
+    for (let cursor = 0; cursor < queue.length; cursor += 1) {
+      const current = queue[cursor]!;
+      if (current.distance >= depth) continue;
+      const remaining = maxProcessed - processedRelations;
+      const rows = edgeQuery.all(current.id, ...relationKinds, remaining + 1) as EdgeRow[];
+      if (rows.length > remaining) truncated = true;
+      for (const row of rows.slice(0, remaining)) {
+        processedRelations += 1;
+        const source: SymbolImpactSymbol = {
+          stableId: row.sourceStableId, name: row.sourceName, kind: row.sourceKind,
+          filePath: row.sourceFilePath, startLine: row.sourceStartLine, endLine: row.sourceEndLine,
+        };
+        const relatedTarget: SymbolImpactSymbol = {
+          stableId: row.targetStableId, name: row.targetName, kind: row.targetKind,
+          filePath: row.targetFilePath, startLine: row.targetStartLine, endLine: row.targetEndLine,
+        };
+        const nextId = direction === "incoming" ? row.sourceId : row.targetId;
+        const nextSymbol = direction === "incoming" ? source : relatedTarget;
+        if (visited.has(nextId)) continue;
+        if (results.length >= limit) { truncated = true; break; }
+        visited.add(nextId);
+        const evidence: SymbolImpactEvidence = {
+          relation: row.relation, source, target: relatedTarget,
+          confidence: row.confidence, provenance: row.provenance, indexRevision: row.indexRevision,
+        };
+        const path = [...current.path, nextSymbol];
+        const chainEvidence = [...current.chainEvidence, evidence];
+        results.push({ ...nextSymbol, distance: current.distance + 1, relation: row.relation, path, chainEvidence });
+        queue.push({ id: nextId, distance: current.distance + 1, path, chainEvidence });
+      }
+      if (truncated && (processedRelations >= maxProcessed || results.length >= limit)) break;
+    }
+
+    return {
+      target, ambiguous: false, candidates: [], direction, results, processedRelations, truncated,
+      limits: { depth, maxResults: limit, maxProcessed, relationKinds: [...relationKinds] },
+    };
+  } finally {
+    db.close();
+  }
 }

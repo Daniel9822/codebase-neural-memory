@@ -26,6 +26,28 @@ describe("parseTypeScriptFile", () => {
       { ownerName: "Worker", relationKind: "IMPLEMENTS", targetName: "ExtendedContract" },
     ]);
   });
+  it("indexes named test callbacks and attributes imported calls to the test case", () => {
+    const source = `import { it } from "vitest";
+import { refreshAuthToken } from "../src/auth";
+describe("auth", () => {
+  it("refreshes tokens", () => {
+    refreshAuthToken();
+  });
+});`;
+    const parsed = parseTypeScriptFile("__tests__/auth.ts", source);
+    const testCase = parsed.symbols.find((symbol) => symbol.kind === "test-case");
+    expect(testCase?.name).toContain("test-case: refreshes tokens#1");
+    expect(parsed.calls).toContainEqual({
+      callerName: testCase?.name,
+      calleeName: "refreshAuthToken",
+      moduleSpecifier: "../src/auth",
+      importedSymbolName: "refreshAuthToken",
+    });
+    expect(parsed.calls.some((call) => call.calleeName === "it")).toBe(false);
+    const shifted = parseTypeScriptFile("__tests__/auth.ts", `\n${source}`);
+    expect(shifted.symbols.find((symbol) => symbol.kind === "test-case")?.name).toBe(testCase?.name);
+  });
+
   it("rejects malformed source and includes a source location", () => {
     expect(() => parseTypeScriptFile("broken.ts", "export function broken( {"))
       .toThrow(/broken\.ts:1:/);

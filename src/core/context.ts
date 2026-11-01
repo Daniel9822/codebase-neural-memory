@@ -10,6 +10,8 @@ export interface TaskContextOptions {
   symbolLimit?: number;
   memoryLimit?: number;
   fileLimit?: number;
+  dependencyLimit?: number;
+  testLimit?: number;
   anchors?: { paths?: string[]; symbols?: string[] };
 }
 
@@ -30,7 +32,15 @@ export interface TaskContextResult {
   items: TaskContextItem[];
   warnings: string[];
   followUp: string[];
-  budget: { maxItems: number; maxCharacters: number; usedItems: number; usedCharacters: number; truncated: boolean };
+  budget: {
+    maxItems: number;
+    maxCharacters: number;
+    usedItems: number;
+    usedCharacters: number;
+    truncated: boolean;
+    perKind: Record<TaskContextItem["kind"], { limit: number; used: number }>;
+    truncatedKinds: TaskContextItem["kind"][];
+  };
 }
 
 const MAX_ITEMS = 100;
@@ -52,7 +62,14 @@ function itemIdentity(item: TaskContextItem): string {
   return `${item.kind}:${item.source}`;
 }
 
-function boundedItems(candidates: TaskContextItem[], maxItems: number, maxCharacters: number) {
+const TASK_CONTEXT_KINDS: TaskContextItem["kind"][] = ["symbol", "file", "dependency", "test", "memory"];
+
+function boundedItems(
+  candidates: TaskContextItem[],
+  maxItems: number,
+  maxCharacters: number,
+  perKindLimits: Record<TaskContextItem["kind"], number>,
+) {
   const unique = new Map<string, TaskContextItem>();
   for (const item of candidates) {
     const key = itemIdentity(item);
@@ -66,15 +83,23 @@ function boundedItems(candidates: TaskContextItem[], maxItems: number, maxCharac
   // the array brackets, commas, quotes, and serialized item fields.
   let usedCharacters = JSON.stringify(items).length;
   let truncated = false;
+  const usedByKind: Record<TaskContextItem["kind"], number> = { symbol: 0, file: 0, dependency: 0, test: 0, memory: 0 };
+  const truncatedKinds = new Set<TaskContextItem["kind"]>();
   for (const item of ranked) {
     if (items.length >= maxItems) { truncated = true; break; }
+    if (usedByKind[item.kind] >= perKindLimits[item.kind]) {
+      truncated = true;
+      truncatedKinds.add(item.kind);
+      continue;
+    }
     const candidate = [...items, item];
     const candidateCharacters = JSON.stringify(candidate).length;
     if (candidateCharacters > maxCharacters) { truncated = true; continue; }
     items.push(item);
+    usedByKind[item.kind] += 1;
     usedCharacters = candidateCharacters;
   }
-  return { items, usedCharacters, truncated };
+  return { items, usedCharacters, usedByKind, truncatedKinds: [...truncatedKinds], truncated };
 }
 
 /** Build deterministic, bounded task context from the local index and project memories. */
@@ -90,9 +115,14 @@ export function buildTaskContext(
   const symbolLimit = options.symbolLimit ?? 20;
   const memoryLimit = options.memoryLimit ?? 20;
   const fileLimit = options.fileLimit ?? 10;
+  const dependencyLimit = options.dependencyLimit ?? 20;
+  const testLimit = options.testLimit ?? 20;
   if (!Number.isSafeInteger(maxItems) || maxItems < 1 || maxItems > MAX_ITEMS) throw new Error("maxItems must be between 1 and 100.");
   if (!Number.isSafeInteger(maxCharacters) || maxCharacters < 100 || maxCharacters > MAX_CHARACTERS) throw new Error("maxCharacters must be between 100 and 50000.");
-  for (const [name, value, max] of [["symbolLimit", symbolLimit, 50], ["memoryLimit", memoryLimit, 50], ["fileLimit", fileLimit, 50]] as const) {
+  for (const [name, value, max] of [
+    ["symbolLimit", symbolLimit, 50], ["memoryLimit", memoryLimit, 50], ["fileLimit", fileLimit, 50],
+    ["dependencyLimit", dependencyLimit, 50], ["testLimit", testLimit, 50],
+  ] as const) {
     if (!Number.isSafeInteger(value) || value < 1 || value > max) throw new Error(`${name} must be between 1 and ${max}.`);
   }
 
@@ -114,9 +144,12 @@ export function buildTaskContext(
   if (indexFreshness.status !== "current") {
     warnings.push(`Indexed source is ${indexFreshness.status}; context may omit newer or unreadable files (added: ${indexFreshness.addedFiles}, changed: ${indexFreshness.changedFiles}, deleted: ${indexFreshness.deletedFiles}).`);
   }
-  const symbols = explicitAnchorMode
-    ? anchorSymbols.flatMap((name) => searchSymbols(location, name, symbolLimit).filter((symbol) => symbol.name === name)).slice(0, symbolLimit)
-    : searchSymbols(location, normalizedTask, symbolLimit);
+  const symbolMatches = explicitAnchorMode
+    ? anchorSymbols.flatMap((name) => searchSymbols(location, name, symbolLimit + 1).filter((symbol) => symbol.name === name))
+    : searchSymbols(location, normalizedTask, symbolLimit + 1);
+  const symbolCandidatesTruncated = symbolMatches.length > symbolLimit;
+  const symbols = symbolMatches.slice(0, symbolLimit);
+  const fileCandidatesTruncated = new Set(symbolMatches.map((symbol) => symbol.filePath)).size > fileLimit;
   for (const symbol of symbols) {
     candidates.push({
       kind: "symbol",
@@ -131,7 +164,30 @@ export function buildTaskContext(
 
   const seenFiles = new Set<string>();
   const seenImpactFiles = new Set<string>();
+  const seenDependencyPaths = new Set<string>();
+  const seenTestPaths = new Set<string>();
+  let testCandidatesTruncated = false;
+  let dependencyCandidatesTruncated = false;
+  const addTestCandidate = (item: TaskContextItem) => {
+    if (seenTestPaths.has(item.source)) return;
+    if (seenTestPaths.size >= testLimit) { testCandidatesTruncated = true; return; }
+    seenTestPaths.add(item.source);
+    candidates.push(item);
+  };
+  const addDependencyCandidate = (item: TaskContextItem) => {
+    if (seenDependencyPaths.has(item.source)) return;
+    if (seenDependencyPaths.size >= dependencyLimit) { dependencyCandidatesTruncated = true; return; }
+    seenDependencyPaths.add(item.source);
+    candidates.push(item);
+  };
   for (const symbol of symbols) {
+    if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
+      addTestCandidate({
+        kind: "test", origin: explicitAnchorMode ? "anchor" : "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
+        score: symbol.score + 2, signals: ["test-path", "lexical-match"],
+        detail: { startLine: symbol.startLine, endLine: symbol.endLine },
+      });
+    }
     if (seenFiles.has(symbol.filePath) || seenFiles.size >= fileLimit) continue;
     seenFiles.add(symbol.filePath);
     try {
@@ -153,16 +209,22 @@ export function buildTaskContext(
         const ambiguous = /ambiguous/i.test(unresolved.status) || unresolved.candidates.length > 1;
         warnings.push(`Import "${unresolved.specifier}" in ${symbol.filePath} is ${ambiguous ? "ambiguous" : "unresolved"}; candidates: ${unresolved.candidates.length ? unresolved.candidates.join(", ") : "none"}.`);
       }
-      const dependencies = findDependencies(location, symbol.filePath, 1, 20, 100);
-      for (const dependency of dependencies.dependencies) {
-        candidates.push({
-          kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
-          score: Math.max(1, symbol.score - 10 - dependency.depth),
-          signals: ["direct-import", "dependency-of-matching-file"],
-          detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
-        });
+      const remainingDependencies = dependencyLimit - seenDependencyPaths.size;
+      if (remainingDependencies > 0) {
+        const dependencies = findDependencies(location, symbol.filePath, 1, Math.min(20, remainingDependencies), 100);
+        for (const dependency of dependencies.dependencies) {
+          addDependencyCandidate({
+            kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
+            score: Math.max(1, symbol.score - 10 - dependency.depth),
+            signals: ["direct-import", "dependency-of-matching-file"],
+            detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
+          });
+        }
+        if (dependencies.truncated) {
+          dependencyCandidatesTruncated = true;
+          warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
+        }
       }
-      if (dependencies.truncated) warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
       // Map the indexed source file back to tests through actual reverse-import
       // relations, rather than relying only on test filenames containing task words.
       if (!seenImpactFiles.has(symbol.filePath)) {
@@ -171,7 +233,7 @@ export function buildTaskContext(
         for (const path of impacted.affectedFiles) {
           // Recognize tests under test directories and colocated *.test/spec.* files.
           if (!/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path)) continue;
-          candidates.push({
+          addTestCandidate({
             kind: "test", origin: "graph", title: `Import-dependent test: ${path}`, source: path,
             score: symbol.score + 3,
             signals: ["reverse-import-dependent", "test-to-source-file"],
@@ -179,13 +241,6 @@ export function buildTaskContext(
           });
         }
         if (impacted.truncated) warnings.push(`Test dependency lookup for ${symbol.filePath} was truncated by retrieval limits.`);
-      }
-      if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
-        candidates.push({
-          kind: "test", origin: explicitAnchorMode ? "anchor" : "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
-          score: symbol.score + 2, signals: ["test-path", "lexical-match"],
-          detail: { startLine: symbol.startLine, endLine: symbol.endLine },
-        });
       }
     } catch {
       warnings.push(`Could not load indexed details for ${symbol.filePath}; the index may have changed.`);
@@ -204,15 +259,21 @@ export function buildTaskContext(
         relations: detail.relations.slice(0, 10),
       },
     });
-    const dependencies = findDependencies(location, path, 1, 20, 100);
-    for (const dependency of dependencies.dependencies) {
-      candidates.push({
-        kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
-        score: Math.max(1, 90 - dependency.depth), signals: ["direct-import", "dependency-of-explicit-path-anchor"],
-        detail: { from: path, chain: dependency.chain, evidence: dependency.evidence },
-      });
+    const remainingDependencies = dependencyLimit - seenDependencyPaths.size;
+    if (remainingDependencies > 0) {
+      const dependencies = findDependencies(location, path, 1, Math.min(20, remainingDependencies), 100);
+      for (const dependency of dependencies.dependencies) {
+        addDependencyCandidate({
+          kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
+          score: Math.max(1, 90 - dependency.depth), signals: ["direct-import", "dependency-of-explicit-path-anchor"],
+          detail: { from: path, chain: dependency.chain, evidence: dependency.evidence },
+        });
+      }
+      if (dependencies.truncated) {
+        dependencyCandidatesTruncated = true;
+        warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
+      }
     }
-    if (dependencies.truncated) warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
   }
 
   const testDb = openDatabase(location);
@@ -230,21 +291,24 @@ export function buildTaskContext(
     // Do not add every test in the repository: a test path must match at least
     // one lexical task anchor to be considered a task-context candidate.
     if (matchingAnchors.length === 0) continue;
-    candidates.push({
+    addTestCandidate({
       kind: "test", origin: "fallback", title: `Test source: ${path}`, source: path,
       score: 12 + matchingAnchors.length * 8,
       signals: ["test-path", "task-anchor-in-path"],
       detail: { matchingAnchors },
     });
   }
+  if (testCandidatesTruncated) warnings.push(`Test candidates were truncated at the configured testLimit of ${testLimit}.`);
+  if (dependencyCandidatesTruncated) warnings.push(`Dependency candidates were truncated at the configured dependencyLimit of ${dependencyLimit}.`);
 
-  const memories = (explicitAnchorMode ? [] : recallMemories(location, "", 500))
+  const matchedMemories = (explicitAnchorMode ? [] : recallMemories(location, "", 500))
     .map((memory) => ({ memory, matches: anchors.filter((anchor) =>
       `${memory.title} ${memory.content} ${memory.category}`.toLocaleLowerCase().includes(anchor)).length }))
     .filter((entry) => entry.matches > 0)
     .sort((a, b) => b.matches - a.matches || b.memory.updatedAt.localeCompare(a.memory.updatedAt)
-      || a.memory.id.localeCompare(b.memory.id))
-    .slice(0, memoryLimit).map((entry) => entry.memory);
+      || a.memory.id.localeCompare(b.memory.id));
+  const memoryCandidatesTruncated = matchedMemories.length > memoryLimit;
+  const memories = matchedMemories.slice(0, memoryLimit).map((entry) => entry.memory);
   const freshness = inspectMemoryFreshness(location);
   const freshnessById = new Map(freshness.map((entry) => [entry.id, entry]));
   for (const memory of memories) {
@@ -263,12 +327,27 @@ export function buildTaskContext(
   if (memories.some((memory) => memory.status === "proposed")) warnings.push("Proposed memories are suggestions, not confirmed project knowledge.");
   if (memories.some((memory) => memory.status === "obsolete")) warnings.push("Obsolete memories are included for traceability and must not be treated as current guidance.");
 
-  const bounded = boundedItems(candidates, maxItems, maxCharacters);
+  const perKindLimits: Record<TaskContextItem["kind"], number> = {
+    symbol: symbolLimit, file: fileLimit, dependency: dependencyLimit, test: testLimit, memory: memoryLimit,
+  };
+  const bounded = boundedItems(candidates, maxItems, maxCharacters, perKindLimits);
+  const truncatedKinds = new Set<TaskContextItem["kind"]>(bounded.truncatedKinds);
+  if (symbolCandidatesTruncated) truncatedKinds.add("symbol");
+  if (fileCandidatesTruncated) truncatedKinds.add("file");
+  if (dependencyCandidatesTruncated) truncatedKinds.add("dependency");
+  if (testCandidatesTruncated) truncatedKinds.add("test");
+  if (memoryCandidatesTruncated) truncatedKinds.add("memory");
   if (bounded.truncated) warnings.push("Context was truncated to respect the configured item or character budget.");
+  if (truncatedKinds.size > 0) warnings.push(`Per-kind context budgets truncated: ${[...truncatedKinds].join(", ")}.`);
   return {
     task: normalizedTask, anchors, items: bounded.items, warnings: [...new Set(warnings)],
     followUp: anchors.slice(0, 5).map((anchor) => `Inspect deeper details related to "${anchor}".`),
-    budget: { maxItems, maxCharacters, usedItems: bounded.items.length, usedCharacters: bounded.usedCharacters, truncated: bounded.truncated },
+    budget: {
+      maxItems, maxCharacters, usedItems: bounded.items.length, usedCharacters: bounded.usedCharacters,
+      truncated: bounded.truncated || truncatedKinds.size > 0,
+      perKind: Object.fromEntries(TASK_CONTEXT_KINDS.map((kind) => [kind, { limit: perKindLimits[kind], used: bounded.usedByKind[kind] }])) as Record<TaskContextItem["kind"], { limit: number; used: number }>,
+      truncatedKinds: [...truncatedKinds],
+    },
   };
 }
 

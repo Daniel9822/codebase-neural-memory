@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly fifteen tools and publishes the expected input schemas", async () => {
+  it("discovers exactly sixteen tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -133,6 +133,7 @@ describe("MCP adapter protocol contract", () => {
       "project_map",
       "project_overview",
       "source_excerpt",
+      "symbol_impact",
       "symbol_lookup",
       "task_context",
     ]);
@@ -148,7 +149,8 @@ describe("MCP adapter protocol contract", () => {
       source_excerpt: ["endLine", "maxCharacters", "path", "startLine"],
       git_blame: ["endLine", "path", "startLine"],
       change_impact: ["limit", "maxProcessed", "path"],
-      task_context: ["anchors", "maxCharacters", "maxItems", "task"],
+      symbol_impact: ["depth", "direction", "filePath", "kind", "limit", "maxProcessed", "relationKinds", "startLine", "symbol"],
+      task_context: ["anchors", "dependencyLimit", "fileLimit", "maxCharacters", "maxItems", "memoryLimit", "symbolLimit", "task", "testLimit"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["category", "limit", "list", "query", "status"],
@@ -194,7 +196,9 @@ describe("MCP adapter protocol contract", () => {
       ["file_details", { path: "main.ts", limit: 10, inlineSnippets: true, snippetLimit: 1 }],
       ["source_excerpt", { path: "main.ts", startLine: 1, endLine: 2 }],
       ["change_impact", { path: "helper.ts", limit: 10 }],
+      ["symbol_impact", { symbol: "helper", filePath: "helper.ts", direction: "incoming", depth: 2 }],
       ["task_context", { task: "understand target helper", maxItems: 10 }],
+      ["task_context", { task: "understand target helper", maxItems: 10, symbolLimit: 5, fileLimit: 3, dependencyLimit: 4, testLimit: 2, memoryLimit: 6 }],
       ["memory_freshness", {}],
       ["memory_propose", { title: "Suggested invariant", content: "Agent suggestions remain unconfirmed." }],
       ["memory_recall", { query: "MCP adapter", limit: 5 }],
@@ -277,6 +281,19 @@ describe("MCP adapter protocol contract", () => {
       : (result?.content ?? []).map((item) => item.text ?? "").join("\n");
     expect(errorText.length).toBeGreaterThan(0);
 
+    const invalidSymbolImpact = await client.request("tools/call", {
+      name: "symbol_impact",
+      arguments: { symbol: "target", direction: "sideways" },
+    });
+    const invalidSymbolImpactResult = invalidSymbolImpact.result as { isError?: boolean } | undefined;
+    expect(Boolean(invalidSymbolImpact.error) || invalidSymbolImpactResult?.isError === true).toBe(true);
+    const invalidBudget = await client.request("tools/call", {
+      name: "task_context",
+      arguments: { task: "target helper", dependencyLimit: 51 },
+    });
+    const invalidBudgetResult = invalidBudget.result as { isError?: boolean } | undefined;
+    expect(Boolean(invalidBudget.error) || invalidBudgetResult?.isError === true).toBe(true);
+
     const coreError = await client.request("tools/call", {
       name: "dependency_graph",
       arguments: { path: "missing-from-index.ts" },
@@ -305,6 +322,7 @@ describe("MCP adapter protocol contract", () => {
       ["file_details", { path: "main.ts" }],
       ["source_excerpt", { path: "main.ts", startLine: 1, endLine: 2 }],
       ["change_impact", { path: "helper.ts" }],
+      ["symbol_impact", { symbol: "helper", filePath: "helper.ts" }],
       ["task_context", { task: "target helper" }],
       ["memory_freshness", {}],
       ["memory_recall", {}],
