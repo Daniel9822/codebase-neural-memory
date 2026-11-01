@@ -26,6 +26,20 @@ function runGit(rootPath: string, args: string[]): string | null {
   }
 }
 
+function normalizeRepositoryPath(value: string): string {
+  let normalized = value.replaceAll("\\", "/");
+  if (process.platform === "win32") {
+    // Git for Windows and Node may represent the same path as C:/...,
+    // /c/... or with the Win32 extended-length prefix (\\?\C:\...).
+    normalized = normalized
+      .replace(/^\/\/\?\/UNC\//i, "//")
+      .replace(/^\/\/\?\//, "")
+      .replace(/^\/([a-z])\//i, "$1:/");
+  }
+  const resolved = resolve(normalized).replaceAll("\\", "/").replace(/\/+$/, "");
+  return process.platform === "win32" ? resolved.toLowerCase() : resolved;
+}
+
 /** Read only the repository identity and working-tree state; never changes Git metadata. */
 export function getGitSnapshot(rootPath: string): GitSnapshot {
   const reportedRoot = runGit(rootPath, ["rev-parse", "--show-toplevel"]);
@@ -58,10 +72,7 @@ export function getGitSnapshot(rootPath: string): GitSnapshot {
     };
   }
 
-  const normalize = (value: string) => resolve(value).replaceAll("\\", "/");
-  const rootsMatch = process.platform === "win32"
-    ? normalize(repositoryRoot).toLowerCase() === normalize(requestedRoot).toLowerCase()
-    : normalize(repositoryRoot) === normalize(requestedRoot);
+  const rootsMatch = normalizeRepositoryPath(repositoryRoot) === normalizeRepositoryPath(requestedRoot);
   if (!rootsMatch) {
     return {
       available: false,
