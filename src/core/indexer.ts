@@ -661,13 +661,13 @@ export function indexProject(
 }
 
 /** Reconcile the working tree using the project's persisted exclusion rules. */
-export function updateProjectIndex(location: ProjectLocation): IndexSummary {
+export function updateProjectIndex(location: ProjectLocation, options: IndexOptions = {}): IndexSummary {
   const db = openDatabase(location);
   try {
     const row = db.prepare("SELECT index_excludes_json FROM projects WHERE id = ?").get(location.id) as { index_excludes_json: string } | undefined;
     if (!row) throw new Error("This repository has not been initialized. Run `cnm init` first.");
     const excludes = JSON.parse(row.index_excludes_json) as string[];
-    return indexWithDatabase(db, location, false, excludes, { requireCompleteSnapshot: true });
+    return indexWithDatabase(db, location, false, excludes, { ...options, requireCompleteSnapshot: true });
   } finally {
     db.close();
   }
