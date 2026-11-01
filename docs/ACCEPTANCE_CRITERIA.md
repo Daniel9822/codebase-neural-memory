@@ -359,3 +359,18 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 - **GitHub Actions:** [run 41268702640](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41268702640) — verify and Linux, Windows, and macOS benchmark jobs passed.
 - **Commands passed:** `npm ci --no-audit --no-fund`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke`.
 - **Coverage:** core current/stale hash comparison, project-relative path and range validation, MCP tool discovery/schema/call, real stdio invocation, and existing read-only/no-mutation checks.
+
+
+## 15. MCP agent-capability follow-up (PR #54 candidate)
+
+- [ ] `index_update` is discoverable and runs incremental reconciliation without force-reparsing unchanged files.
+- [ ] `index_update` preserves the project's persisted custom exclusion rules.
+- [ ] `index_update` reports the standard index summary and advances the index revision.
+- [ ] `memory_propose` persists a durable memory with status `proposed`, never `confirmed`.
+- [ ] Proposed memories remain subject to the existing explicit lifecycle transition rules.
+- [ ] `symbol_lookup` optional kind, file-path-prefix, and exported filters are validated and applied deterministically.
+- [ ] MCP protocol tests discover and call the new tools and assert the updated schemas.
+- [ ] Read-only protocol tests continue to prove that read calls do not mutate source, index, or memory state.
+- [ ] Full CI passes on the final PR head, including typecheck, tests, build, smoke, and benchmark matrix.
+
+The following capabilities remain open and must not be represented as delivered by this PR unless separately implemented and tested: signature-regex search, source body retrieval in symbol results, semantic impact/distance and public-contract analysis, test-to-symbol mapping, finer task-context budget categories, and Git blame/session rationale.
