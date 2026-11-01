@@ -139,7 +139,7 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
     if (stopped) return;
     const directoryPath = relative(root, directory).replaceAll("\\", "/");
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
-    let handle;
+    let handle: ReturnType<typeof opendirSync>;
     try {
       // Stream directory entries instead of materializing and sorting an
       // unbounded array. maxProcessed now bounds actual enumeration work too.
