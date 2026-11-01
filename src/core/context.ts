@@ -98,7 +98,10 @@ export function buildTaskContext(
 
   const lexicalAnchors = anchorsFor(normalizedTask);
   const explicitAnchorMode = options.anchors !== undefined;
-  const anchorPaths = [...new Set((options.anchors?.paths ?? []).map((path) => path.trim().replaceAll("\\", "/").replace(/^\\.\\//, "")))];
+  const anchorPaths = [...new Set((options.anchors?.paths ?? []).map((path) => {
+    const normalized = path.trim().replaceAll("\\", "/");
+    return normalized.startsWith("./") ? normalized.slice(2) : normalized;
+  }))];
   const anchorSymbols = [...new Set((options.anchors?.symbols ?? []).map((symbol) => symbol.trim()).filter(Boolean))];
   if (explicitAnchorMode && anchorPaths.length + anchorSymbols.length === 0) throw new Error("anchors must include at least one path or symbol.");
   if (anchorPaths.length > 20 || anchorSymbols.length > 20 || anchorPaths.some((path) => !path || path.startsWith("/") || path.split("/").some((part) => part === ".." || part === ""))) {
