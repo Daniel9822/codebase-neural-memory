@@ -21,7 +21,8 @@ function setup(): void {
   db = openDatabase(location);
   ensureProject(db, location);
   writeFileSync(join(rootPath, "src", "auth.ts"), "import { normalizeToken } from './token';\nimport './extra';\nimport './missing-module';\nexport function refreshAuthToken() { return normalizeToken(); }\n");
-  writeFileSync(join(rootPath, "src", "token.ts"), "export function normalizeToken() { return true; }\n");  writeFileSync(join(rootPath, "src", "extra.ts"), "export function extraAuthHelper() { return true; }\n");
+  writeFileSync(join(rootPath, "src", "token.ts"), "export function normalizeToken() { return true; }\n");
+  writeFileSync(join(rootPath, "src", "extra.ts"), "export function extraAuthHelper() { return true; }\n");
 
   writeFileSync(join(rootPath, "tests", "auth.test.ts"), "import { refreshAuthToken } from '../src/auth';\n");  writeFileSync(join(rootPath, "tests", "auth.spec.ts"), "import { refreshAuthToken } from '../src/auth';\n");
 
