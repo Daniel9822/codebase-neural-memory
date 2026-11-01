@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
-import { explainSymbol, findDependencies, findImpact, findSymbolImpact, getFileDetails, getSourceExcerpt, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
+import { explainSymbol, getComponentMap, findDependencies, findImpact, findSymbolImpact, getFileDetails, getSourceExcerpt, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
 import { retrievalRelevanceCases } from "./fixtures/retrieval-relevance.js";
 
 let temporaryDirectory = "";
@@ -79,6 +79,37 @@ export function calculateXtotal(): number { return 2; }
     expect(searchSymbols(location, "!!!...///")).toEqual([]);
     expect(() => searchSymbols(location, "value", 0)).toThrow("Search limit must be a positive safe integer");
     expect(() => searchSymbols(location, "value", Number.MAX_SAFE_INTEGER + 1)).toThrow("Search limit must be a positive safe integer");
+  });
+});
+
+describe("getComponentMap", () => {
+  it("aggregates directory import boundaries and reports directed shortest dependency distances", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "api"), { recursive: true });
+    mkdirSync(join(location.rootPath, "core"), { recursive: true });
+    mkdirSync(join(location.rootPath, "shared"), { recursive: true });
+    writeFileSync(join(location.rootPath, "api", "handler.ts"), 'import { run } from "../core/runner"; export function handle() { return run(); }');
+    writeFileSync(join(location.rootPath, "core", "runner.ts"), 'import { flag } from "../shared/flag"; export function run() { return flag; }');
+    writeFileSync(join(location.rootPath, "shared", "flag.ts"), "export const flag = true;");
+    writeFileSync(join(location.rootPath, "unrelated.ts"), "export const standalone = true;");
+    indexWithDatabase(database!, location);
+
+    expect(getComponentMap(location)).toMatchObject({
+      totalComponents: 4,
+      edges: [
+        { from: "api", to: "core", imports: 1 },
+        { from: "core", to: "shared", imports: 1 },
+      ],
+    });
+    expect(getComponentMap(location, { from: "api", depth: 2 }).components).toEqual(expect.arrayContaining([
+      expect.objectContaining({ id: "api", distanceFrom: 0 }),
+      expect.objectContaining({ id: "core", distanceFrom: 1 }),
+      expect.objectContaining({ id: "shared", distanceFrom: 2 }),
+      expect.objectContaining({ id: "(root)", distanceFrom: null }),
+    ]));
+    expect(getComponentMap(location, { from: "unrelated.ts" }).from).toBe("(root)");
+    expect(() => getComponentMap(location, { from: "missing" })).toThrow("Component not found in memory index");
+    expect(() => getComponentMap(location, { limit: 101 })).toThrow("Component limit");
   });
 });
 

@@ -681,6 +681,115 @@ export function getSymbolRelations(location: ProjectLocation, name: string, limi
 }
 
 
+
+
+export interface ComponentMapReport {
+  components: Array<{ id: string; files: number; symbols: number; imports: number; importedBy: number; distanceFrom: number | null; sampleFiles: string[]; filesTruncated: boolean }>;
+  edges: Array<{ from: string; to: string; imports: number }>;
+  totalComponents: number; totalEdges: number; from: string | null; depth: number;
+  truncated: { components: boolean; edges: boolean; files: boolean };
+  limits: { maxComponents: number; maxEdges: number; maxFilesPerComponent: number };
+}
+const MAX_COMPONENT_MAP_COMPONENTS = 100;
+const MAX_COMPONENT_MAP_EDGES = 500;
+const MAX_COMPONENT_MAP_FILES = 20;
+const COMPONENT_PATH_SQL = "CASE WHEN instr(path, '/') > 0 THEN substr(path, 1, instr(path, '/') - 1) ELSE '(root)' END";
+
+/** Directory-boundary grouping of the import graph; this is structural, not semantic inference. */
+export function getComponentMap(location: ProjectLocation, options: { from?: string; depth?: number; limit?: number; fileLimit?: number } = {}): ComponentMapReport {
+  const limit = options.limit ?? 50, fileLimit = options.fileLimit ?? 10, depth = options.depth ?? 5;
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_COMPONENT_MAP_COMPONENTS) throw new Error("Component limit must be a positive safe integer no greater than 100.");
+  if (!Number.isSafeInteger(fileLimit) || fileLimit < 1 || fileLimit > MAX_COMPONENT_MAP_FILES) throw new Error("Component file limit must be a positive safe integer no greater than 20.");
+  if (!Number.isSafeInteger(depth) || depth < 1 || depth > 20) throw new Error("Component distance depth must be a positive safe integer no greater than 20.");
+  const db = openDatabase(location);
+  try {
+    let from: string | null = null;
+    if (options.from !== undefined) {
+      const requested = options.from.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/$/, "");
+      const indexedPath = db.prepare(`SELECT ${COMPONENT_PATH_SQL} AS id FROM files WHERE path = ? LIMIT 1`).get(requested) as { id: string } | undefined;
+      const component = indexedPath?.id ?? requested;
+      const exists = db.prepare(`SELECT 1 AS found FROM files WHERE ${COMPONENT_PATH_SQL} = ? LIMIT 1`).get(component) as { found: number } | undefined;
+      if (!exists) throw new Error(`Component not found in memory index: ${options.from}`);
+      from = component;
+    }
+    const totalComponents = (db.prepare(`SELECT COUNT(DISTINCT ${COMPONENT_PATH_SQL}) AS count FROM files`).get() as { count: number }).count;
+    const componentRows = db.prepare(`
+      SELECT ${COMPONENT_PATH_SQL} AS id, COUNT(DISTINCT f.id) AS files, COUNT(s.id) AS symbols
+      FROM files f LEFT JOIN symbols s ON s.file_id = f.id
+      GROUP BY ${COMPONENT_PATH_SQL}
+      ORDER BY CASE WHEN ? IS NOT NULL AND ${COMPONENT_PATH_SQL} = ? THEN 0 ELSE 1 END, id
+      LIMIT ?
+    `).all(from, from, limit + 1) as Array<{ id: string; files: number; symbols: number }>;
+    const selectedRows = componentRows.slice(0, limit);
+    const componentIds = selectedRows.map((row) => row.id);
+    const edgeRows = db.prepare(`
+      SELECT source_component AS "from", target_component AS "to", COUNT(*) AS imports
+      FROM (
+        SELECT ${COMPONENT_PATH_SQL.replaceAll("path", "source.path")} AS source_component,
+          ${COMPONENT_PATH_SQL.replaceAll("path", "target.path")} AS target_component
+        FROM relations r
+        JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id
+        JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
+        WHERE r.kind = 'IMPORTS'
+      )
+      WHERE source_component <> target_component
+      GROUP BY source_component, target_component
+      ORDER BY source_component, target_component
+      LIMIT ?
+    `).all(MAX_COMPONENT_MAP_EDGES + 1) as Array<{ from: string; to: string; imports: number }>;
+    const totalEdges = (db.prepare(`
+      SELECT COUNT(*) AS count FROM (
+        SELECT source_component, target_component
+        FROM (
+          SELECT ${COMPONENT_PATH_SQL.replaceAll("path", "source.path")} AS source_component,
+            ${COMPONENT_PATH_SQL.replaceAll("path", "target.path")} AS target_component
+          FROM relations r
+          JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id
+          JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
+          WHERE r.kind = 'IMPORTS'
+        )
+        WHERE source_component <> target_component
+        GROUP BY source_component, target_component
+      )
+    `).get() as { count: number }).count;
+    const allEdges = edgeRows.slice(0, MAX_COMPONENT_MAP_EDGES);
+    const distances = new Map<string, number>();
+    if (from !== null) {
+      distances.set(from, 0);
+      const adjacency = new Map<string, string[]>();
+      for (const edge of allEdges) { const targets = adjacency.get(edge.from) ?? []; targets.push(edge.to); adjacency.set(edge.from, targets); }
+      const queue = [from];
+      for (let cursor = 0; cursor < queue.length; cursor += 1) {
+        const current = queue[cursor]!, distance = distances.get(current)!;
+        if (distance >= depth) continue;
+        for (const target of adjacency.get(current) ?? []) if (!distances.has(target)) { distances.set(target, distance + 1); queue.push(target); }
+      }
+    }
+    const outgoing = new Map<string, number>(), incoming = new Map<string, number>();
+    for (const edge of allEdges) {
+      outgoing.set(edge.from, (outgoing.get(edge.from) ?? 0) + 1);
+      incoming.set(edge.to, (incoming.get(edge.to) ?? 0) + 1);
+    }
+    const components = selectedRows.map((row) => {
+      const samples = db.prepare(`SELECT path FROM files WHERE ${COMPONENT_PATH_SQL} = ? ORDER BY path LIMIT ?`).all(row.id, fileLimit + 1) as Array<{ path: string }>;
+      return {
+        id: row.id, files: Number(row.files), symbols: Number(row.symbols),
+        imports: outgoing.get(row.id) ?? 0, importedBy: incoming.get(row.id) ?? 0,
+        distanceFrom: from === null ? null : (distances.get(row.id) ?? null),
+        sampleFiles: samples.slice(0, fileLimit).map((item) => item.path),
+        filesTruncated: samples.length > fileLimit,
+      };
+    });
+    const included = new Set(componentIds);
+    const edges = allEdges.filter((edge) => included.has(edge.from) && included.has(edge.to));
+    return {
+      components, edges, totalComponents, totalEdges, from, depth,
+      truncated: { components: totalComponents > components.length, edges: totalEdges > edges.length, files: components.some((item) => item.filesTruncated) },
+      limits: { maxComponents: limit, maxEdges: MAX_COMPONENT_MAP_EDGES, maxFilesPerComponent: fileLimit },
+    };
+  } finally { db.close(); }
+}
+
 const MAX_SOURCE_EXCERPT_LINES = 200;
 const MAX_SOURCE_EXCERPT_CHARACTERS = 20_000;
 const MAX_INDEXED_SOURCE_BYTES = 1_048_576;

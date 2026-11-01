@@ -5,7 +5,7 @@ import { basename } from "node:path";
 import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
 import { getIndexFreshness, indexProject } from "../core/indexer.js";
-import { explainSymbol, findDependencies, findImpact, findSymbolImpact, getFileDetails, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
+import { explainSymbol, getComponentMap, findDependencies, findImpact, findSymbolImpact, getFileDetails, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
 import { deleteMemory, inspectMemoryFreshness, proposeMemory, recallMemories, remember, transitionMemory, updateMemory, type MemoryStatus } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
@@ -126,6 +126,19 @@ program.command("map")
         console.log(`  └─ ${item.status} import ${item.specifier}${detail}`);
       }
     }
+  });
+
+program.command("components")
+  .description("Summarize first-directory import groups and shortest dependency distances between them.")
+  .option("--from <component-or-path>", "Optional source directory group or indexed file path")
+  .option("--depth <number>", "Maximum dependency distance (1-20)", parsePositiveInteger, 5)
+  .option("--limit <number>", "Maximum component groups (1-100)", parsePositiveInteger, 50)
+  .option("--file-limit <number>", "Sample files per group (1-20)", parsePositiveInteger, 10)
+  .action((options: { from?: string; depth: number; limit: number; fileLimit: number }) => {
+    console.log(JSON.stringify(getComponentMap(ensureInitialized(), {
+      ...(options.from === undefined ? {} : { from: options.from }),
+      depth: options.depth, limit: options.limit, fileLimit: options.fileLimit,
+    }), null, 2));
   });
 
 program.command("search <query>")
