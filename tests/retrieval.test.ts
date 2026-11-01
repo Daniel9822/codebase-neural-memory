@@ -548,7 +548,7 @@ describe("auth", () => {
       relationKinds: ["CALLS"],
     });
     expect(impact.results).toMatchObject([{
-      name: expect.stringContaining("test-case: refreshes tokens @"),
+      name: expect.stringContaining("test-case: refreshes tokens#1"),
       kind: "test-case",
       filePath: "tests/auth.test.ts",
       distance: 1,
