@@ -95,7 +95,10 @@ async function initialize(client: ReturnType<typeof launchMcp>): Promise<void> {
 
 afterEach(async () => {
   for (const child of processes.splice(0)) {
-    if (child.exitCode === null && !child.killed) child.kill("SIGKILL");
+    if (child.exitCode === null && child.signalCode === null) {
+      child.kill("SIGKILL");
+      await once(child, "exit");
+    }
   }
   database?.close();
   database = undefined;
@@ -114,11 +117,12 @@ describe("MCP stdio process lifecycle", () => {
 
     const list = await first.request("tools/list");
     const tools = (list.result as { tools: Array<{ name: string }> }).tools;
-    expect(tools).toHaveLength(16);
+    expect(tools).toHaveLength(17);
     expect(tools.map((tool) => tool.name)).toContain("source_excerpt");
     expect(tools.map((tool) => tool.name)).toContain("git_blame");
     expect(tools.map((tool) => tool.name)).toContain("memory_transition");
     expect(tools.map((tool) => tool.name)).toContain("symbol_impact");
+    expect(tools.map((tool) => tool.name)).toContain("component_map");
 
     const call = await first.request("tools/call", {
       name: "symbol_lookup",
