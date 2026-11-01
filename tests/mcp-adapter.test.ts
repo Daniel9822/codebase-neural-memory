@@ -249,6 +249,13 @@ describe("MCP adapter protocol contract", () => {
       : (result?.content ?? []).map((item) => item.text ?? "").join("\n");
     expect(errorText.length).toBeGreaterThan(0);
 
+    const invalidBudget = await client.request("tools/call", {
+      name: "task_context",
+      arguments: { task: "target helper", dependencyLimit: 51 },
+    });
+    const invalidBudgetResult = invalidBudget.result as { isError?: boolean } | undefined;
+    expect(Boolean(invalidBudget.error) || invalidBudgetResult?.isError === true).toBe(true);
+
     const coreError = await client.request("tools/call", {
       name: "dependency_graph",
       arguments: { path: "missing-from-index.ts" },
