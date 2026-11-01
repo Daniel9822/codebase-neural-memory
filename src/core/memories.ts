@@ -264,21 +264,79 @@ export function getMemoryFreshnessReport(location: ProjectLocation, limit = 100)
   return { records, total, limit, truncated: total > records.length };
 }
 
-export function recallMemories(location: ProjectLocation, query = "", limit = 20): MemoryRecord[] {
+export interface MemoryRecallOptions {
+  statuses?: MemoryStatus[];
+  category?: string;
+  list?: boolean;
+}
+
+function normalizeMemoryText(value: string): string {
+  return value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLocaleLowerCase().replace(/[^\\p{L}\\p{N}_]+/gu, " ").trim();
+}
+
+const MEMORY_QUERY_STOP_WORDS = new Set([
+  "a", "al", "algo", "como", "con", "de", "del", "el", "en", "es", "esta", "este",
+  "la", "las", "lo", "los", "mas", "o", "para", "por", "que", "se", "sin", "su",
+  "un", "una", "uno", "y",
+]);
+
+function memoryMatchScore(row: MemoryRecord, query: string, tokens: string[]): number {
+  const title = normalizeMemoryText(row.title);
+  const content = normalizeMemoryText(row.content);
+  const category = normalizeMemoryText(row.category);
+  const combined = `${title} ${content} ${category}`;
+  if (!tokens.some((token) => combined.includes(token))) return 0;
+  let score = 0;
+  if (title.includes(query)) score += 12;
+  if (content.includes(query)) score += 5;
+  for (const token of tokens) {
+    if (title.split(" ").some((word) => word === token)) score += 5;
+    else if (title.split(" ").some((word) => word.startsWith(token))) score += 3;
+    else if (title.includes(token)) score += 2;
+    if (content.split(" ").some((word) => word === token)) score += 2;
+    else if (content.includes(token)) score += 1;
+    if (category.includes(token)) score += 1;
+  }
+  if (row.status === "confirmed") score += 0.5;
+  return score;
+}
+
+/** Retrieve project memories by natural-language lexical relevance and lifecycle filters.
+ * Proposed entries are discoverable by default but remain explicitly unconfirmed. */
+export function recallMemories(
+  location: ProjectLocation,
+  query = "",
+  limit = 20,
+  options: MemoryRecallOptions = {},
+): MemoryRecord[] {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
     throw new Error("Memory limit must be a positive safe integer no greater than 500");
   }
   const db = openDatabase(location);
   try {
-    const rows = query.trim()
-      ? db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
-          commit_sha AS commitSha, source_hash AS sourceHash, author, updated_by AS updatedBy, created_at AS createdAt, updated_at AS updatedAt FROM memories
-          WHERE status != 'rejected' AND (title LIKE ? OR content LIKE ? OR category LIKE ?)
-          ORDER BY updated_at DESC, id LIMIT ?`).all(`%${query}%`, `%${query}%`, `%${query}%`, limit)
-      : db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
-          commit_sha AS commitSha, source_hash AS sourceHash, author, updated_by AS updatedBy, created_at AS createdAt, updated_at AS updatedAt FROM memories
-          WHERE status != 'rejected' ORDER BY updated_at DESC, id LIMIT ?`).all(limit);
-    return rows as MemoryRecord[];
+    const rows = db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
+      commit_sha AS commitSha, source_hash AS sourceHash, author, updated_by AS updatedBy,
+      created_at AS createdAt, updated_at AS updatedAt FROM memories
+      WHERE status != 'rejected' ORDER BY updated_at DESC, id LIMIT 5000`).all() as MemoryRecord[];
+    const statuses = options.statuses ? new Set(options.statuses) : null;
+    const category = options.category ? normalizeMemoryText(options.category) : null;
+    const filtered = rows.filter((row) =>
+      (!statuses || statuses.has(row.status)) &&
+      (!category || normalizeMemoryText(row.category) === category),
+    );
+    const normalizedQuery = normalizeMemoryText(query);
+    if (!normalizedQuery || options.list) return filtered.slice(0, limit);
+    const tokens = [...new Set(normalizedQuery.split(" ").filter((token) =>
+      token.length > 1 && !MEMORY_QUERY_STOP_WORDS.has(token)))];
+    if (tokens.length === 0) return filtered.slice(0, limit);
+    return filtered
+      .map((row) => ({ row, score: memoryMatchScore(row, normalizedQuery, tokens) }))
+      .filter((item) => item.score > 0)
+      .sort((left, right) => right.score - left.score ||
+        right.row.updatedAt.localeCompare(left.row.updatedAt) ||
+        left.row.id.localeCompare(right.row.id))
+      .slice(0, limit)
+      .map((item) => item.row);
   } finally {
     db.close();
   }
