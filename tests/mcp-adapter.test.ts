@@ -179,6 +179,14 @@ describe("MCP adapter protocol contract", () => {
       expect(() => JSON.parse(result.content![0]!.text!)).not.toThrow();
     }
 
+;
+
+    const first = await client.request("tools/call", { name: "project_overview", arguments: {} });
+    const second = await client.request("tools/call", { name: "project_overview", arguments: {} });
+    expect((first.result as { content: Array<{ text: string }> }).content[0]!.text)
+      .toBe((second.result as { content: Array<{ text: string }> }).content[0]!.text);
+  });
+
   it("returns verified inline snippets and restricts anchored task context to anchor/graph items", async () => {
     createProject();
     const client = await connectClient();
@@ -211,13 +219,7 @@ describe("MCP adapter protocol contract", () => {
     };
     expect(context.items).toContainEqual(expect.objectContaining({ source: "main.ts", origin: "anchor" }));
     expect(context.items.every((item) => item.origin === "anchor" || item.origin === "graph")).toBe(true);
-  });
-
-    const first = await client.request("tools/call", { name: "project_overview", arguments: {} });
-    const second = await client.request("tools/call", { name: "project_overview", arguments: {} });
-    expect((first.result as { content: Array<{ text: string }> }).content[0]!.text)
-      .toBe((second.result as { content: Array<{ text: string }> }).content[0]!.text);
-  });
+  })
 
   it("rejects invalid arguments with an MCP error response", async () => {
     createProject();
