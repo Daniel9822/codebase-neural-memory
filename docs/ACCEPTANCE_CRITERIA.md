@@ -298,7 +298,8 @@ Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code ins
 - [x] SQLite size and process peak RSS are recorded, with cumulative RSS methodology documented.
 - [x] Retrieval top-1 accuracy, precision@5, recall@5, and MRR are measured against ten labeled queries.
 - [x] The same benchmark cases are repeated on Linux, Windows, and macOS; all three matrix jobs passed in CI run [41254663323](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41254663323).
-- [ ] Agent task comparisons use the same repository, task, model, prompt, and comparable conditions.
+- [x] An eight-task read-only evaluation suite, scoring rubric, and paired-run protocol are checked in (`benchmarks/agent-tasks.json`, `docs/AGENT_EVALUATION_PROTOCOL.md`).
+- [ ] Actual agent task comparisons use the same repository, task, model, prompt, and comparable conditions; no paired results have been collected yet.
 - [ ] Performance optimizations include regression tests; no performance optimization has been introduced in this phase slice.
 - [x] No numeric improvement claim is made; the baseline is explicitly descriptive and machine-dependent.
 
