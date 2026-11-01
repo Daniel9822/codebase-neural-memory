@@ -818,7 +818,13 @@ export function indexWithDatabase(
     db.prepare("UPDATE projects SET index_revision = index_revision + 1 WHERE id = ?").run(location.id);
     const revisionRow = db.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number } | undefined;
     if (!revisionRow) throw new Error("Project record is missing; run cnm init first.");
-    summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
+    // Relationship resolution and import diagnostics depend on indexed source
+    // content, not on index revisions. Avoid a full-project graph rebuild when
+    // this run only confirmed unchanged files or encountered protected skips.
+    const sourceIndexChanged = summary.added > 0 || summary.updated > 0 || summary.deleted > 0;
+    summary.relations = sourceIndexChanged
+      ? rebuildRelations(db, location.rootPath, revisionRow.index_revision)
+      : (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
     if (options.requireCompleteSnapshot) {
       const finalDiscovery = discoverFiles(location.rootPath, extraExcludes, options);
