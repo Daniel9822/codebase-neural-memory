@@ -298,6 +298,13 @@ describe("MCP adapter protocol contract", () => {
       : (result?.content ?? []).map((item) => item.text ?? "").join("\n");
     expect(errorText.length).toBeGreaterThan(0);
 
+    const emptyIndexScope = await client.request("tools/call", {
+      name: "index_update",
+      arguments: { paths: [] },
+    });
+    const emptyIndexScopeResult = emptyIndexScope.result as { isError?: boolean } | undefined;
+    expect(Boolean(emptyIndexScope.error) || emptyIndexScopeResult?.isError === true).toBe(true);
+
     const invalidSymbolImpact = await client.request("tools/call", {
       name: "symbol_impact",
       arguments: { symbol: "target", direction: "sideways" },
