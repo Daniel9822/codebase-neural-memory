@@ -114,7 +114,7 @@ describe("MCP stdio process lifecycle", () => {
 
     const list = await first.request("tools/list");
     const tools = (list.result as { tools: Array<{ name: string }> }).tools;
-    expect(tools).toHaveLength(11);
+    expect(tools).toHaveLength(13);
     expect(tools.map((tool) => tool.name)).toContain("source_excerpt");
 
     const call = await first.request("tools/call", {
