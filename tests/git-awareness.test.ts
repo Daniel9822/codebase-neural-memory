@@ -45,7 +45,7 @@ afterEach(() => {
 describe("Git blame retrieval", () => {
   it("returns bounded line attribution with commit, author, date, and summary", () => {
     createProject();
-    writeFileSync(join(location.rootPath, "tracked.ts"), "export const first = 1;\\nexport const second = 2;\\n");
+    writeFileSync(join(location.rootPath, "tracked.ts"), "export const first = 1;\nexport const second = 2;\n");
     execFileSync("git", ["add", "tracked.ts"], { cwd: location.rootPath });
     execFileSync("git", ["commit", "-m", "add tracked declarations"], { cwd: location.rootPath, stdio: "ignore" });
 
@@ -56,7 +56,7 @@ describe("Git blame retrieval", () => {
       endLine: 2,
       truncated: false,
       lines: [
-        { line: 1, originalLine: 1, author: "CNM Tests", summary: "add tracked declarations", content: "export const first = 1;" },
+    writeFileSync(join(location.rootPath, "tracked.ts"), "export const first = 1;\nexport const second = 2;\n");
         { line: 2, originalLine: 2, author: "CNM Tests", summary: "add tracked declarations", content: "export const second = 2;" },
       ],
     });
