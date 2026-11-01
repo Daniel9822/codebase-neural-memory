@@ -170,7 +170,7 @@ export function buildTaskContext(
         const impacted = findImpact(location, symbol.filePath, 20, 100);
         for (const path of impacted.affectedFiles) {
           // Recognize tests under test directories and colocated *.test/spec.* files.
-          if (!/(^|[/\\])(?:tests?|__tests__)([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path)) continue;
+          if (!/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path)) continue;
           candidates.push({
             kind: "test", origin: "graph", title: `Import-dependent test: ${path}`, source: path,
             score: symbol.score + 3,
@@ -180,7 +180,7 @@ export function buildTaskContext(
         }
         if (impacted.truncated) warnings.push(`Test dependency lookup for ${symbol.filePath} was truncated by retrieval limits.`);
       }
-      if (/(^|[/\\])(?:tests?|__tests__)([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
+      if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
         candidates.push({
           kind: "test", origin: explicitAnchorMode ? "anchor" : "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
           score: symbol.score + 2, signals: ["test-path", "lexical-match"],
@@ -223,7 +223,7 @@ export function buildTaskContext(
       WHERE lower(path) LIKE '%test%' OR lower(path) LIKE '%spec%'
       ORDER BY path LIMIT 500
     `).all() as Array<{ path: string }>).map((row) => row.path)
-      .filter((path) => /(^|[/\\])(?:tests?|__tests__)([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path));
+      .filter((path) => /(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path));
   } finally { testDb.close(); }
   for (const path of testPaths) {
     const matchingAnchors = explicitAnchorMode ? [] : anchors.filter((anchor) => path.toLocaleLowerCase().includes(anchor));
