@@ -30,6 +30,14 @@ function freshnessWarning(report: ReturnType<typeof getIndexFreshness>): string 
   ].join(" ");
 }
 
+function containsStaleSource(value: unknown): boolean {
+  if (Array.isArray(value)) return value.some(containsStaleSource);
+  if (!value || typeof value !== "object") return false;
+  const record = value as Record<string, unknown>;
+  if (record.indexStatus === "stale") return true;
+  return Object.values(record).some(containsStaleSource);
+}
+
 /** Run a read behind one consistent freshness policy without changing legacy JSON payloads. */
 function readResponse<T>(
   location: ProjectLocation,
@@ -66,6 +74,7 @@ function readResponse<T>(
   const result = operation();
   const content: TextBlock[] = [{ type: "text", text: JSON.stringify(result, null, 2) }];
   if (freshness.status !== "current") content.push({ type: "text", text: freshnessWarning(freshness) });
+  else if (containsStaleSource(result)) content.push({ type: "text", text: "CNM SOURCE WARNING: at least one inline excerpt hash differs from the indexed hash (indexStatus: stale). The excerpt is actual working-tree text, but indexed metadata may describe older bytes; refresh the index and repeat the read." });
   if (autoUpdateSkippedReason) content.push({ type: "text", text: `CNM AUTO-UPDATE SKIPPED: ${autoUpdateSkippedReason}` });
   if (refreshed) content.push({ type: "text", text: "CNM AUTO-UPDATE: the index was incrementally reconciled before this read." });
   return { content };
