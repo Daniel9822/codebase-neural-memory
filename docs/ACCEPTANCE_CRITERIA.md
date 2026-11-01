@@ -361,7 +361,7 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 - **Coverage:** core current/stale hash comparison, project-relative path and range validation, MCP tool discovery/schema/call, real stdio invocation, and existing read-only/no-mutation checks.
 
 
-## 15. MCP agent-capability follow-up (PR #54 candidate)
+## 15. MCP agent-capability follow-up (PR #54 — merged)
 
 - [x] `index_update` is discoverable and runs incremental reconciliation without force-reparsing unchanged files.
 - [x] `index_update` preserves the project's persisted custom exclusion rules.
