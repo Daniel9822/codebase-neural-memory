@@ -58,7 +58,9 @@ export function getGitSnapshot(rootPath: string): GitSnapshot {
   let repositoryRoot: string;
   let requestedRoot: string;
   try {
-    repositoryRoot = realpathSync(reportedRoot);
+    // Git for Windows can report MSYS-style paths (/c/...) that Win32
+    // realpathSync cannot resolve directly. Convert the Git path first.
+    repositoryRoot = realpathSync(normalizeRepositoryPath(reportedRoot));
     requestedRoot = realpathSync(rootPath);
   } catch {
     return {
