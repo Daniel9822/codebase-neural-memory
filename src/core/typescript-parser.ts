@@ -42,7 +42,7 @@ function declarationSignature(node: ts.Node, sourceFile: ts.SourceFile, source: 
     if (openBrace) end = openBrace.getStart(sourceFile);
   }
 
-  const header = source.slice(start, end).replace(/\\s+/g, " ").trim();
+  const header = source.slice(start, end).replace(/\s+/g, " ").trim();
   return (header || fallback).slice(0, MAX_SYMBOL_SIGNATURE_CHARACTERS);
 }
 
