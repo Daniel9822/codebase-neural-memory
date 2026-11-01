@@ -384,6 +384,12 @@ function expandSourceCandidates(base: string): string[] {
       ...["index.ts", "index.tsx", "index.js", "index.jsx"].map((file) => `${base}/${file}`)];
 }
 
+function hasExtendedTsConfig(rootPath: string): boolean {
+  const config = ts.readConfigFile(join(rootPath, "tsconfig.json"), ts.sys.readFile);
+  return !config.error && Boolean(config.config && typeof config.config === "object" &&
+    "extends" in config.config);
+}
+
 function computeRelationsConfigHash(rootPath: string, files: Array<{ path: string }>): string {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
@@ -856,7 +862,10 @@ export function indexWithDatabase(
     const sourceIndexChanged = summary.added > 0 || summary.updated > 0 || summary.deleted > 0;
     const configFiles = db.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
     const currentRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles);
-    const relationsNeedRebuild = sourceIndexChanged || currentRelationsConfigHash !== projectState.relations_config_hash;
+    // Extended configs may resolve outside the project tree; until their full
+    // transitive dependency graph is fingerprinted, conservatively rebuild.
+    const relationsNeedRebuild = sourceIndexChanged || hasExtendedTsConfig(location.rootPath) ||
+      currentRelationsConfigHash !== projectState.relations_config_hash;
     if (relationsNeedRebuild) {
       summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
     } else {
