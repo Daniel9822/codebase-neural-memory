@@ -38,11 +38,11 @@ describe("indexWithDatabase", () => {
   it("reindexes only an explicitly selected file and preserves every out-of-scope record", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
-    writeFileSync(join(location.rootPath, "src", "a.ts"), "export const before = true;");
-    writeFileSync(join(location.rootPath, "src", "b.ts"), "export const untouched = true;");
+    writeFileSync(join(location.rootPath, "src", "a.ts"), "export function before() { return true; }");
+    writeFileSync(join(location.rootPath, "src", "b.ts"), "export function untouched() { return true; }");
     indexWithDatabase(database!, location);
 
-    writeFileSync(join(location.rootPath, "src", "a.ts"), "export const after = true;");
+    writeFileSync(join(location.rootPath, "src", "a.ts"), "export function after() { return true; }");
     rmSync(join(location.rootPath, "src", "b.ts"));
     const summary = indexWithDatabase(database!, location, false, [], { paths: ["src/a.ts"] });
 
@@ -77,11 +77,11 @@ describe("indexWithDatabase", () => {
 
   it("allows bounded MCP-style reconciliation to commit processed files and report the remaining scope", () => {
     createProject();
-    writeFileSync(join(location.rootPath, "a.ts"), "export const beforeA = true;");
-    writeFileSync(join(location.rootPath, "b.ts"), "export const beforeB = true;");
+    writeFileSync(join(location.rootPath, "a.ts"), "export function beforeA() { return true; }");
+    writeFileSync(join(location.rootPath, "b.ts"), "export function beforeB() { return true; }");
     indexWithDatabase(database!, location);
-    writeFileSync(join(location.rootPath, "a.ts"), "export const afterA = true;");
-    writeFileSync(join(location.rootPath, "b.ts"), "export const afterB = true;");
+    writeFileSync(join(location.rootPath, "a.ts"), "export function afterA() { return true; }");
+    writeFileSync(join(location.rootPath, "b.ts"), "export function afterB() { return true; }");
 
     const summary = updateProjectIndex(location, { paths: ["a.ts", "b.ts"], maxFiles: 1 });
 
