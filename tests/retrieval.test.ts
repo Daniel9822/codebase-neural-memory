@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
-import { explainSymbol, findDependencies, findImpact, getFileDetails, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
+import { explainSymbol, findDependencies, findImpact, getFileDetails, getSourceExcerpt, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
 import { retrievalRelevanceCases } from "./fixtures/retrieval-relevance.js";
 
 let temporaryDirectory = "";
@@ -170,6 +170,41 @@ describe("findImpact", () => {
     expect(() => findImpact(location, "target.ts", 0)).toThrow("Impact result limit must be a positive safe integer");
     expect(() => findImpact(location, "target.ts", 10, 0)).toThrow("Impact processing limit must be a positive safe integer");
     expect(() => findImpact(location, "missing.ts")).toThrow("File not found in memory index");
+  });
+});
+
+describe("getSourceExcerpt", () => {
+  it("returns bounded source lines and reports whether working-tree content matches the index", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "source.ts"), "export const first = 1;\nexport function second() {\n  return first;\n}\n");
+    indexWithDatabase(database!, location);
+
+    const excerpt = getSourceExcerpt(location, "source.ts", 2, 3, 500);
+    expect(excerpt).toMatchObject({
+      path: "source.ts", startLine: 2, endLine: 3, requestedStartLine: 2,
+      requestedEndLine: 3, totalLines: 5, indexStatus: "current", truncated: false,
+      limits: { maxLines: 200, maxCharacters: 500 },
+    });
+    expect(excerpt.content).toBe("export function second() {\n  return first;");
+    expect(excerpt.contentHash).toBe(excerpt.indexedContentHash);
+
+    writeFileSync(join(location.rootPath, "source.ts"), "export const first = 2;\nexport function second() {\n  return first;\n}\n");
+    const stale = getSourceExcerpt(location, "source.ts", 1, 2, 500);
+    expect(stale.indexStatus).toBe("stale");
+    expect(stale.contentHash).not.toBe(stale.indexedContentHash);
+  });
+
+  it("rejects unindexed, traversal, invalid, and oversized source ranges", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "source.ts"), "export const value = true;\n");
+    indexWithDatabase(database!, location);
+
+    expect(() => getSourceExcerpt(location, "missing.ts", 1, 1)).toThrow("File not found in memory index");
+    expect(() => getSourceExcerpt(location, "../outside.ts", 1, 1)).toThrow("project-relative");
+    expect(() => getSourceExcerpt(location, "source.ts", 0, 1)).toThrow("startLine");
+    expect(() => getSourceExcerpt(location, "source.ts", 2, 1)).toThrow("endLine");
+    expect(() => getSourceExcerpt(location, "source.ts", 1, 201)).toThrow("cannot exceed 200 lines");
+    expect(() => getSourceExcerpt(location, "source.ts", 1, 1, 20_001)).toThrow("maxCharacters");
   });
 });
 

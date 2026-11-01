@@ -2,7 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 import { getMemoryFreshnessReport, recallMemories } from "../../core/memories.js";
-import { getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails } from "../../core/retrieval.js";
+import { getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
 import type { ProjectLocation } from "../../core/project.js";
@@ -62,6 +62,26 @@ export function createMcpServer(location: ProjectLocation): McpServer {
       }),
     }, async ({ path, limit }) => ({
       content: [{ type: "text", text: JSON.stringify(getFileDetails(location, path, limit ?? 100), null, 2) }],
+    }));
+
+    server.registerTool("source_excerpt", {
+      description: "Read a bounded line range from an indexed source file inside the project root. Returns current source text, line bounds, SHA-256 freshness against the index, and truncation metadata.",
+      inputSchema: z.object({
+        path: z.string().min(1),
+        startLine: z.number().int().min(1),
+        endLine: z.number().int().min(1),
+        maxCharacters: z.number().int().min(100).max(20_000).optional(),
+      }).refine((input) => input.endLine >= input.startLine, {
+        message: "endLine must be greater than or equal to startLine",
+        path: ["endLine"],
+      }).refine((input) => input.endLine - input.startLine < 200, {
+        message: "Source excerpt range cannot exceed 200 lines",
+        path: ["endLine"],
+      }),
+    }, async ({ path, startLine, endLine, maxCharacters }) => ({
+      content: [{ type: "text", text: JSON.stringify(
+        getSourceExcerpt(location, path, startLine, endLine, maxCharacters ?? 12_000), null, 2,
+      ) }],
     }));
 
     server.registerTool("change_impact", {
