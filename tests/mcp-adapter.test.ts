@@ -333,7 +333,7 @@ describe("MCP adapter protocol contract", () => {
       'import { missing } from "fixture-package";',
       'import { absent } from "not-installed-fixture";',
       "void missing; void absent;",
-    ].join("\\n"));
+    ].join("\n"));
     indexWithDatabase(database!, location);
 
     const client = await connectClient();
