@@ -708,6 +708,7 @@ export function indexWithDatabase(
       scanned: discovery.scanned, added: 0, updated: 0, unchanged: 0, deleted: 0,
       symbols: 0, relations: 0, skipped: discovery.skipped, failed: discovery.failed,
       errors: [...discovery.errors], skippedFiles: [...discovery.skippedFiles],
+      truncated: discovery.truncated,
     };
 
     const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; stable_id: string; path: string; content_hash: string }) => {
