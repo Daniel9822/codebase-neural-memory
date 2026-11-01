@@ -361,6 +361,23 @@ describe("indexWithDatabase", () => {
     ]);
   });
 
+  it("does not misclassify local workspace packages without exports maps", () => {
+    createProject();
+    const packageRoot = join(location.rootPath, "packages", "shared-local");
+    mkdirSync(packageRoot, { recursive: true });
+    writeFileSync(join(packageRoot, "package.json"), JSON.stringify({ name: "shared-local", main: "index.ts" }));
+    writeFileSync(join(packageRoot, "index.ts"), "export const shared = true;");
+    writeFileSync(join(location.rootPath, "main.ts"), [
+      'import { shared } from "shared-local";',
+      "void shared;",
+    ].join("\n"));
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM unresolved_imports").get()).toEqual({ count: 0 });
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM import_diagnostics").get()).toEqual({ count: 0 });
+  });
+
   it("rebuilds a local import relation between indexed files", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
