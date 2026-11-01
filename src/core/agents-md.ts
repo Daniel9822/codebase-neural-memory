@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, readFileSync, writeFileSync } from "node:fs";
+import { lstatSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ProjectLocation } from "./project.js";
 
@@ -7,6 +7,17 @@ export type AgentTool = "opencode" | "claude" | "cursor" | "generic";
 
 const START = "<!-- cnm:agent-instructions:start -->";
 const END = "<!-- cnm:agent-instructions:end -->";
+
+function readAgentFile(path: string): string | null {
+  try {
+    const info = lstatSync(path);
+    if (!info.isFile()) throw new Error("AGENTS.md must be a regular file; CNM will not follow symlinks or overwrite directories.");
+    return readFileSync(path, "utf8");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    throw error;
+  }
+}
 
 function instructions(tool: AgentTool): string {
   const toolNote = tool === "generic"
@@ -96,8 +107,9 @@ function isIntactManagedBlock(block: string): boolean {
 export function ensureAgentInstructions(location: ProjectLocation, tool: AgentTool = "generic", force = false): AgentInstructionsResult {
   const path = join(location.rootPath, "AGENTS.md");
   const generated = managedBlock(tool);
-  const exists = existsSync(path);
-  const existing = exists ? readFileSync(path, "utf8") : "";
+  const existingFile = readAgentFile(path);
+  const exists = existingFile !== null;
+  const existing = existingFile ?? "";
   const start = existing.indexOf(START);
   const end = existing.indexOf(END);
   let next: string;
@@ -123,8 +135,8 @@ export function ensureAgentInstructions(location: ProjectLocation, tool: AgentTo
 
 export function checkAgentInstructions(location: ProjectLocation, tool: AgentTool = "generic"): AgentInstructionsResult {
   const path = join(location.rootPath, "AGENTS.md");
-  if (!existsSync(path)) return { path, status: "missing", content: "" };
-  const existing = readFileSync(path, "utf8");
+  const existing = readAgentFile(path);
+  if (existing === null) return { path, status: "missing", content: "" };
   const start = existing.indexOf(START);
   const end = existing.indexOf(END);
   if (start < 0 || end < start) return { path, status: "outdated", content: existing };
