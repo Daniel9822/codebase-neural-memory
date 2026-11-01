@@ -271,7 +271,7 @@ export interface MemoryRecallOptions {
 }
 
 function normalizeMemoryText(value: string): string {
-  return value.normalize("NFD").replace(/[\\u0300-\\u036f]/g, "").toLocaleLowerCase().replace(/[^\\p{L}\\p{N}_]+/gu, " ").trim();
+  return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLocaleLowerCase().replace(/[^\p{L}\p{N}_]+/gu, " ").trim();
 }
 
 const MEMORY_QUERY_STOP_WORDS = new Set([
