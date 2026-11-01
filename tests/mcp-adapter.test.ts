@@ -123,7 +123,9 @@ describe("MCP adapter protocol contract", () => {
       "dependency_graph",
       "file_details",
       "index_freshness",
+      "index_update",
       "memory_freshness",
+      "memory_propose",
       "memory_recall",
       "project_map",
       "project_overview",
@@ -135,14 +137,16 @@ describe("MCP adapter protocol contract", () => {
     expect(schemas).toEqual({
       project_overview: [],
       index_freshness: [],
+      index_update: [],
       project_map: ["limit"],
-      symbol_lookup: ["limit", "query"],
+      symbol_lookup: ["exported", "filePath", "kind", "limit", "query"],
       dependency_graph: ["depth", "limit", "maxProcessed", "path"],
       file_details: ["limit", "path"],
       source_excerpt: ["endLine", "maxCharacters", "path", "startLine"],
       change_impact: ["limit", "maxProcessed", "path"],
       task_context: ["maxCharacters", "maxItems", "task"],
       memory_freshness: ["limit"],
+      memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["limit", "query"],
     });
   });
@@ -153,6 +157,7 @@ describe("MCP adapter protocol contract", () => {
     const calls: Array<[string, Record<string, unknown>]> = [
       ["project_overview", {}],
       ["index_freshness", {}],
+      ["index_update", {}],
       ["project_map", { limit: 10 }],
       ["symbol_lookup", { query: "target", limit: 5 }],
       ["dependency_graph", { path: "main.ts", depth: 1 }],
@@ -161,6 +166,7 @@ describe("MCP adapter protocol contract", () => {
       ["change_impact", { path: "helper.ts", limit: 10 }],
       ["task_context", { task: "understand target helper", maxItems: 10 }],
       ["memory_freshness", {}],
+      ["memory_propose", { title: "Suggested invariant", content: "Agent suggestions remain unconfirmed." }],
       ["memory_recall", { query: "MCP adapter", limit: 5 }],
     ];
 
@@ -233,6 +239,27 @@ describe("MCP adapter protocol contract", () => {
     expect(database!.prepare("SELECT id, title, content, status, source_path FROM memories ORDER BY id").all()).toEqual(before.memories);
     expect(database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id)).toEqual(before.indexRevision);
     expect(database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all()).toEqual(before.files);
+  });
+
+  it("supports explicit incremental index updates and stores agent memories as proposed", async () => {
+    createProject();
+    const client = await connectClient();
+    const initialRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function helper() { return false; }\\n");
+
+    const update = await client.request("tools/call", { name: "index_update", arguments: {} });
+    const updateResult = update.result as { content: Array<{ text: string }> };
+    expect(JSON.parse(updateResult.content[0]!.text)).toMatchObject({ updated: 1, unchanged: 1 });
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision).toBe(initialRevision + 1);
+
+    const proposal = await client.request("tools/call", {
+      name: "memory_propose",
+      arguments: { title: "Agent suggestion", content: "Review before adopting.", sourcePath: "main.ts" },
+    });
+    const proposalResult = proposal.result as { content: Array<{ text: string }> };
+    const saved = JSON.parse(proposalResult.content[0]!.text) as { id: string; status: string; requiresHumanConfirmation: boolean };
+    expect(saved).toMatchObject({ status: "proposed", requiresHumanConfirmation: true });
+    expect(database!.prepare("SELECT status FROM memories WHERE id = ?").get(saved.id)).toEqual({ status: "proposed" });
   });
 
   it("supports clean close and a fresh reconnection", async () => {
