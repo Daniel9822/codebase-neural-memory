@@ -2,7 +2,7 @@
 
 **Status:** Complete and formally closed on 2026-10-31. Blocks 1–3 are CI-verified; Block 4 real-client calls were manually verified in VS Code with its integrated GitHub Copilot Agent experience and in OpenCode. Recorded versions: VS Code 1.144.0 (x64), OpenCode 1.19.5, Node.js v22.12.0. No separate Copilot extension version is required for the validated VS Code installation. Block 5 regression passed in clean-checkout CI run [41250061815](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250061815); the documentation close-out merged in PR [#47](https://github.com/Daniel9822/codebase-neural-memory/pull/47), and post-merge main CI [41250490923](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41250490923) passed.
 
-**Post-Phase-6 extension (2026-10-31):** the current MCP server adds an eleventh read-only tool, `source_excerpt`, to close the source-inspection gap identified during Phase 8 agent evaluation. The original Phase 6 close-out and its ten-tool verification remain historical records of the contract at that time.
+**Post-Phase-6 extensions:** `source_excerpt` added bounded source inspection; the follow-up adds `index_update` and `memory_propose`. The original Phase 6 ten-tool close-out remains historical evidence only.
 
 ## Source of truth
 
