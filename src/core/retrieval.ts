@@ -850,7 +850,7 @@ export function findSymbolImpact(location: ProjectLocation, name: string, option
   let normalizedPath: string | undefined;
   if (options.filePath !== undefined) {
     normalizedPath = options.filePath.trim().replaceAll("\\", "/").replace(/^\.\//, "");
-    if (!normalizedPath || normalizedPath.startsWith("/") || /^[a-zA-Z]:\\//.test(normalizedPath)
+    if (!normalizedPath || normalizedPath.startsWith("/") || /^[a-zA-Z]:/.test(normalizedPath)
       || normalizedPath.split("/").some((part) => part === ".." || part === "" || part === ".")) {
       throw new Error("Symbol impact filePath must be a normalized project-relative path.");
     }
