@@ -5,7 +5,7 @@ import { getMemoryFreshnessReport, recallMemories, proposeMemory, transitionMemo
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
-import { getGitBlame } from "../../core/git.js";
+import { getGitBlame, getGitHistory } from "../../core/git.js";
 import type { ProjectLocation } from "../../core/project.js";
 
 export interface McpServerOptions {
@@ -240,6 +240,19 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     }),
   }, async ({ path, startLine, endLine, maxCharacters }) => readResponse(location, options, () =>
     getSourceExcerpt(location, path, startLine, endLine, maxCharacters ?? 12_000)));
+
+  server.registerTool("git_history", {
+    description: "Return bounded recent Git commit metadata and changed-path evidence. Commit boundaries do not identify coding sessions, and commit subjects do not prove developer intent.",
+    inputSchema: z.object({
+      limit: z.number().int().min(1).max(50).optional(),
+      maxPaths: z.number().int().min(1).max(500).optional(),
+    }),
+  }, async ({ limit, maxPaths }) => ({
+    content: [{
+      type: "text",
+      text: JSON.stringify(await getGitHistory(location.rootPath, limit ?? 20, maxPaths ?? 200), null, 2),
+    }],
+  }));
 
   server.registerTool("git_blame", {
     description: "Read bounded Git line attribution for a tracked project-relative file, including commit, author, date, and summary. This is historical attribution, not proof of why a change was made.",
