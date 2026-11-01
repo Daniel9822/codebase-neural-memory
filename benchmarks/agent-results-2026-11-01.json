@@ -21,13 +21,58 @@
       "replicate": 1,
       "toolCalls": {
         "verifiedFromPastedExecutionLog": [
-          {"name": "symbol_lookup", "arguments": {"query": "getIndexFreshness", "limit": 20}, "status": "completed"},
-          {"name": "index_freshness", "arguments": {}, "status": "completed"},
-          {"name": "file_details", "arguments": {"path": "src/core/indexer.ts", "limit": 200}, "status": "completed"},
-          {"name": "project_map", "arguments": {"limit": 200}, "status": "completed"},
-          {"name": "file_details", "arguments": {"path": "src/adapters/mcp/server.ts", "limit": 200}, "status": "completed"},
-          {"name": "file_details", "arguments": {"path": "src/core/git.ts", "limit": 200}, "status": "completed"},
-          {"name": "file_details", "arguments": {"path": "src/shared/types.ts", "limit": 200}, "status": "completed"}
+          {
+            "name": "symbol_lookup",
+            "arguments": {
+              "query": "getIndexFreshness",
+              "limit": 20
+            },
+            "status": "completed"
+          },
+          {
+            "name": "index_freshness",
+            "arguments": {},
+            "status": "completed"
+          },
+          {
+            "name": "file_details",
+            "arguments": {
+              "path": "src/core/indexer.ts",
+              "limit": 200
+            },
+            "status": "completed"
+          },
+          {
+            "name": "project_map",
+            "arguments": {
+              "limit": 200
+            },
+            "status": "completed"
+          },
+          {
+            "name": "file_details",
+            "arguments": {
+              "path": "src/adapters/mcp/server.ts",
+              "limit": 200
+            },
+            "status": "completed"
+          },
+          {
+            "name": "file_details",
+            "arguments": {
+              "path": "src/core/git.ts",
+              "limit": 200
+            },
+            "status": "completed"
+          },
+          {
+            "name": "file_details",
+            "arguments": {
+              "path": "src/shared/types.ts",
+              "limit": 200
+            },
+            "status": "completed"
+          }
         ],
         "source_excerpt": "not available in the agent session; no successful invocation",
         "additionalFailure": "A Search operation failed because a temporary Copilot tool-output path did not exist."
@@ -114,5 +159,185 @@
       "Scores are provisional human/evaluator ratings from the submitted transcripts, not blinded independent ratings.",
       "Only one replicate per condition has been collected."
     ]
-  }
+  },
+  "tasks": [
+    {
+      "taskId": "CNM-AGENT-02",
+      "task": "Explain how memory_freshness evaluates a memory's source file and optional commit_sha; enumerate commit relationship statuses, requiresReview conditions, and whether memory lifecycle is mutated.",
+      "referenceCommit": "7b582a926991897aa2fef0170c80c18a1a0384d0",
+      "testedCommit": null,
+      "commitComparability": "unverified",
+      "runs": [
+        {
+          "condition": "with-cnm",
+          "agent": 1,
+          "replicate": 1,
+          "toolCalls": [
+            {
+              "name": "memory_freshness",
+              "arguments": {
+                "limit": 100
+              },
+              "status": "completed"
+            },
+            {
+              "name": "memory_recall",
+              "arguments": {
+                "limit": 50,
+                "query": "memory_freshness commit_sha requiresReview file fingerprint git relationship"
+              },
+              "status": "completed"
+            },
+            {
+              "name": "symbol_lookup",
+              "arguments": {
+                "query": "memory_freshness",
+                "limit": 20
+              },
+              "status": "completed"
+            },
+            {
+              "name": "symbol_lookup",
+              "arguments": {
+                "query": "inspectMemoryFreshness",
+                "limit": 20
+              },
+              "status": "completed"
+            },
+            {
+              "name": "symbol_lookup",
+              "arguments": {
+                "query": "getMemoryFreshnessReport",
+                "limit": 20
+              },
+              "status": "completed"
+            },
+            {
+              "name": "file_details",
+              "arguments": {
+                "path": "src/core/memories.ts",
+                "limit": 200
+              },
+              "status": "completed"
+            },
+            {
+              "name": "file_details",
+              "arguments": {
+                "path": "src/adapters/mcp/server.ts",
+                "limit": 200
+              },
+              "status": "completed"
+            },
+            {
+              "name": "symbol_lookup",
+              "arguments": {
+                "query": "sourceFingerprint",
+                "limit": 10
+              },
+              "status": "completed"
+            },
+            {
+              "name": "symbol_lookup",
+              "arguments": {
+                "query": "GitCommitRelationship",
+                "limit": 10
+              },
+              "status": "completed"
+            },
+            {
+              "name": "symbol_lookup",
+              "arguments": {
+                "query": "compareGitCommits",
+                "limit": 10
+              },
+              "status": "completed"
+            },
+            {
+              "name": "file_details",
+              "arguments": {
+                "path": "src/core/git.ts",
+                "limit": 100
+              },
+              "status": "completed"
+            },
+            {
+              "name": "memory_recall",
+              "arguments": {
+                "limit": 50
+              },
+              "status": "completed"
+            }
+          ],
+          "additionalInspection": {
+            "source_excerpt": "not available; no successful invocation",
+            "editorSearchAndRead": "Temporary tool-output file was read at lines 110-160 and 400-490, but this did not establish successful source_excerpt access or provide independently verifiable complete source bodies."
+          },
+          "observedToolOutput": {
+            "memoryFreshnessRecords": [],
+            "total": 0,
+            "truncated": false
+          },
+          "findings": [
+            "Located getMemoryFreshnessReport and inspectMemoryFreshness and their relationships.",
+            "Identified seven GitCommitRelationship values: not-referenced, unavailable, unknown, current, ancestor, ahead, diverged.",
+            "Could not verify exact source fingerprint algorithm or requiresReview conditions because implementation bodies were not exposed.",
+            "Reported operation as observational/non-mutating based on tool description, while qualifying the lack of source-level proof."
+          ],
+          "score": {
+            "correctness": 2,
+            "completeness": 2,
+            "evidence": 3,
+            "calibration": 4,
+            "total": 11
+          },
+          "taskSuccess": false,
+          "notes": "Genuine CNM MCP execution is evidenced by the pasted completion log. The tool returned no memory records in this environment. Symbol and file relationship metadata were useful for navigation but insufficient to establish implementation semantics. source_excerpt was unavailable in the exposed tool set. This is a session/tool-access limitation, not proof of an implementation defect."
+        },
+        {
+          "condition": "without-cnm",
+          "agent": 2,
+          "replicate": 1,
+          "sourceReads": [
+            "src/core/memories.ts:1-270",
+            "src/core/git.ts:95-150",
+            "tests/git-awareness.test.ts:118-165",
+            "tests/memories.test.ts:115-185",
+            "tests/mcp-adapter.test.ts:128-165",
+            "src/core/memories.ts:198-265"
+          ],
+          "findings": [
+            "MCP memory_freshness accepts optional limit 1-500; adapter defaults to 100 and calls getMemoryFreshnessReport.",
+            "Report includes eligible non-rejected memories with source_path or commit_sha, sorted by most recently updated and limited; response includes records, total, limit, truncated.",
+            "sourceFingerprint stores SHA-256 of source file bytes at memory creation and re-computes it during inspection.",
+            "Source statuses: not-linked, unsafe, missing, untracked, current, changed. unsafe/missing/untracked/changed require review; current does not by itself.",
+            "Commit statuses: not-referenced, unavailable, unknown, current, ancestor, ahead, diverged. Any status except not-referenced/current requires review.",
+            "Either source state or commit relation can make requiresReview true; source current can coexist with commit review requirement.",
+            "The operation is read-only and does not mutate memory content, stored fingerprints, or lifecycle state; requiresReview is a report signal."
+          ],
+          "score": {
+            "correctness": 4,
+            "completeness": 4,
+            "evidence": 4,
+            "calibration": 4,
+            "total": 16
+          },
+          "taskSuccess": true,
+          "notes": "The agent reports direct source and test reads with concrete ranges. The explanation is internally complete and ties the rules to implementation and tests. Same-commit identity was not supplied; score is provisional."
+        }
+      ],
+      "comparison": {
+        "provisionalWinner": "without-cnm",
+        "scoreDifference": 5,
+        "interpretation": "The no-CNM agent again delivered the complete source-level semantics. The CNM agent successfully discovered symbols, relationships, and live memory-freshness output, but the environment contained no memory records and did not expose source_excerpt, preventing verification of fingerprint and requiresReview logic. This repeated gap is specifically about source-body access in the CNM-enabled sessions, not evidence that CNM generally reduces performance.",
+        "validityLimitations": [
+          "Exact checked-out SHA for each worktree was not supplied; same-commit comparability remains unverified.",
+          "Only one replicate per condition for this task.",
+          "Scores are provisional evaluator ratings, not blinded independent ratings.",
+          "No timing, token, model, or client-version measurements were supplied.",
+          "Agent 1 had no actual memory records in its queried project context, limiting live data validation."
+        ]
+      }
+    }
+  ],
+  "completedTaskCount": 2
 }
