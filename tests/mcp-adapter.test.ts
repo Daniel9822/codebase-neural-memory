@@ -131,6 +131,7 @@ describe("MCP adapter protocol contract", () => {
       "project_map",
       "project_overview",
       "source_excerpt",
+      "symbol_impact",
       "symbol_lookup",
       "task_context",
     ]);
