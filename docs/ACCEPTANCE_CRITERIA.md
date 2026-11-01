@@ -72,7 +72,7 @@ Every milestone must preserve these rules:
 
 ### MCP
 - [ ] The MCP server starts using stdio from the configured project directory.
-- [ ] The server exposes exactly the ten registered read-only tools documented here: `project_overview`, `index_freshness`, `project_map`, `symbol_lookup`, `dependency_graph`, `file_details`, `change_impact`, `task_context`, `memory_freshness`, and `memory_recall`.
+- [x] The current server exposes the documented read-only retrieval tools, including bounded `source_excerpt` for indexed implementation lines; the original ten-tool Phase 6 contract remains historical evidence.
 - [ ] Each tool validates inputs and returns a useful error for invalid values.
 - [ ] Repeated MCP reads do not mutate source or memory records.
 - [ ] The server cannot accidentally read a different repository's memory.
@@ -340,3 +340,13 @@ Every completed implementation task should report:
 7. Whether documentation was updated.
 
 Never say a build, test, push, or integration succeeded unless it was actually executed and its result observed.
+
+
+### Bounded MCP source excerpt
+
+- [x] Source excerpts require an indexed, project-relative path and inclusive positive line range.
+- [x] Lexical traversal and canonical symlink escapes outside the selected project root are rejected.
+- [x] Reads are bounded to 200 lines, 20,000 output characters, and 1 MiB source files.
+- [x] The response includes returned line bounds, total file lines, truncation, current source SHA-256, indexed SHA-256, and an explicit current/stale comparison.
+- [x] MCP protocol tests discover the tool, validate its schema, execute a valid read, and include it in the no-mutation read-call suite.
+- [ ] Run the full clean-checkout CI workflow on the implementation PR before marking this addition verified.
