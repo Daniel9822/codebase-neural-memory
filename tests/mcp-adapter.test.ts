@@ -111,7 +111,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly fourteen tools and publishes the expected input schemas", async () => {
+  it("discovers exactly fifteen tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
