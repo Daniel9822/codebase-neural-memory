@@ -268,7 +268,7 @@ describe("indexWithDatabase", () => {
   it("skips unchanged content and updates changed symbols incrementally", () => {
     createProject();
     const filePath = join(location.rootPath, "service.ts");
-    writeFileSync(filePath, 'import { helper } from "./helper";\\nexport function firstVersion() { return helper(); }');
+    writeFileSync(filePath, 'import { helper } from "./helper";\nexport function firstVersion() { return helper(); }');
     writeFileSync(join(location.rootPath, "helper.ts"), "export function helper() { return 1; }");
 
     const initial = indexWithDatabase(database!, location);
@@ -276,7 +276,7 @@ describe("indexWithDatabase", () => {
     expect(initialRelations.count).toBeGreaterThan(0);
     const unchanged = indexWithDatabase(database!, location);
     const graphAfterUnchanged = database!.prepare("SELECT index_revision FROM relations").all();
-    writeFileSync(filePath, 'import { helper } from "./helper";\\nexport function secondVersion() { return helper(); }');
+    writeFileSync(filePath, 'import { helper } from "./helper";\nexport function secondVersion() { return helper(); }');
     const updated = indexWithDatabase(database!, location);
 
     expect(initial.added).toBe(2);
