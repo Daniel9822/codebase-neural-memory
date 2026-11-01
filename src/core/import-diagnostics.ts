@@ -91,25 +91,29 @@ export function analyzeImportDiagnostics(
   const indexedSet = new Set(absolutePaths);
   const program = ts.createProgram({ rootNames: absolutePaths, options });
   const output: ImportDiagnostic[] = [];
-  for (const diagnostic of program.getSemanticDiagnostics()) {
-    if (!diagnostic.file || diagnostic.start === undefined || !IMPORT_DIAGNOSTIC_CODES.has(diagnostic.code)) continue;
-    const filePath = resolve(diagnostic.file.fileName);
+  // Restrict diagnostics to indexed source files instead of collecting errors
+  // from the entire dependency graph (notably node_modules).
+  for (const sourceFile of program.getSourceFiles()) {
+    const filePath = resolve(sourceFile.fileName);
     if (!indexedSet.has(filePath)) continue;
-    const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-    const context = moduleContext(ts.getTokenAtPosition(diagnostic.file, diagnostic.start));
-    if (!context || !isBareExternalSpecifier(context.specifier, localPackages, options)) continue;
-    const relativePath = relative(root, filePath).split(sep).join("/");
-    const kind = diagnostic.code === 2307 ? "missing-package" : "missing-export";
-    output.push({
-      filePath: relativePath,
-      moduleSpecifier: context.specifier,
-      code: diagnostic.code,
-      kind,
-      message: ts.flattenDiagnosticMessageText(diagnostic.messageText, " "),
-      line: position.line + 1,
-      column: position.character + 1,
-      importedName: context.importedName,
-    });
+    for (const diagnostic of program.getSemanticDiagnostics(sourceFile)) {
+      if (diagnostic.start === undefined || !IMPORT_DIAGNOSTIC_CODES.has(diagnostic.code)) continue;
+      const position = sourceFile.getLineAndCharacterOfPosition(diagnostic.start);
+      const context = moduleContext(ts.getTokenAtPosition(sourceFile, diagnostic.start));
+      if (!context || !isBareExternalSpecifier(context.specifier, localPackages, options)) continue;
+      const relativePath = relative(root, filePath).split(sep).join("/");
+      const kind = diagnostic.code === 2307 ? "missing-package" : "missing-export";
+      output.push({
+        filePath: relativePath,
+        moduleSpecifier: context.specifier,
+        code: diagnostic.code,
+        kind,
+        message: ts.flattenDiagnosticMessageText(diagnostic.messageText, " "),
+        line: position.line + 1,
+        column: position.character + 1,
+        importedName: context.importedName,
+      });
+    }
   }
   const unique = new Map<string, ImportDiagnostic>();
   for (const item of output) {
