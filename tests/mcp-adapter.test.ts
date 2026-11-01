@@ -144,7 +144,7 @@ describe("MCP adapter protocol contract", () => {
       file_details: ["inlineSnippets", "limit", "path", "snippetLimit", "snippetMaxLines"],
       source_excerpt: ["endLine", "maxCharacters", "path", "startLine"],
       change_impact: ["limit", "maxProcessed", "path"],
-      task_context: ["maxCharacters", "maxItems", "task"],
+      task_context: ["anchors", "maxCharacters", "maxItems", "task"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["limit", "query"],
@@ -178,6 +178,40 @@ describe("MCP adapter protocol contract", () => {
       expect(result.content?.some((item) => item.type === "text" && typeof item.text === "string"), name).toBe(true);
       expect(() => JSON.parse(result.content![0]!.text!)).not.toThrow();
     }
+
+  it("returns verified inline snippets and restricts anchored task context to anchor/graph items", async () => {
+    createProject();
+    const client = await connectClient();
+
+    const symbols = await client.request("tools/call", {
+      name: "symbol_lookup",
+      arguments: { query: "target", includeSource: { maxLines: 5 } },
+    });
+    const symbolItems = JSON.parse((symbols.result as { content: Array<{ text: string }> }).content[0]!.text) as Array<{ source?: { content: string; indexStatus: string } }>;
+    expect(symbolItems[0]?.source?.content).toContain("function target");
+    expect(symbolItems[0]?.source?.indexStatus).toBe("current");
+
+    const details = await client.request("tools/call", {
+      name: "file_details",
+      arguments: { path: "main.ts", inlineSnippets: true, snippetLimit: 2 },
+    });
+    const fileResult = JSON.parse((details.result as { content: Array<{ text: string }> }).content[0]!.text) as {
+      symbols: Array<{ source?: { content: string; indexStatus: string } }>;
+      inlineSnippets: { included: number };
+    };
+    expect(fileResult.inlineSnippets.included).toBeGreaterThan(0);
+    expect(fileResult.symbols[0]?.source?.indexStatus).toBe("current");
+
+    const anchored = await client.request("tools/call", {
+      name: "task_context",
+      arguments: { task: "unrelated broad task terms", anchors: { paths: ["main.ts"] } },
+    });
+    const context = JSON.parse((anchored.result as { content: Array<{ text: string }> }).content[0]!.text) as {
+      items: Array<{ source: string; origin: string }>;
+    };
+    expect(context.items).toContainEqual(expect.objectContaining({ source: "main.ts", origin: "anchor" }));
+    expect(context.items.every((item) => item.origin === "anchor" || item.origin === "graph")).toBe(true);
+  });
 
     const first = await client.request("tools/call", { name: "project_overview", arguments: {} });
     const second = await client.request("tools/call", { name: "project_overview", arguments: {} });
