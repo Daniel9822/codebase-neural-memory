@@ -37,7 +37,19 @@ function moduleContext(node: ts.Node): { specifier: string; importedName: string
   return undefined;
 }
 
-function isBareExternalSpecifier(specifier: string, localPackages: ReadonlySet<string>): boolean {
+function isPathAlias(specifier: string, options: ts.CompilerOptions): boolean {
+  return Object.keys(options.paths ?? {}).some((pattern) => {
+    const wildcard = pattern.indexOf("*");
+    if (wildcard < 0) return pattern === specifier;
+    const prefix = pattern.slice(0, wildcard);
+    const suffix = pattern.slice(wildcard + 1);
+    return specifier.startsWith(prefix) && specifier.endsWith(suffix) &&
+      specifier.length >= prefix.length + suffix.length;
+  });
+}
+
+function isBareExternalSpecifier(specifier: string, localPackages: ReadonlySet<string>, options: ts.CompilerOptions): boolean {
+  if (isPathAlias(specifier, options)) return false;
   if (specifier.startsWith(".") || specifier.startsWith("/") || specifier.startsWith("#")) return false;
   const packageName = specifier.startsWith("@")
     ? specifier.split("/").slice(0, 2).join("/")
@@ -84,8 +96,8 @@ export function analyzeImportDiagnostics(
     const filePath = resolve(diagnostic.file.fileName);
     if (!indexedSet.has(filePath)) continue;
     const position = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
-    const context = moduleContext(diagnostic.file.getTokenAtPosition(diagnostic.start));
-    if (!context || !isBareExternalSpecifier(context.specifier, localPackages)) continue;
+    const context = moduleContext(ts.getTokenAtPosition(diagnostic.file, diagnostic.start));
+    if (!context || !isBareExternalSpecifier(context.specifier, localPackages, options)) continue;
     const relativePath = relative(root, filePath).split(sep).join("/");
     const kind = diagnostic.code === 2307 ? "missing-package" : "missing-export";
     output.push({
