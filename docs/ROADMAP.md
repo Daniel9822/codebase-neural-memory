@@ -266,7 +266,7 @@ Exit condition: full CI passes on the PR head; protocol and core tests prove the
 
 ### Agent trust and context follow-up (2026-11-01)
 
-**Status:** Implemented on feature branch `feat/mcp-trustworthy-agent-context`; CI and review remain pending.
+**Status:** Complete and merged in PR #55 (`de0cc1056469113995647d1d10199e08da39dc42`); full CI passed in run [41285903567](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41285903567).
 
 - [x] Reuse the existing exact-path/hash freshness report (P1 was already implemented before this follow-up; do not duplicate it).
 - [x] Append a freshness warning to every indexed MCP read when the index is stale or incomplete.
@@ -276,9 +276,11 @@ Exit condition: full CI passes on the PR head; protocol and core tests prove the
 - [x] Add explicit path/symbol anchors and anchor/graph/fallback origin labels to `task_context`; anchored mode disables broad lexical fallback.
 - [x] Add a reusable MCP-first agent workflow and memory-proposal discipline in `docs/AGENT_WORKFLOW.md`.
 - [ ] Add a verified session-start hook for a specific OpenCode plugin API. This is deferred because the current CNM repository has no OpenCode plugin package or hook runtime; the documented startup procedure uses MCP calls instead.
-- [ ] Run typecheck, full tests, build, smoke, and cross-platform CI on the final PR head.
+- [x] Run typecheck, full tests, build, smoke, and cross-platform CI on the final PR head (run 41285903567 passed).
 
 Design note: no five-second timeout is claimed. The current indexer is synchronous, so cancelling it safely would require a separate worker/process design. The auto-update file-count guard limits the scope of automatic work but not elapsed time.
+
+**Verification:** PR #55 was merged as `de0cc1056469113995647d1d10199e08da39dc42`. CI run [41285903567](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41285903567) passed `npm ci --no-audit --no-fund`, typecheck, full tests, build, smoke, and benchmark jobs on Ubuntu, Windows, and macOS. Real-client re-verification of the new response blocks remains open.
 
 ## Phase 9 — Optional semantic retrieval
 
