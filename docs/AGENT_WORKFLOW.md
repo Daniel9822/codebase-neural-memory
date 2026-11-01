@@ -26,7 +26,7 @@ CNM generates and maintains a managed instruction section in the target reposito
 - Use ordinary file reads for Markdown, assets, JSON/configuration, package manifests, tests, compiler output, unsupported files, or stale/incomplete/unreadable results.
 - Never read or copy secrets such as `.env`, private keys, credentials, or authentication histories into memory or agent instructions.
 - Never infer behavior from symbol names, signatures, graph edges, or memory text alone when implementation details matter. Verify source and tests.
-- CNM's import graph does not validate all external package imports or named export bindings. Run the project's compiler/build and tests before claiming a change is healthy.
+- Inspect `file_details.importDiagnostics` and `project_map.importDiagnostics` for TypeScript semantic diagnostics such as missing external packages and missing named exports. Diagnostics are limited to supported indexed files and static TypeScript resolution; an empty list is not a compiler guarantee. Run the project's compiler/build and tests before claiming a change is healthy.
 
 ## Editing and verification
 

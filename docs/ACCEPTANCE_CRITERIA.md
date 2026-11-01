@@ -415,5 +415,5 @@ The following capabilities remain open: signature-regex search, semantic impact/
 - [ ] `memory_recall` finds relevant memories from natural-language terms, supports list/status/category filters, and includes proposed memories by default without mislabeling their status.
 - [ ] An agent can call `memory_transition` to confirm a proposal only after the user explicitly authorizes it; no automatic promotion is allowed.
 - [ ] A different agent using the same initialized project can recall the same local memories.
-- [ ] Compiler/build validation remains required for external package existence and named export binding correctness until semantic import validation is implemented.
+- [x] TypeScript semantic import diagnostics identify supported missing-package and missing-export cases during indexing; `project_map` exposes them, and `file_details` exposes bounded per-file diagnostics with totals/truncation. Compiler/build validation remains required because this is not a complete compiler run.
 - [ ] Full typecheck, tests, build, smoke, and cross-platform CI pass before merge.
