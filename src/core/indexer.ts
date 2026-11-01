@@ -112,8 +112,6 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
   validateIndexOptions(options);
   const selectedPaths = normalizeScopePaths(options.paths);
   const includeMatcher = options.include?.length ? ignore().add(options.include) : undefined;
-  const scoped = selectedPaths.length > 0 || includeMatcher !== undefined ||
-    options.maxFiles !== undefined || options.maxProcessed !== undefined;
   const output: DiscoveredFile[] = [];
   const presentPaths = new Set<string>();
   const protectedDirectories = new Set<string>();
@@ -667,7 +665,12 @@ export function updateProjectIndex(location: ProjectLocation, options: IndexOpti
     const row = db.prepare("SELECT index_excludes_json FROM projects WHERE id = ?").get(location.id) as { index_excludes_json: string } | undefined;
     if (!row) throw new Error("This repository has not been initialized. Run `cnm init` first.");
     const excludes = JSON.parse(row.index_excludes_json) as string[];
-    return indexWithDatabase(db, location, false, excludes, { ...options, requireCompleteSnapshot: true });
+    const selective = Boolean(options.paths?.length || options.include?.length ||
+      options.maxFiles !== undefined || options.maxProcessed !== undefined);
+    return indexWithDatabase(db, location, false, excludes, {
+      ...options,
+      requireCompleteSnapshot: options.requireCompleteSnapshot ?? !selective,
+    });
   } finally {
     db.close();
   }
