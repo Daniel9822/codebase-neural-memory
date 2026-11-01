@@ -125,4 +125,13 @@ When changing `src/adapters/mcp/server.ts`, update this contract and the linked 
 - [x] Optional auto-update reconciles small, complete source changes before a read; incomplete discovery and changes over 50 files are left for explicit update.
 - [x] Symbol and file-detail tools can include bounded source snippets with independent hashes and index status.
 - [x] Task context accepts explicit path/symbol anchors and labels anchor, graph, and fallback provenance.
-- [ ] Full CI and client compatibility must be verified on the final pull-request head before these capabilities are considered released.
+- [x] Full CI passed on PR #55 head in run 41285903567, including typecheck, tests, build, smoke, and Ubuntu/Windows/macOS benchmarks.
+- [ ] Post-merge real-client compatibility for the new freshness warnings and optional schemas still requires a manual OpenCode and VS Code/Copilot check.
+
+
+### Agent-trust CI evidence
+
+- **Merged PR:** [#55](https://github.com/Daniel9822/codebase-neural-memory/pull/55).
+- **Merge commit:** `de0cc1056469113995647d1d10199e08da39dc42`.
+- **PR-head CI:** [run 41285903567](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41285903567) — verify, benchmark/ubuntu-latest, benchmark/windows-latest, and benchmark/macos-latest all passed.
+- **Manual compatibility:** not yet repeated after the new response warning blocks and optional input fields; existing client evidence remains historical for the prior contract.
