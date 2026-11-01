@@ -75,7 +75,7 @@ export function getGitSnapshot(rootPath: string): GitSnapshot {
     };
   }
 
-  const records = porcelain.split("\\n");
+  const records = porcelain.split("\n");
   const statusRecords: string[] = [];
   for (let index = 0; index < records.length; index += 1) {
     const line = records[index] ?? "";
@@ -93,7 +93,7 @@ export function getGitSnapshot(rootPath: string): GitSnapshot {
     branch: branchHead && branchHead !== "(detached)" ? branchHead : null,
     dirty: statusRecords.length > 0,
     changedPathCount: statusRecords.length,
-    statusHash: createHash("sha256").update(statusRecords.join("\\n")).digest("hex"),
+    statusHash: createHash("sha256").update(statusRecords.join("\n")).digest("hex"),
   };
 }
 
