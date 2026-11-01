@@ -35,7 +35,8 @@ export function migrate(db: MemoryDatabase): void {
       indexed_worktree_status_hash TEXT,
       indexed_worktree_changed_paths INTEGER,
       index_revision INTEGER NOT NULL DEFAULT 0,
-      index_excludes_json TEXT NOT NULL DEFAULT '[]'
+      index_excludes_json TEXT NOT NULL DEFAULT '[]',
+      relations_config_hash TEXT
     );
 
     CREATE TABLE IF NOT EXISTS files (
@@ -245,6 +246,12 @@ export function migrate(db: MemoryDatabase): void {
     CREATE INDEX IF NOT EXISTS idx_import_diagnostics_source ON import_diagnostics(source_file_id);
   `);
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (11, ?)`).run(now);
+
+  const relationConfigColumns = db.prepare("PRAGMA table_info(projects)").all() as Array<{ name: string }>;
+  if (!relationConfigColumns.some((column) => column.name === "relations_config_hash")) {
+    db.exec("ALTER TABLE projects ADD COLUMN relations_config_hash TEXT");
+  }
+  db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (12, ?)`).run(now);
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {

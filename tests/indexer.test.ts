@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
-import { indexWithDatabase } from "../src/core/indexer.js";
+import { indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
 import { getProjectMapReport } from "../src/core/retrieval.js";
 
 let temporaryDirectory = "";
@@ -35,6 +35,104 @@ afterEach(() => {
 });
 
 describe("indexWithDatabase", () => {
+  it("reindexes only an explicitly selected file and preserves every out-of-scope record", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "a.ts"), "export function before() { return true; }");
+    writeFileSync(join(location.rootPath, "src", "b.ts"), "export function untouched() { return true; }");
+    indexWithDatabase(database!, location);
+
+    writeFileSync(join(location.rootPath, "src", "a.ts"), "export function after() { return true; }");
+    rmSync(join(location.rootPath, "src", "b.ts"));
+    const summary = indexWithDatabase(database!, location, false, [], { paths: ["src/a.ts"] });
+
+    expect(summary.updated).toBe(1);
+    expect(summary.deleted).toBe(0);
+    expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([
+      { path: "src/a.ts" }, { path: "src/b.ts" },
+    ]);
+    expect(database!.prepare("SELECT name FROM symbols ORDER BY name").all()).toEqual([
+      { name: "after" }, { name: "untouched" },
+    ]);
+  });
+
+  it("selects directory descendants and intersects path selectors with include globs", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src", "nested"), { recursive: true });
+    mkdirSync(join(location.rootPath, "tests"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "root.ts"), "export const root = true;");
+    writeFileSync(join(location.rootPath, "src", "nested", "match.ts"), "export const match = true;");
+    writeFileSync(join(location.rootPath, "src", "nested", "skip.js"), "export const skip = true;");
+    writeFileSync(join(location.rootPath, "tests", "test.ts"), "export const test = true;");
+
+    const summary = indexWithDatabase(database!, location, false, [], {
+      paths: ["src"], include: ["src/**/*.ts"],
+    });
+
+    expect(summary.added).toBe(2);
+    expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([
+      { path: "src/nested/match.ts" }, { path: "src/root.ts" },
+    ]);
+  });
+
+  it("allows bounded MCP-style reconciliation to commit processed files and report the remaining scope", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "a.ts"), "export function beforeA() { return true; }");
+    writeFileSync(join(location.rootPath, "b.ts"), "export function beforeB() { return true; }");
+    indexWithDatabase(database!, location);
+    writeFileSync(join(location.rootPath, "a.ts"), "export function afterA() { return true; }");
+    writeFileSync(join(location.rootPath, "b.ts"), "export function afterB() { return true; }");
+
+    const summary = updateProjectIndex(location, { paths: ["a.ts", "b.ts"], maxFiles: 1 });
+
+    expect(summary.updated).toBe(1);
+    expect(summary.truncated).toBe(true);
+    expect(summary.deleted).toBe(0);
+    expect(database!.prepare("SELECT name FROM symbols ORDER BY name").all()).toEqual([
+      { name: "afterA" }, { name: "beforeB" },
+    ]);
+  });
+
+  it("stops at maxFiles and reports truncation without deleting unselected files", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "a.ts"), "export const a = true;");
+    writeFileSync(join(location.rootPath, "b.ts"), "export const b = true;");
+    writeFileSync(join(location.rootPath, "c.ts"), "export const c = true;");
+
+    const summary = indexWithDatabase(database!, location, false, [], { maxFiles: 1 });
+
+    expect(summary.scanned).toBe(1);
+    expect(summary.added).toBe(1);
+    expect(summary.truncated).toBe(true);
+    expect(summary.deleted).toBe(0);
+    expect(database!.prepare("SELECT path FROM files").all()).toEqual([{ path: "a.ts" }]);
+  });
+
+  it("stops directory traversal at maxProcessed and marks the result incomplete", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "a.ts"), "export const a = true;");
+    writeFileSync(join(location.rootPath, "b.ts"), "export const b = true;");
+
+    const summary = indexWithDatabase(database!, location, false, [], { maxProcessed: 1 });
+
+    expect(summary.truncated).toBe(true);
+    expect(summary.deleted).toBe(0);
+    expect(summary.scanned).toBeLessThanOrEqual(1);
+  });
+
+  it("rejects traversal paths and invalid processing limits", () => {
+    createProject();
+    expect(() => indexWithDatabase(database!, location, false, [], { paths: ["../outside.ts"] }))
+      .toThrow("project-relative");
+    expect(() => indexWithDatabase(database!, location, false, [], { maxFiles: 10_001 }))
+      .toThrow("maxFiles");
+    expect(() => indexWithDatabase(database!, location, false, [], { maxProcessed: 0 }))
+      .toThrow("maxProcessed");
+    expect(() => indexWithDatabase(database!, location, false, [], { include: ["../outside/**/*.ts"] }))
+      .toThrow("Include patterns");
+    expect(() => indexWithDatabase(database!, location, false, [], { paths: Array.from({ length: 101 }, (_, i) => `src/${i}.ts`) }))
+      .toThrow("At most 100 index scope paths");
+  });
   it("keeps stable file and symbol identifiers across forced reindex and line shifts", () => {
     createProject();
     const filePath = join(location.rootPath, "src", "stable.ts");
@@ -170,18 +268,54 @@ describe("indexWithDatabase", () => {
   it("skips unchanged content and updates changed symbols incrementally", () => {
     createProject();
     const filePath = join(location.rootPath, "service.ts");
-    writeFileSync(filePath, "export function firstVersion() { return 1; }");
+    writeFileSync(filePath, 'import { helper } from "./helper";\nexport function firstVersion() { return helper(); }');
+    writeFileSync(join(location.rootPath, "helper.ts"), "export function helper() { return 1; }");
 
     const initial = indexWithDatabase(database!, location);
+    const initialRelations = database!.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number };
+    expect(initialRelations.count).toBeGreaterThan(0);
     const unchanged = indexWithDatabase(database!, location);
-    writeFileSync(filePath, "export function secondVersion() { return 2; }");
+    const graphAfterUnchanged = database!.prepare("SELECT index_revision FROM relations").all();
+    writeFileSync(filePath, 'import { helper } from "./helper";\nexport function secondVersion() { return helper(); }');
     const updated = indexWithDatabase(database!, location);
 
-    expect(initial.added).toBe(1);
-    expect(unchanged.unchanged).toBe(1);
+    expect(initial.added).toBe(2);
+    expect(unchanged.unchanged).toBe(2);
     expect(unchanged.updated).toBe(0);
+    expect(graphAfterUnchanged.every((row) => (row as { index_revision: number }).index_revision === 2)).toBe(true);
     expect(updated.updated).toBe(1);
-    expect(database!.prepare("SELECT name FROM symbols").all()).toEqual([{ name: "secondVersion" }]);
+    expect(database!.prepare("SELECT name FROM symbols WHERE file_id = (SELECT id FROM files WHERE path = 'service.ts')").all())
+      .toEqual([{ name: "secondVersion" }]);
+  });
+
+  it("rebuilds graph relations when TypeScript/package configuration changes without source edits", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"),
+      'import { helper } from "@/helper";\nexport function run() { return helper(); }');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./tsconfig.base.json" }));
+    writeFileSync(join(location.rootPath, "tsconfig.base.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: {} },
+    }));
+
+    indexWithDatabase(database!, location);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
+      .toEqual({ count: 0 });
+    const before = database!.prepare("SELECT relations_config_hash FROM projects WHERE id = ?")
+      .get(location.id) as { relations_config_hash: string };
+
+    writeFileSync(join(location.rootPath, "tsconfig.base.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
+    }));
+    const refreshed = indexWithDatabase(database!, location);
+    const after = database!.prepare("SELECT relations_config_hash FROM projects WHERE id = ?")
+      .get(location.id) as { relations_config_hash: string };
+
+    expect(refreshed.unchanged).toBe(2);
+    expect(after.relations_config_hash).toBe(before.relations_config_hash);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
+      .toEqual({ count: 1 });
   });
 
   it("records missing and ambiguous relative imports without guessing a target", () => {

@@ -3,7 +3,7 @@ import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 import { getMemoryFreshnessReport, recallMemories, proposeMemory, transitionMemory, type MemoryStatus } from "../../core/memories.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
-import { getIndexFreshness, updateProjectIndex } from "../../core/indexer.js";
+import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
 import { getGitBlame } from "../../core/git.js";
 import type { ProjectLocation } from "../../core/project.js";
@@ -123,11 +123,24 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }));
 
   server.registerTool("index_update", {
-    description: "Incrementally reconcile the local source index with the current working tree, preserving the project's configured exclusions. This is an explicit local write operation; unchanged files are skipped.",
-    inputSchema: z.object({}),
-  }, async () => ({
-    content: [{ type: "text", text: JSON.stringify(updateProjectIndex(location), null, 2) }],
-  }));
+    description: "Incrementally reconcile the local source index, optionally restricted to project-relative paths or include globs and bounded by file/traversal budgets. Selective updates do not perform deletion reconciliation; they never delete indexed files outside the selected scope. A truncated scope is reported and is not a complete snapshot.",
+    inputSchema: z.object({
+      paths: z.array(z.string().min(1).max(500)).min(1).max(100).optional(),
+      include: z.array(z.string().min(1).max(500)).min(1).max(100).optional(),
+      maxFiles: z.number().int().min(1).max(10000).optional(),
+      maxProcessed: z.number().int().min(1).max(100000).optional(),
+    }),
+  }, async ({ paths, include, maxFiles, maxProcessed }) => {
+    const indexOptions: IndexOptions = {
+      ...(paths === undefined ? {} : { paths }),
+      ...(include === undefined ? {} : { include }),
+      ...(maxFiles === undefined ? {} : { maxFiles }),
+      ...(maxProcessed === undefined ? {} : { maxProcessed }),
+    };
+    return {
+      content: [{ type: "text", text: JSON.stringify(updateProjectIndex(location, indexOptions), null, 2) }],
+    };
+  });
 
   server.registerTool("component_map", {
     description: "Aggregate indexed file imports into deterministic first-directory groups. Reports directed cross-group import counts and optional shortest dependency distances. Groups are structural directory boundaries, not inferred semantic components.",

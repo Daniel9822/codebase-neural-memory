@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, readdirSync, statSync, type Dirent } from "node:fs";
+import { opendirSync, readFileSync, statSync, type Dirent } from "node:fs";
 import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -39,8 +39,57 @@ interface DiscoveryResult {
   scanned: number;
   skipped: number;
   failed: number;
+  truncated: boolean;
   errors: string[];
   skippedFiles: string[];
+}
+export interface IndexOptions {
+  /** Abort and roll back if discovery, parsing, or source snapshot validation is incomplete. */
+  requireCompleteSnapshot?: boolean;
+  /** Exact project-relative file/directory paths. Directory selections include descendants. */
+  paths?: string[];
+  /** Additional project-relative glob patterns; combined with paths as an intersection. */
+  include?: string[];
+  /** Maximum matching source files to read and index (1-10000). */
+  maxFiles?: number;
+  /** Maximum directory entries examined (1-100000). */
+  maxProcessed?: number;
+}
+function normalizeScopePaths(paths: string[] = []): string[] {
+  if (paths.length > 100) throw new Error("At most 100 index scope paths are allowed.");
+  return paths.map((value) => {
+    const normalized = value.replaceAll("\\", "/").replace(/^\.\//, "").replace(/\/+$/, "");
+    if (!normalized || normalized.length > 500 || normalized.startsWith("/") || /^[A-Za-z]:/.test(normalized) ||
+      normalized.split("/").some((part) => part === ".." || part === ".")) {
+      throw new Error("Index scope paths must be non-empty project-relative paths (max 500 characters) without traversal.");
+    }
+    return normalized;
+  });
+}
+function normalizeIncludePatterns(patterns: string[] = []): string[] {
+  if (patterns.length > 100) throw new Error("At most 100 index include patterns are allowed.");
+  return patterns.map((pattern) => {
+    const normalized = pattern.replaceAll("\\", "/").trim();
+    if (!normalized || normalized.length > 500 || normalized.startsWith("/") ||
+      /^[A-Za-z]:/.test(normalized) || normalized.startsWith("!") ||
+      normalized.split("/").some((part) => part === "..")) {
+      throw new Error("Include patterns must be project-relative glob patterns (max 500 characters) without negation or traversal.");
+    }
+    return normalized;
+  });
+}
+function validateIndexOptions(options: IndexOptions): void {
+  if (options.maxFiles !== undefined && (!Number.isInteger(options.maxFiles) || options.maxFiles < 1 || options.maxFiles > 10_000)) {
+    throw new Error("maxFiles must be an integer between 1 and 10000.");
+  }
+  if (options.maxProcessed !== undefined && (!Number.isInteger(options.maxProcessed) || options.maxProcessed < 1 || options.maxProcessed > 100_000)) {
+    throw new Error("maxProcessed must be an integer between 1 and 100000.");
+  }
+}
+function isWithinIndexScope(path: string, paths: string[], includeMatcher?: ReturnType<typeof ignore>): boolean {
+  const pathMatch = paths.length === 0 || paths.some((selected) =>
+    path === selected || path.startsWith(selected + "/"));
+  return pathMatch && (includeMatcher === undefined || includeMatcher.ignores(path));
 }
 
 function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: string[] = []): IgnoreScope {
@@ -69,7 +118,11 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
   });
 }
 
-export function discoverFiles(root: string, extraExcludes: string[] = []): DiscoveryResult {
+export function discoverFiles(root: string, extraExcludes: string[] = [], options: IndexOptions = {}): DiscoveryResult {
+  validateIndexOptions(options);
+  const selectedPaths = normalizeScopePaths(options.paths);
+  const includePatterns = normalizeIncludePatterns(options.include);
+  const includeMatcher = includePatterns.length ? ignore().add(includePatterns) : undefined;
   const output: DiscoveredFile[] = [];
   const presentPaths = new Set<string>();
   const protectedDirectories = new Set<string>();
@@ -78,62 +131,93 @@ export function discoverFiles(root: string, extraExcludes: string[] = []): Disco
   let scanned = 0;
   let skipped = 0;
   let failed = 0;
+  let processedEntries = 0;
+  let truncated = false;
+  let stopped = false;
   const rootScope = loadIgnoreRules(root, true, extraExcludes);
   const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
+    if (stopped) return;
     const directoryPath = relative(root, directory).replaceAll("\\", "/");
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
-    let entries: Dirent[];
+    let handle: ReturnType<typeof opendirSync>;
     try {
-      entries = readdirSync(directory, { withFileTypes: true })
-        .sort((a, b) => a.name.localeCompare(b.name));
+      // Stream directory entries instead of materializing and sorting an
+      // unbounded array. maxProcessed now bounds actual enumeration work too.
+      handle = opendirSync(directory);
     } catch (error) {
       failed += 1;
       errors.push((directoryPath || ".") + ": " + (error instanceof Error ? error.message : String(error)));
       protectedDirectories.add(directoryPath);
       return;
     }
-    for (const entry of entries) {
-      const absolutePath = join(directory, entry.name);
-      const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
-      if (isIgnored(absolutePath, scopes)) continue;
-      if (entry.isSymbolicLink()) {
-        if (isSupportedSourceFile(relativePath)) {
-          scanned += 1;
-          skipped += 1;
-          skippedFiles.push(relativePath + ": symbolic link");
+    try {
+      let entry: Dirent | null;
+      while (!stopped && (entry = handle.readSync()) !== null) {
+        processedEntries += 1;
+        if (options.maxProcessed !== undefined && processedEntries > options.maxProcessed) {
+          truncated = true;
+          stopped = true;
+          break;
         }
-        continue;
+        const absolutePath = join(directory, entry.name);
+        const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
+        if (isIgnored(absolutePath, scopes)) continue;
+        if (entry.isDirectory() && selectedPaths.length > 0 &&
+          !selectedPaths.some((selected) => selected === relativePath || selected.startsWith(relativePath + "/") || relativePath.startsWith(selected + "/"))) continue;
+        const selected = isWithinIndexScope(relativePath, selectedPaths, includeMatcher);
+        if (selected && isSupportedSourceFile(relativePath) &&
+          options.maxFiles !== undefined && scanned >= options.maxFiles) {
+          truncated = true;
+          stopped = true;
+          break;
+        }
+        if (entry.isSymbolicLink()) {
+          if (selected && isSupportedSourceFile(relativePath)) {
+            scanned += 1;
+            skipped += 1;
+            skippedFiles.push(relativePath + ": symbolic link");
+          }
+          continue;
+        }
+        if (entry.isDirectory()) {
+          walk(absolutePath, scopes);
+          continue;
+        }
+        if (!entry.isFile() || !isSupportedSourceFile(relativePath) || !selected) continue;
+        presentPaths.add(relativePath);
+        scanned += 1;
+        try {
+          const stat = statSync(absolutePath);
+          if (stat.size > MAX_FILE_BYTES) { skipped += 1; skippedFiles.push(relativePath + ": exceeds " + MAX_FILE_BYTES + " bytes"); continue; }
+          const content = readFileSync(absolutePath);
+          if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
+          const source = content.toString("utf8");
+          output.push({
+            relativePath,
+            size: stat.size,
+            mtime: stat.mtime,
+            hash: createHash("sha256").update(content).digest("hex"),
+            source,
+          });
+        } catch (error) {
+          failed += 1;
+          errors.push(relativePath + ": " + (error instanceof Error ? error.message : String(error)));
+        }
       }
-      if (entry.isDirectory()) {
-        walk(absolutePath, scopes);
-        continue;
-      }
-      if (!entry.isFile() || !isSupportedSourceFile(relativePath)) continue;
-      presentPaths.add(relativePath);
-      scanned += 1;
-      try {
-        const stat = statSync(absolutePath);
-        if (stat.size > MAX_FILE_BYTES) { skipped += 1; skippedFiles.push(relativePath + ": exceeds " + MAX_FILE_BYTES + " bytes"); continue; }
-        const content = readFileSync(absolutePath);
-        if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
-        const source = content.toString("utf8");
-        output.push({
-          relativePath,
-          size: stat.size,
-          mtime: stat.mtime,
-          hash: createHash("sha256").update(content).digest("hex"),
-          source,
-        });
-      } catch (error) {
-        failed += 1;
-        errors.push(relativePath + ": " + (error instanceof Error ? error.message : String(error)));
-      }
+    } catch (error) {
+      failed += 1;
+      errors.push((directoryPath || ".") + ": " + (error instanceof Error ? error.message : String(error)));
+      protectedDirectories.add(directoryPath);
+    } finally {
+      try { handle.closeSync(); } catch { /* The directory may already be closed. */ }
     }
   };
   walk(root, [rootScope]);
   return {
     files: output.sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
-    presentPaths, protectedDirectories, scanned, skipped, failed, errors, skippedFiles,
+    presentPaths, protectedDirectories, scanned, skipped, failed, truncated,
+    errors: errors.sort((a, b) => a.localeCompare(b)),
+    skippedFiles: skippedFiles.sort((a, b) => a.localeCompare(b)),
   };
 }
 function stableIdentifier(value: unknown): string {
@@ -298,6 +382,39 @@ function expandSourceCandidates(base: string): string[] {
     ? [base, ...aliases]
     : [base, ...[".ts", ".tsx", ".js", ".jsx", ".mts", ".cts", ".mjs", ".cjs"].map((ext) => base + ext),
       ...["index.ts", "index.tsx", "index.js", "index.jsx"].map((file) => `${base}/${file}`)];
+}
+
+function hasExtendedTsConfig(rootPath: string): boolean {
+  const config = ts.readConfigFile(join(rootPath, "tsconfig.json"), ts.sys.readFile);
+  return !config.error && Boolean(config.config && typeof config.config === "object" &&
+    "extends" in config.config);
+}
+
+function computeRelationsConfigHash(rootPath: string, files: Array<{ path: string }>): string {
+  const packageDirectories = new Set<string>([""]);
+  for (const file of files) {
+    let directory = posix.dirname(file.path.replaceAll("\\", "/"));
+    while (directory !== "." && directory !== "") {
+      packageDirectories.add(directory);
+      directory = posix.dirname(directory);
+    }
+  }
+  const configPaths = [
+    "tsconfig.json",
+    ...[...packageDirectories].map((directory) =>
+      directory ? posix.join(directory, "package.json") : "package.json"),
+  ].sort((a, b) => a.localeCompare(b));
+  const hash = createHash("sha256");
+  for (const configPath of configPaths) {
+    hash.update(configPath).update("\\0");
+    try {
+      hash.update(readFileSync(join(rootPath, ...configPath.split("/"))));
+    } catch {
+      hash.update("<missing>");
+    }
+    hash.update("\0");
+  }
+  return hash.digest("hex");
 }
 
 function rebuildRelations(db: MemoryDatabase, rootPath: string, indexRevision: number): number {
@@ -583,36 +700,45 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
   }
 }
 
-export function indexProject(location: ProjectLocation, force = false, extraExcludes: string[] = []): IndexSummary {
+export function indexProject(
+  location: ProjectLocation,
+  force = false,
+  extraExcludes?: string[],
+  options: IndexOptions = {},
+): IndexSummary {
   const db = openDatabase(location);
   try {
-    return indexWithDatabase(db, location, force, extraExcludes);
+    const excludes = extraExcludes ?? (() => {
+      const row = db.prepare("SELECT index_excludes_json FROM projects WHERE id = ?").get(location.id) as { index_excludes_json: string } | undefined;
+      return row ? JSON.parse(row.index_excludes_json) as string[] : [];
+    })();
+    return indexWithDatabase(db, location, force, excludes, options);
   } finally {
     db.close();
   }
 }
 
 /** Reconcile the working tree using the project's persisted exclusion rules. */
-export function updateProjectIndex(location: ProjectLocation): IndexSummary {
+export function updateProjectIndex(location: ProjectLocation, options: IndexOptions = {}): IndexSummary {
   const db = openDatabase(location);
   try {
     const row = db.prepare("SELECT index_excludes_json FROM projects WHERE id = ?").get(location.id) as { index_excludes_json: string } | undefined;
     if (!row) throw new Error("This repository has not been initialized. Run `cnm init` first.");
     const excludes = JSON.parse(row.index_excludes_json) as string[];
-    return indexWithDatabase(db, location, false, excludes, { requireCompleteSnapshot: true });
+    const selective = Boolean(options.paths?.length || options.include?.length ||
+      options.maxFiles !== undefined || options.maxProcessed !== undefined);
+    return indexWithDatabase(db, location, false, excludes, {
+      ...options,
+      requireCompleteSnapshot: options.requireCompleteSnapshot ?? !selective,
+    });
   } finally {
     db.close();
   }
 }
 
-export interface IndexOptions {
-  /** Abort and roll back if discovery, parsing, or source snapshot validation is incomplete. */
-  requireCompleteSnapshot?: boolean;
-}
-
 function sameDiscoveredSnapshot(left: DiscoveryResult, right: DiscoveryResult): boolean {
-  if (left.failed !== 0 || left.skipped !== 0 || left.protectedDirectories.size !== 0 ||
-      right.failed !== 0 || right.skipped !== 0 || right.protectedDirectories.size !== 0) return false;
+  if (left.failed !== 0 || left.skipped !== 0 || left.truncated || left.protectedDirectories.size !== 0 ||
+      right.failed !== 0 || right.skipped !== 0 || right.truncated || right.protectedDirectories.size !== 0) return false;
   if (left.files.length !== right.files.length) return false;
   return left.files.every((file, index) =>
     file.relativePath === right.files[index]?.relativePath && file.hash === right.files[index]?.hash);
@@ -625,14 +751,21 @@ export function indexWithDatabase(
   extraExcludes: string[] = [],
   options: IndexOptions = {},
 ): IndexSummary {
+  validateIndexOptions(options);
   const gitBefore = getGitSnapshot(location.rootPath);
-  const discovery = discoverFiles(location.rootPath, extraExcludes);
+  const discovery = discoverFiles(location.rootPath, extraExcludes, options);
+  const scoped = Boolean(options.paths?.length || options.include?.length ||
+    options.maxFiles !== undefined || options.maxProcessed !== undefined);
   if (options.requireCompleteSnapshot &&
-      (discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0)) {
+      (discovery.failed > 0 || discovery.skipped > 0 || discovery.truncated || discovery.protectedDirectories.size > 0)) {
     throw new Error("Index update aborted: source discovery is incomplete; no index changes were committed. Resolve skipped or unreadable files and retry.");
   }
   const { files: discovered, presentPaths } = discovery;
   return db.transaction(() => {
+    const projectState = db.prepare("SELECT relations_config_hash FROM projects WHERE id = ?").get(location.id) as {
+      relations_config_hash: string | null;
+    } | undefined;
+    if (!projectState) throw new Error("Project record is missing; run cnm init first.");
     db.prepare("UPDATE projects SET index_excludes_json = ? WHERE id = ?").run(JSON.stringify(extraExcludes), location.id);
     const existing = db.prepare("SELECT id, stable_id, path, content_hash FROM files").all() as Array<{
       id: number; stable_id: string; path: string; content_hash: string;
@@ -642,6 +775,7 @@ export function indexWithDatabase(
       scanned: discovery.scanned, added: 0, updated: 0, unchanged: 0, deleted: 0,
       symbols: 0, relations: 0, skipped: discovery.skipped, failed: discovery.failed,
       errors: [...discovery.errors], skippedFiles: [...discovery.skippedFiles],
+      truncated: discovery.truncated,
     };
 
     const updateFile = db.transaction((file: DiscoveredFile, oldFile?: { id: number; stable_id: string; path: string; content_hash: string }) => {
@@ -714,7 +848,7 @@ export function indexWithDatabase(
       const isProtected = [...discovery.protectedDirectories].some((directory) =>
         directory === "" || file.path === directory || file.path.startsWith(directory + "/"),
       );
-      if (!presentPaths.has(file.path) && !isProtected) {
+      if (!scoped && !presentPaths.has(file.path) && !isProtected) {
         removeFile(file.id);
         summary.deleted += 1;
       }
@@ -723,10 +857,27 @@ export function indexWithDatabase(
     db.prepare("UPDATE projects SET index_revision = index_revision + 1 WHERE id = ?").run(location.id);
     const revisionRow = db.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number } | undefined;
     if (!revisionRow) throw new Error("Project record is missing; run cnm init first.");
-    summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
+    // Relationship resolution and import diagnostics depend on source files and
+    // package/TypeScript configuration. Rebuild only when one of those inputs changed.
+    const sourceIndexChanged = summary.added > 0 || summary.updated > 0 || summary.deleted > 0;
+    const configFiles = db.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
+    const currentRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles);
+    // Extended configs may resolve outside the project tree; until their full
+    // transitive dependency graph is fingerprinted, conservatively rebuild.
+    const relationsNeedRebuild = sourceIndexChanged || hasExtendedTsConfig(location.rootPath) ||
+      currentRelationsConfigHash !== projectState.relations_config_hash;
+    if (relationsNeedRebuild) {
+      summary.relations = rebuildRelations(db, location.rootPath, revisionRow.index_revision);
+    } else {
+      // Keep graph revision metadata aligned without re-resolving every import,
+      // call, package export, and diagnostic for an unchanged source snapshot.
+      db.prepare("UPDATE relations SET index_revision = ?").run(revisionRow.index_revision);
+      summary.relations = (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
+    }
+    db.prepare("UPDATE projects SET relations_config_hash = ? WHERE id = ?").run(currentRelationsConfigHash, location.id);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
     if (options.requireCompleteSnapshot) {
-      const finalDiscovery = discoverFiles(location.rootPath, extraExcludes);
+      const finalDiscovery = discoverFiles(location.rootPath, extraExcludes, options);
       if (!sameDiscoveredSnapshot(discovery, finalDiscovery)) {
         throw new Error("Index update aborted: source files changed or discovery became incomplete during reconciliation; no index changes were committed. Retry the update.");
       }

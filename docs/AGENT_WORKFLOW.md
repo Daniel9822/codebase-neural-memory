@@ -7,7 +7,7 @@ CNM generates and maintains a managed instruction section in the target reposito
 1. Call `memory_recall` with a natural-language task/domain query before broad source exploration. Use `list: true` to inspect recent memories, and filters such as `status` or `category` when useful.
 2. Treat `confirmed` memories as accepted project knowledge, subject to source freshness. `proposed` entries are useful candidate knowledge but are not confirmed facts. `obsolete` entries are historical and must not be followed as current guidance. `rejected` entries are excluded by default.
 3. Call `index_freshness` once. It reports exact changed/added/deleted paths, old/new SHA-256 values, and incomplete discovery.
-4. If the index is stale, call `index_update` once and re-check freshness. Do not loop. If discovery remains incomplete, explain the gap and verify affected files directly.
+4. If the index is stale, call `index_update` once and re-check freshness. Do not loop. If discovery remains incomplete, explain the gap and verify affected files directly. For a focused task, `index_update` also accepts `paths` (project-relative files/directories), `include` (glob patterns), `maxFiles`, and `maxProcessed`. A scoped/budgeted update reports `truncated` when it cannot exhaust the selection and does not perform deletion reconciliation and never deletes records outside that selection; it is not a repository-wide freshness repair. Re-run an unscoped update before treating the whole index as current.
 5. If strict freshness refuses a read, restore freshness before relying on indexed claims. Do not bypass the refusal by treating stale data as current.
 
 ## MCP-first source retrieval

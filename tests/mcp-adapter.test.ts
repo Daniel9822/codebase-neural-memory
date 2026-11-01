@@ -142,7 +142,7 @@ describe("MCP adapter protocol contract", () => {
     expect(schemas).toEqual({
       project_overview: [],
       index_freshness: [],
-      index_update: [],
+      index_update: ["include", "maxFiles", "maxProcessed", "paths"],
       project_map: ["limit"],
       component_map: ["depth", "fileLimit", "from", "limit"],
       symbol_lookup: ["exported", "filePath", "includeSource", "kind", "limit", "query"],
@@ -206,6 +206,7 @@ describe("MCP adapter protocol contract", () => {
       ["project_overview", {}],
       ["index_freshness", {}],
       ["index_update", {}],
+      ["index_update", { paths: ["main.ts"], include: ["*.ts"], maxFiles: 1, maxProcessed: 100 }],
       ["project_map", { limit: 10 }],
       ["symbol_lookup", { query: "target", limit: 5, includeSource: { maxLines: 5 } }],
       ["dependency_graph", { path: "main.ts", depth: 1 }],
@@ -296,6 +297,13 @@ describe("MCP adapter protocol contract", () => {
       ? JSON.stringify(response.error)
       : (result?.content ?? []).map((item) => item.text ?? "").join("\n");
     expect(errorText.length).toBeGreaterThan(0);
+
+    const emptyIndexScope = await client.request("tools/call", {
+      name: "index_update",
+      arguments: { paths: [] },
+    });
+    const emptyIndexScopeResult = emptyIndexScope.result as { isError?: boolean } | undefined;
+    expect(Boolean(emptyIndexScope.error) || emptyIndexScopeResult?.isError === true).toBe(true);
 
     const invalidSymbolImpact = await client.request("tools/call", {
       name: "symbol_impact",

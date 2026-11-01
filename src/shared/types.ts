@@ -50,6 +50,8 @@ export interface IndexSummary {
   failed: number;
   errors: string[];
   skippedFiles: string[];
+  /** True when a bounded selective scan stopped before exhausting its scope. */
+  truncated?: boolean;
 }
 
 export interface SearchHit {
