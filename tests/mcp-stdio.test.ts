@@ -120,6 +120,7 @@ describe("MCP stdio process lifecycle", () => {
     expect(tools).toHaveLength(18);
     expect(tools.map((tool) => tool.name)).toContain("source_excerpt");
     expect(tools.map((tool) => tool.name)).toContain("git_blame");
+    expect(tools.map((tool) => tool.name)).toContain("git_history");
     expect(tools.map((tool) => tool.name)).toContain("memory_transition");
     expect(tools.map((tool) => tool.name)).toContain("symbol_impact");
     expect(tools.map((tool) => tool.name)).toContain("component_map");
