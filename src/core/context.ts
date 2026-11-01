@@ -161,7 +161,7 @@ export function buildTaskContext(
       if (dependencies.truncated) warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
       if (/(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(symbol.filePath)) {
         candidates.push({
-          kind: "test", origin: "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
+          kind: "test", origin: explicitAnchorMode ? "anchor" : "fallback", title: `Test source: ${symbol.filePath}`, source: symbol.filePath,
           score: symbol.score + 2, signals: ["test-path", "lexical-match"],
           detail: { startLine: symbol.startLine, endLine: symbol.endLine },
         });
@@ -217,7 +217,7 @@ export function buildTaskContext(
     });
   }
 
-  const memories = recallMemories(location, "", 500)
+  const memories = (explicitAnchorMode ? [] : recallMemories(location, "", 500))
     .map((memory) => ({ memory, matches: anchors.filter((anchor) =>
       `${memory.title} ${memory.content} ${memory.category}`.toLocaleLowerCase().includes(anchor)).length }))
     .filter((entry) => entry.matches > 0)
@@ -238,7 +238,7 @@ export function buildTaskContext(
     });
     if (sourceFreshness?.requiresReview) warnings.push(`Memory "${memory.title}" requires review: source is ${sourceFreshness.status}.`);
   }
-  if (symbols.length === 0) warnings.push("No indexed symbols matched the task lexically; consider a more specific follow-up query.");
+  if (symbols.length === 0 && !explicitAnchorMode) warnings.push("No indexed symbols matched the task lexically; consider a more specific follow-up query.");
   if (memories.some((memory) => memory.status === "proposed")) warnings.push("Proposed memories are suggestions, not confirmed project knowledge.");
   if (memories.some((memory) => memory.status === "obsolete")) warnings.push("Obsolete memories are included for traceability and must not be treated as current guidance.");
 
