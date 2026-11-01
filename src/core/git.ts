@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
 
 export interface GitSnapshot {
   available: boolean;
@@ -42,8 +41,11 @@ function normalizeRepositoryPath(value: string): string {
 
 /** Read only the repository identity and working-tree state; never changes Git metadata. */
 export function getGitSnapshot(rootPath: string): GitSnapshot {
-  const reportedRoot = runGit(rootPath, ["rev-parse", "--show-toplevel"]);
-  if (!reportedRoot) {
+  // Do not parse or realpath Git's --show-toplevel output: Git for Windows may
+  // report MSYS paths (/c/...) while Node expects Win32 paths. --show-prefix
+  // is path-format independent and is empty only when cwd is the repo root.
+  const prefix = runGit(rootPath, ["rev-parse", "--show-prefix"]);
+  if (prefix === null || prefix.length > 0) {
     return {
       available: false,
       repositoryRoot: null,
@@ -56,26 +58,9 @@ export function getGitSnapshot(rootPath: string): GitSnapshot {
   }
 
   let repositoryRoot: string;
-  let requestedRoot: string;
   try {
-    // Git for Windows can report MSYS-style paths (/c/...) that Win32
-    // realpathSync cannot resolve directly. Convert the Git path first.
-    repositoryRoot = realpathSync(normalizeRepositoryPath(reportedRoot));
-    requestedRoot = realpathSync(rootPath);
+    repositoryRoot = realpathSync(rootPath);
   } catch {
-    return {
-      available: false,
-      repositoryRoot: null,
-      commit: null,
-      branch: null,
-      dirty: null,
-      changedPathCount: null,
-      statusHash: null,
-    };
-  }
-
-  const rootsMatch = normalizeRepositoryPath(repositoryRoot) === normalizeRepositoryPath(requestedRoot);
-  if (!rootsMatch) {
     return {
       available: false,
       repositoryRoot: null,
