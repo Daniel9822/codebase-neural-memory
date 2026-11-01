@@ -42,8 +42,9 @@ function isBareExternalSpecifier(specifier: string, localPackages: ReadonlySet<s
   const packageName = specifier.startsWith("@")
     ? specifier.split("/").slice(0, 2).join("/")
     : specifier.split("/")[0] ?? "";
+  const normalizedSpecifier = specifier.replace(/^node:/, "");
   return Boolean(packageName) && !localPackages.has(packageName) &&
-    !BUILTINS.has(specifier) && !BUILTINS.has(packageName);
+    !BUILTINS.has(normalizedSpecifier) && !BUILTINS.has(packageName);
 }
 
 /**
