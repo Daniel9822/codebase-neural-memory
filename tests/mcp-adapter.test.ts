@@ -323,6 +323,32 @@ describe("MCP adapter protocol contract", () => {
     expect(database!.prepare("SELECT status FROM memories WHERE id = ?").get(saved.id)).toEqual({ status: "proposed" });
   });
 
+  it("returns semantic import diagnostics through file_details", async () => {
+    createProject();
+    const packageRoot = join(location.rootPath, "node_modules", "fixture-package");
+    mkdirSync(packageRoot, { recursive: true });
+    writeFileSync(join(packageRoot, "package.json"), JSON.stringify({ name: "fixture-package", types: "index.d.ts" }));
+    writeFileSync(join(packageRoot, "index.d.ts"), "export declare const present: boolean;");
+    writeFileSync(join(location.rootPath, "imports.ts"), [
+      'import { missing } from "fixture-package";',
+      'import { absent } from "not-installed-fixture";',
+      "void missing; void absent;",
+    ].join("\\n"));
+    indexWithDatabase(database!, location);
+
+    const client = await connectClient();
+    const response = await client.request("tools/call", {
+      name: "file_details",
+      arguments: { path: "imports.ts" },
+    });
+    const result = response.result as { content: Array<{ text: string }> };
+    const details = JSON.parse(result.content[0]!.text);
+    expect(details.importDiagnostics).toEqual([
+      expect.objectContaining({ specifier: "fixture-package", kind: "missing-export", importedName: "missing" }),
+      expect.objectContaining({ specifier: "not-installed-fixture", kind: "missing-package" }),
+    ]);
+  });
+
   it("warns on stale reads, refuses them in strict mode, and refreshes them when auto-update is enabled", async () => {
     createProject();
     const warningClient = await connectClient();
