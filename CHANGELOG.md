@@ -1,4 +1,4 @@
-# Changelog
+# Changelog\n\n## Unreleased\n\n- Add bounded directory-boundary component maps with cross-directory import counts and directed shortest dependency distances.
 
 ## Unreleased
 
