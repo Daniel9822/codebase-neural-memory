@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add a bounded MCP `git_history` tool exposing recent commit metadata and changed-path evidence, capped at 50 commits/500 paths and a 3-second Git command timeout. Explicitly distinguish commit history from agent-session boundaries and inferred intent.
+
 - Add bounded selective reindexing by project-relative file/directory paths and include globs, with file/traversal budgets exposed through CLI and MCP. Partial scans report truncation and preserve all indexed files outside their scope. Stream directory enumeration within traversal budgets, reduce Git snapshot subprocesses, and avoid rebuilding the global relationship graph when source and relationship configuration fingerprints are unchanged.
 
 - Add bounded directory-boundary component maps with cross-directory import counts and directed shortest dependency distances.
