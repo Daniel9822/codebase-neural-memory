@@ -44,6 +44,8 @@ describe("auth", () => {
       importedSymbolName: "refreshAuthToken",
     });
     expect(parsed.calls.some((call) => call.calleeName === "it")).toBe(false);
+    const shifted = parseTypeScriptFile("__tests__/auth.ts", `\n${source}`);
+    expect(shifted.symbols.find((symbol) => symbol.kind === "test-case")?.name).toBe(testCase?.name);
   });
 
   it("rejects malformed source and includes a source location", () => {
