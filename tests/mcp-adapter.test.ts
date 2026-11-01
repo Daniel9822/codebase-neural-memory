@@ -147,7 +147,6 @@ describe("MCP adapter protocol contract", () => {
       source_excerpt: ["endLine", "maxCharacters", "path", "startLine"],
       change_impact: ["limit", "maxProcessed", "path"],
       symbol_impact: ["depth", "direction", "filePath", "kind", "limit", "maxProcessed", "relationKinds", "startLine", "symbol"],
-      task_context: ["anchors", "maxCharacters", "maxItems", "task"],
       task_context: ["anchors", "dependencyLimit", "fileLimit", "maxCharacters", "maxItems", "memoryLimit", "symbolLimit", "task", "testLimit"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
