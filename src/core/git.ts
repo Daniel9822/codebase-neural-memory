@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 
 export interface GitSnapshot {
   available: boolean;
@@ -128,4 +129,106 @@ export function compareGitCommits(
   if (currentIsAncestor === true) return "ahead";
   if (referenceIsAncestor === false && currentIsAncestor === false) return "diverged";
   return "unknown";
+}
+
+
+export interface GitBlameLine {
+  line: number;
+  originalLine: number;
+  commit: string;
+  author: string | null;
+  authoredAt: string | null;
+  summary: string | null;
+  content: string;
+}
+
+export interface GitBlameResult {
+  path: string;
+  startLine: number;
+  endLine: number;
+  lines: GitBlameLine[];
+  truncated: boolean;
+}
+
+/** Return bounded line-level attribution without changing repository state. */
+export function getGitBlame(
+  rootPath: string,
+  filePath: string,
+  startLine = 1,
+  endLine = startLine + 99,
+): GitBlameResult {
+  if (!Number.isSafeInteger(startLine) || startLine < 1 ||
+      !Number.isSafeInteger(endLine) || endLine < startLine) {
+    throw new Error("Git blame line range must contain positive, ordered safe integers.");
+  }
+  const requestedLines = endLine - startLine + 1;
+  if (requestedLines > 200) throw new Error("Git blame range cannot exceed 200 lines.");
+
+  const normalized = filePath.replace(/\\\\/g, "/");
+  if (!normalized || normalized.length > 500 || normalized.startsWith("/") ||
+      /^[a-zA-Z]:/.test(normalized) ||
+      normalized.split("/").some((part) => !part || part === "." || part === "..")) {
+    throw new Error("Git blame path must be a normalized project-relative file path.");
+  }
+  const absolutePath = resolve(rootPath, ...normalized.split("/"));
+  const relativePath = relative(resolve(rootPath), absolutePath);
+  if (!relativePath || relativePath === ".." || relativePath.startsWith(`..${sep}`) || isAbsolute(relativePath)) {
+    throw new Error("Git blame path must stay inside the project root.");
+  }
+
+  const repository = getGitSnapshot(rootPath);
+  if (!repository.available) throw new Error("Git blame is unavailable because the project root is not a Git repository.");
+
+  let output: string;
+  try {
+    output = execFileSync("git", [
+      "blame", "--line-porcelain", "--root", "--no-show-signature",
+      "-L", `${startLine},${endLine}`, "--", normalized,
+    ], {
+      cwd: rootPath,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      windowsHide: true,
+      timeout: 10_000,
+      maxBuffer: 2 * 1024 * 1024,
+    });
+  } catch {
+    throw new Error("Git blame failed; verify that the file is tracked and the requested line range exists.");
+  }
+
+  const records = output.split(/\\r?\\n/);
+  const lines: GitBlameLine[] = [];
+  for (let index = 0; index < records.length;) {
+    const header = /^([0-9a-f]{40,64}) (\\d+) (\\d+)(?: (\\d+))?$/.exec(records[index] ?? "");
+    if (!header) { index += 1; continue; }
+    const commit = header[1]!;
+    const originalLine = Number(header[2]);
+    const finalLine = Number(header[3]);
+    index += 1;
+    let author: string | null = null;
+    let authoredAt: string | null = null;
+    let summary: string | null = null;
+    let content = "";
+    while (index < records.length) {
+      const record = records[index++]!;
+      if (record.startsWith("\\t")) {
+        content = record.slice(1);
+        break;
+      }
+      if (record.startsWith("author ")) author = record.slice(7);
+      else if (record.startsWith("author-time ")) {
+        const timestamp = Number(record.slice(12));
+        if (Number.isSafeInteger(timestamp) && timestamp > 0) authoredAt = new Date(timestamp * 1000).toISOString();
+      } else if (record.startsWith("summary ")) summary = record.slice(8);
+    }
+    lines.push({ line: finalLine, originalLine, commit, author, authoredAt, summary, content });
+  }
+  if (lines.length === 0) throw new Error("Git blame returned no line attribution for the requested range.");
+  return {
+    path: normalized,
+    startLine,
+    endLine,
+    lines,
+    truncated: lines.length < requestedLines,
+  };
 }
