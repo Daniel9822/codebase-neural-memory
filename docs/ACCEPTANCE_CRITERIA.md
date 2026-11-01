@@ -382,6 +382,7 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 - [x] Recognized test callback registrations create `test-case` symbols and imported calls inside them create source-linked `CALLS` edges; `symbol_impact` exposes exact static test-to-symbol links (`tests/typescript-parser.test.ts`, `tests/retrieval.test.ts`). This is not runtime test coverage.
 
 - [x] Bounded Git blame returns line-level commit, author, timestamp, and summary for tracked project-relative paths; rejects unsafe paths and ranges over 200 lines (`tests/git-awareness.test.ts`). Attribution is not treated as inferred rationale.
+- [x] Bounded MCP `git_history` returns recent commit metadata and changed-path evidence with 1–50 commit and 1–500 path budgets, a 3-second subprocess timeout, and explicit truncation flags (`tests/git-awareness.test.ts`, `tests/mcp-adapter.test.ts`). Commit boundaries are not represented as agent sessions.
 
 The following capabilities remain open: signature-regex search, public-contract analysis, finer task-context budget categories (PR #64), and Git session rationale. Inline source retrieval, explicit task anchors, and freshness-aware read policies are covered by the follow-up criteria below.
 
