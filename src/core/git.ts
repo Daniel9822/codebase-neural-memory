@@ -182,7 +182,7 @@ export function getGitBlame(
   let output: string;
   try {
     output = execFileSync("git", [
-      "blame", "--line-porcelain", "--root", "--no-show-signature",
+      "--literal-pathspecs", "blame", "--line-porcelain", "--root", "--no-show-signature",
       "-L", `${startLine},${endLine}`, "--", normalized,
     ], {
       cwd: rootPath,
