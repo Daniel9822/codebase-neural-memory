@@ -12,7 +12,7 @@ CLI ──> Application/Core ──> SQLite
              │                 ├── relations
              │                 ├── memories
              │                 └── FTS5 index
-             └── MCP adapter (stdio, read-only tools)
+             └── MCP adapter (stdio, freshness-aware reads, explicit local writes)
 ```
 
 ## Local storage
@@ -55,7 +55,7 @@ MCP exposes read/retrieval tools plus two explicit local write operations throug
 - `project_overview` — local repository/index summary.
 - `index_freshness` — read-only source-file and Git commit/branch/working-tree versus index freshness report. Each successful index records its Git snapshot; freshness compares the current `HEAD`, branch, and porcelain working-tree hash and still performs a deterministic source scan.
 - `project_map` — indexed files and locally resolved imports.
-- `symbol_lookup` — bounded lexical symbol search with ranking signals and optional kind, path-prefix, and export filters.
+- `symbol_lookup` — bounded lexical symbol search with ranking signals, optional filters, and verified inline source snippets.
 - `index_update` — incremental working-tree reconciliation using persisted project exclusions.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
 - `file_details` — bounded indexed file metadata, symbols, imports, and relations.
@@ -80,3 +80,10 @@ The server registration in `src/adapters/mcp/server.ts` is the source of truth f
 ## MCP source inspection
 
 The MCP adapter exposes `source_excerpt` as a read-only follow-up to structural retrieval. It reads only files already present in the project's index, requires an inclusive project-relative line range, enforces a 200-line / 20,000-character / 1 MiB-file ceiling, and rejects lexical or canonical paths outside the selected project root. It returns the actual working-tree excerpt together with its SHA-256, the indexed SHA-256, and an explicit `current` / `stale` status. This keeps source text out of the broad `task_context` bundle while allowing agents to verify implementation details on demand.
+
+
+## Freshness-aware MCP reads
+
+The MCP adapter checks index freshness before indexed read operations. A stale or incomplete snapshot is declared in a separate warning block; optional strict mode refuses the read, while optional auto-update performs one incremental reconciliation only for complete scans with at most 50 changed source files. Automatic refresh is disabled by default. The threshold bounds change volume, not wall-clock time. Source excerpts carry independent working-tree and indexed SHA-256 hashes, and the adapter emits a second warning if an excerpt detects a stale hash after the preflight check. Exact tool schemas and environment settings are maintained in `docs/PHASE_6_MCP_CONTRACT.md`.
+
+Explicit task anchors suppress broad lexical symbol/test/memory fallback and retain only anchor and graph-origin context items. This makes the provenance of central context visible and avoids filling a constrained budget with unrelated name matches.

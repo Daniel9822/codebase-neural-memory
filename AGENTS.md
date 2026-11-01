@@ -139,7 +139,11 @@ Keep the following responsibilities distinct:
 
 Update only the documents affected by a change. Keep statements about current implementation distinct from future plans.
 
-## 9. Completion report format
+## 9. MCP-first evaluation workflow
+
+When evaluating or using CNM against a separate target repository, follow [docs/AGENT_WORKFLOW.md](docs/AGENT_WORKFLOW.md). It defines the freshness gate, exact-anchor retrieval sequence, safe source-reading fallbacks, post-edit verification, and proposed-memory discipline. Do not copy this rule into a target project's AGENTS.md without adapting its repository-specific commands and test requirements.
+
+## 10. Completion report format
 
 At the end of a task, provide:
 

@@ -22,6 +22,13 @@ This guide configures the real CNM stdio server in OpenCode and Visual Studio Co
 
 The MCP server is read-only. Initialization and indexing are explicit CLI operations; the MCP client does not perform them.
 
+The MCP adapter also supports optional freshness policies. Set these variables in the environment inherited by the MCP process (using the client/OS-specific environment configuration):
+
+- `CNM_MCP_AUTO_UPDATE=1`: incrementally refresh before reads when discovery is complete and at most 50 source files changed. Otherwise the server skips the automatic update and explains that an explicit `index_update` is needed.
+- `CNM_MCP_STRICT_FRESHNESS=1`: refuse indexed reads unless the index is current. If both variables are enabled, auto-update runs first and strict mode checks the resulting state.
+
+Both are disabled by default. Auto-update is synchronous; the 50-file threshold is not a wall-clock timeout. Do not enable strict mode until the target repository has been initialized and indexed.
+
 ## OpenCode (first client)
 
 OpenCode's local MCP configuration uses a top-level `mcp` object, `type: "local"`, an argument-array `command`, and an optional `cwd`. Copy [`examples/opencode.mcp.json`](../examples/opencode.mcp.json) to `opencode.json` at the root of the target workspace, or merge its `mcp.codebase-memory` entry into the existing file. Do not overwrite other project configuration.

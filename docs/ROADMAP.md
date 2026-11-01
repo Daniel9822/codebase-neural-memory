@@ -251,18 +251,34 @@ Exit condition: documented benchmarks, stable regression tests, and no known dat
 
 ### Phase 6 follow-up — Agent-operable indexing and memory proposals
 
-**Status:** Implementation added on branch `feat/agent-capabilities-followup`; awaiting CI verification and review in the next pull request.
+**Status:** Complete and merged in PR #54 (`6e0e19cda1c059e45354a9fd483fc57c574319cc`); CI passed on the merged result.
 
 - [x] Expose explicit incremental MCP index reconciliation while preserving persisted project exclusions.
 - [x] Expose an agent memory-proposal operation that can create only `proposed` records; human confirmation remains a separate action.
 - [x] Add optional symbol kind, project-relative path-prefix, and export filters to MCP symbol lookup.
-- [ ] Verify MCP schemas, valid calls, invalid inputs, incremental update behavior, exclusion preservation, and proposed-only memory status in CI.
+- [x] Verify MCP schemas, valid calls, invalid inputs, incremental update behavior, exclusion preservation, and proposed-only memory status in CI.
 - [ ] Complete the remaining agent-capability gaps: richer signature/body retrieval, semantic impact and distances, test-to-symbol mapping, granular task-context budgets, and Git blame/session rationale.
 - [ ] Evaluate bounded reindex controls and stronger path/glob matching before broad adoption.
 
 Deliverable: agents can explicitly refresh derived index state and submit reviewable memory suggestions without silently confirming project knowledge.
 
 Exit condition: full CI passes on the PR head; protocol and core tests prove the write boundaries; documentation matches the registered tools.
+
+### Agent trust and context follow-up (2026-11-01)
+
+**Status:** Implemented on feature branch `feat/mcp-trustworthy-agent-context`; CI and review remain pending.
+
+- [x] Reuse the existing exact-path/hash freshness report (P1 was already implemented before this follow-up; do not duplicate it).
+- [x] Append a freshness warning to every indexed MCP read when the index is stale or incomplete.
+- [x] Add opt-in strict freshness refusal via `CNM_MCP_STRICT_FRESHNESS=1`.
+- [x] Add opt-in incremental auto-update via `CNM_MCP_AUTO_UPDATE=1`, with a 50-changed-file guard and safe skip on incomplete discovery.
+- [x] Add bounded source snippets to `symbol_lookup` and `file_details`, retaining per-excerpt hashes and status.
+- [x] Add explicit path/symbol anchors and anchor/graph/fallback origin labels to `task_context`; anchored mode disables broad lexical fallback.
+- [x] Add a reusable MCP-first agent workflow and memory-proposal discipline in `docs/AGENT_WORKFLOW.md`.
+- [ ] Add a verified session-start hook for a specific OpenCode plugin API. This is deferred because the current CNM repository has no OpenCode plugin package or hook runtime; the documented startup procedure uses MCP calls instead.
+- [ ] Run typecheck, full tests, build, smoke, and cross-platform CI on the final PR head.
+
+Design note: no five-second timeout is claimed. The current indexer is synchronous, so cancelling it safely would require a separate worker/process design. The auto-update file-count guard limits the scope of automatic work but not elapsed time.
 
 ## Phase 9 — Optional semantic retrieval
 

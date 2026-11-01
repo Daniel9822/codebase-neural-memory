@@ -80,18 +80,31 @@ The server uses stdio and exposes thirteen tools: eleven read/retrieval tools an
 - `project_overview` — local repository/index summary.
 - `index_freshness` — source-file and Git commit/branch/working-tree freshness versus the index.
 - `project_map` — indexed files and resolved/unresolved imports.
-- `symbol_lookup` — bounded lexical symbol search with optional symbol-kind, file-path-prefix, and export filters.
+- `symbol_lookup` — bounded lexical symbol search with optional kind, file-path-prefix, export filters, and opt-in verified inline source (`includeSource`).
 - `index_update` — incrementally reconcile changed/deleted/added source files while retaining configured exclusions.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
-- `file_details` — bounded indexed file metadata, symbols, imports, and relations.
+- `file_details` — bounded indexed file metadata, symbols, imports, and relations; `inlineSnippets` optionally includes bounded source for the first symbols.
 - `source_excerpt` — bounded current source-code lines from an indexed file, with line ranges, SHA-256 comparison against the index, and explicit stale/truncation status.
 - `change_impact` — bounded reverse-import impact traversal.
-- `task_context` — deterministic, bounded task context from indexed facts and memories.
+- `task_context` — deterministic, bounded task context from indexed facts and memories; optional exact path/symbol anchors disable broad lexical symbol fallback and label each item origin.
 - `memory_freshness` — source-file fingerprints and Git commit ancestry for linked or commit-referenced memories.
 - `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
 - `memory_propose` — persist an agent suggestion with `proposed` status; a person must explicitly confirm it.
 
 Use `source_excerpt` after `symbol_lookup` or `task_context` to inspect the actual implementation at a returned path and line range. It accepts a project-relative indexed path, inclusive `startLine` / `endLine`, and optional `maxCharacters` (100–20,000; default 12,000). It returns at most 200 lines and reads source files no larger than 1 MiB, rejects paths outside the project root, and reports `indexStatus: current|stale` by comparing the working-tree SHA-256 with the indexed hash. A stale excerpt is current working-tree content, not a claim that the index describes those bytes.
+
+### MCP freshness and agent workflow
+
+Every indexed read checks source/index freshness. If the snapshot is stale or incomplete, the tool preserves its JSON result as the first text block and appends a warning with changed-file counts, affected paths, and the required action. The separate index_freshness tool reports exact paths and old/new SHA-256 hashes (up to 200 details).
+
+Optional server environment variables:
+
+- CNM_MCP_AUTO_UPDATE=1 — incrementally refresh before reads. This is off by default; automatic refresh is skipped when discovery is incomplete or more than 50 source files changed. In those cases call index_update explicitly.
+- CNM_MCP_STRICT_FRESHNESS=1 — refuse indexed reads unless the index is current. If combined with auto-update, strict mode evaluates the post-update state.
+
+Auto-update is synchronous. The 50-file guard bounds the number of changed source files, not wall-clock duration. Source-bearing tools still return independent content hashes and indexStatus because files can change after a freshness check.
+
+For focused source inspection, use symbol_lookup with includeSource: { maxLines: 60 } or file_details with inlineSnippets: true (default three symbols). For noisy tasks, pass task_context.anchors with exact paths and/or symbol names; returned items identify whether they came from an explicit anchor, graph expansion, or lexical fallback. See [Agent workflow](docs/AGENT_WORKFLOW.md) for a copyable MCP-first policy and the memory-recall/proposal lifecycle.
 
 The MCP process is bound to the repository resolved from its working directory. Configure the MCP client with an explicit repository `cwd`; do not rely on whichever directory the client happens to inherit. For the exact argument schemas, defaults, limits, bounded freshness/map report metadata, project-binding behavior, and known verification gaps, see [the Phase 6 MCP contract](docs/PHASE_6_MCP_CONTRACT.md).
 

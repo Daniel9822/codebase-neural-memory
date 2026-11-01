@@ -219,3 +219,8 @@ Improvement must be measured against a baseline. Do not promise a fixed reductio
 ## Bounded source-code inspection
 
 Coding agents can retrieve actual implementation text through the read-only MCP `source_excerpt` tool after locating a symbol or file. The tool is restricted to indexed project-relative files, inclusive line ranges, at most 200 lines, 20,000 output characters, and source files no larger than 1 MiB. It reports whether the current working-tree bytes match the indexed SHA-256; stale source is labeled rather than silently represented as index-consistent. This is targeted source inspection, not repository-wide file dumping or semantic retrieval.
+
+
+## MCP trust and agent workflow
+
+Indexed reads must never silently imply that the source/index snapshot is current. The MCP adapter declares stale or incomplete state on every indexed read, supports an opt-in strict refusal policy, and supports opt-in incremental auto-update for complete scans of at most 50 changed files. Auto-update is synchronous and is not a wall-clock timeout. Source-bearing responses expose their own SHA-256 freshness so a file change between preflight and read is still detectable. Optional symbol/file snippets and explicit task anchors reduce unnecessary full-file reads and irrelevant fallback context. Agent usage guidance and copyable policy are maintained in [`docs/AGENT_WORKFLOW.md`](AGENT_WORKFLOW.md).
