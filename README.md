@@ -86,12 +86,15 @@ The server uses stdio and exposes fifteen tools: twelve read/retrieval tools and
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
 - `file_details` — bounded indexed file metadata, symbols, imports, and relations; `inlineSnippets` optionally includes bounded source for the first symbols.
 - `source_excerpt` — bounded current source-code lines from an indexed file, with line ranges, SHA-256 comparison against the index, and explicit stale/truncation status.
+- `git_blame` — bounded read-only line attribution for tracked project files, including commit, author, timestamp, and summary; this is historical attribution, not inferred rationale.
 - `change_impact` — bounded reverse-import impact traversal.
 - `task_context` — deterministic, bounded task context from indexed facts and memories; optional exact path/symbol anchors disable broad lexical symbol fallback and label each item origin.
 - `memory_freshness` — source-file fingerprints and Git commit ancestry for linked or commit-referenced memories.
 - `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
 - `memory_propose` — persist an agent suggestion with `proposed` status; a person must explicitly confirm it.
 - `memory_transition` — explicitly transition a memory lifecycle state; agent confirmation requires clear user authorization.
+
+Use `cnm blame <path> --start-line <n> --end-line <n>` or MCP `git_blame` to inspect Git attribution for at most 200 lines in a tracked project-relative file. Author email is omitted. This does not infer intent or session rationale.
 
 Use `source_excerpt` after `symbol_lookup` or `task_context` to inspect the actual implementation at a returned path and line range. It accepts a project-relative indexed path, inclusive `startLine` / `endLine`, and optional `maxCharacters` (100–20,000; default 12,000). It returns at most 200 lines and reads source files no larger than 1 MiB, rejects paths outside the project root, and reports `indexStatus: current|stale` by comparing the working-tree SHA-256 with the indexed hash. A stale excerpt is current working-tree content, not a claim that the index describes those bytes.
 
