@@ -149,7 +149,7 @@ export function buildTaskContext(
     : searchSymbols(location, normalizedTask, symbolLimit + 1);
   const symbolCandidatesTruncated = symbolMatches.length > symbolLimit;
   const symbols = symbolMatches.slice(0, symbolLimit);
-  const fileCandidatesTruncated = new Set(symbols.map((symbol) => symbol.filePath)).size > fileLimit;
+  const fileCandidatesTruncated = new Set(symbolMatches.map((symbol) => symbol.filePath)).size > fileLimit;
   for (const symbol of symbols) {
     candidates.push({
       kind: "symbol",
