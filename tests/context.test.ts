@@ -20,9 +20,11 @@ function setup(): void {
   location = { id: "task-context-test", rootPath, dataDirectory: join(temp, "data"), databasePath: join(temp, "data", "memory.sqlite") };
   db = openDatabase(location);
   ensureProject(db, location);
-  writeFileSync(join(rootPath, "src", "auth.ts"), "import { normalizeToken } from './token';\nimport './missing-module';\nexport function refreshAuthToken() { return normalizeToken(); }\n");
+  writeFileSync(join(rootPath, "src", "auth.ts"), "import { normalizeToken } from './token';\nimport './extra';\nimport './missing-module';\nexport function refreshAuthToken() { return normalizeToken(); }\n");
   writeFileSync(join(rootPath, "src", "token.ts"), "export function normalizeToken() { return true; }\n");
+  writeFileSync(join(rootPath, "src", "extra.ts"), "export function extraAuthHelper() { return true; }\n");
   writeFileSync(join(rootPath, "tests", "auth.test.ts"), "import { refreshAuthToken } from '../src/auth';\n");
+  writeFileSync(join(rootPath, "tests", "auth.spec.ts"), "import { refreshAuthToken } from '../src/auth';\n");
   writeFileSync(join(rootPath, "tests", "billing.test.ts"), "export function calculatesInvoiceTotal() { return 42; }\\n");
   indexWithDatabase(db, location);
 }
@@ -95,6 +97,8 @@ describe("task-oriented context builder", () => {
       test: { limit: 1, used: 1 },
       memory: { limit: 1, used: 1 },
     });
+    expect(result.budget.truncatedKinds).toEqual(expect.arrayContaining(["symbol", "file", "dependency", "test", "memory"]));
+    expect(result.budget.truncated).toBe(true);
     expect(() => buildTaskContext(location, "refresh auth", { dependencyLimit: 0 })).toThrow("dependencyLimit");
     expect(() => buildTaskContext(location, "refresh auth", { testLimit: 51 })).toThrow("testLimit");
   });
