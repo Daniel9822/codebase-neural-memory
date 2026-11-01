@@ -87,3 +87,8 @@ The MCP adapter exposes `source_excerpt` as a read-only follow-up to structural 
 The MCP adapter checks index freshness before indexed read operations. A stale or incomplete snapshot is declared in a separate warning block; optional strict mode refuses the read, while optional auto-update performs one incremental reconciliation only for complete scans with at most 50 changed source files. Automatic refresh is disabled by default. The threshold bounds change volume, not wall-clock time. Source excerpts carry independent working-tree and indexed SHA-256 hashes, and the adapter emits a second warning if an excerpt detects a stale hash after the preflight check. Exact tool schemas and environment settings are maintained in `docs/PHASE_6_MCP_CONTRACT.md`.
 
 Explicit task anchors suppress broad lexical symbol/test/memory fallback and retain only anchor and graph-origin context items. This makes the provenance of central context visible and avoids filling a constrained budget with unrelated name matches.
+
+
+### Directory-boundary component view
+
+The optional component map aggregates existing file-level `IMPORTS` edges by the first project-relative directory segment. It reports cross-directory edge counts and directed shortest dependency distances from an optional origin. This is an explainable structural projection, not semantic component discovery; it does not persist inferred entities or alter the source graph.
