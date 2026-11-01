@@ -111,7 +111,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly thirteen tools and publishes the expected input schemas", async () => {
+  it("discovers exactly fourteen tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -127,6 +127,7 @@ describe("MCP adapter protocol contract", () => {
       "memory_freshness",
       "memory_propose",
       "memory_recall",
+      "memory_transition",
       "project_map",
       "project_overview",
       "source_excerpt",
@@ -147,7 +148,8 @@ describe("MCP adapter protocol contract", () => {
       task_context: ["anchors", "maxCharacters", "maxItems", "task"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
-      memory_recall: ["limit", "query"],
+      memory_recall: ["category", "limit", "list", "query", "status"],
+      memory_transition: ["id", "status"],
     });
   });
 
@@ -168,6 +170,7 @@ describe("MCP adapter protocol contract", () => {
       ["memory_freshness", {}],
       ["memory_propose", { title: "Suggested invariant", content: "Agent suggestions remain unconfirmed." }],
       ["memory_recall", { query: "MCP adapter", limit: 5 }],
+      ["memory_transition", { id: "00000000-0000-4000-8000-000000000001", status: "confirmed" }],
     ];
 
     for (const [name, args] of calls) {
