@@ -91,7 +91,8 @@ program.command("index")
   .option("--max-processed <number>", "Maximum directory entries to examine (1-100000)", parsePositiveInteger)
   .action((options: { force?: boolean; path: string[]; include: string[]; exclude: string[]; maxFiles?: number; maxProcessed?: number }) => {
     const location = ensureInitialized();
-    const result = indexProject(location, Boolean(options.force), options.exclude, {
+    const result = indexProject(location, Boolean(options.force),
+      options.exclude.length === 0 ? undefined : options.exclude, {
       ...(options.path.length === 0 ? {} : { paths: options.path }),
       ...(options.include.length === 0 ? {} : { include: options.include }),
       ...(options.maxFiles === undefined ? {} : { maxFiles: options.maxFiles }),
