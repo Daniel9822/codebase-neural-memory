@@ -80,11 +80,18 @@ describe("Git-aware indexing and freshness", () => {
     indexWithDatabase(database!, location);
 
     writeFileSync(join(location.rootPath, "tracked.ts"), "export const tracked = 2;\n");
-    expect(getIndexFreshness(location)).toMatchObject({
+    const changed = getIndexFreshness(location);
+    expect(changed).toMatchObject({
       status: "stale",
       changedFiles: 1,
+      fileChanges: [{ path: "tracked.ts", status: "changed" }],
+      fileChangesTotal: 1,
+      fileChangesTruncated: false,
       git: { status: "changed", workingTreeChanged: true, currentDirty: true },
     });
+    expect(changed.fileChanges[0].oldHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(changed.fileChanges[0].newHash).toMatch(/^[0-9a-f]{64}$/);
+    expect(changed.fileChanges[0].oldHash).not.toBe(changed.fileChanges[0].newHash);
 
     indexWithDatabase(database!, location);
     expect(getIndexFreshness(location)).toMatchObject({
@@ -170,6 +177,12 @@ describe("Git-aware indexing and freshness", () => {
       status: "stale",
       addedFiles: 1,
       deletedFiles: 1,
+      fileChanges: [
+        { path: "renamed.ts", status: "added", oldHash: null },
+        { path: "tracked.ts", status: "deleted", newHash: null },
+      ],
+      fileChangesTotal: 2,
+      fileChangesTruncated: false,
     });
 
     indexWithDatabase(database!, location);
