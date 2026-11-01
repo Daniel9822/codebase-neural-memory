@@ -21,10 +21,11 @@ function setup(): void {
   db = openDatabase(location);
   ensureProject(db, location);
   writeFileSync(join(rootPath, "src", "auth.ts"), "import { normalizeToken } from './token';\nimport './extra';\nimport './missing-module';\nexport function refreshAuthToken() { return normalizeToken(); }\n");
-  writeFileSync(join(rootPath, "src", "token.ts"), "export function normalizeToken() { return true; }\n");
-  writeFileSync(join(rootPath, "src", "extra.ts"), "export function extraAuthHelper() { return true; }\n");
-  writeFileSync(join(rootPath, "tests", "auth.test.ts"), "import { refreshAuthToken } from '../src/auth';\n");
-  writeFileSync(join(rootPath, "tests", "auth.spec.ts"), "import { refreshAuthToken } from '../src/auth';\n");
+  writeFileSync(join(rootPath, "src", "token.ts"), "export function normalizeToken() { return true; }\n");  writeFileSync(join(rootPath, "src", "extra.ts"), "export function extraAuthHelper() { return true; }\n");
+
+  writeFileSync(join(rootPath, "tests", "auth.test.ts"), "import { refreshAuthToken } from '../src/auth';\n");  writeFileSync(join(rootPath, "tests", "auth.spec.ts"), "import { refreshAuthToken } from '../src/auth';\n");
+
+  writeFileSync(join(rootPath, "src", "auth.test.ts"), "import { refreshAuthToken } from './auth';\n");
   writeFileSync(join(rootPath, "tests", "billing.test.ts"), "export function calculatesInvoiceTotal() { return 42; }\\n");
   indexWithDatabase(db, location);
 }
@@ -47,6 +48,13 @@ describe("task-oriented context builder", () => {
     expect(result.items.some((item) => item.kind === "symbol" && item.title.includes("refreshAuthToken"))).toBe(true);
     expect(result.items.some((item) => item.kind === "dependency" && item.source === "src/token.ts")).toBe(true);
     expect(result.items.some((item) => item.kind === "test" && item.source === "tests/auth.test.ts")).toBe(true);
+    const mappedTest = result.items.find((item) => item.kind === "test" && item.source === "tests/auth.test.ts" && item.origin === "graph");
+    expect(mappedTest?.signals).toContain("reverse-import-dependent");
+    expect(mappedTest?.detail).toMatchObject({
+      target: "src/auth.ts",
+      relationship: "direct-or-transitive-import-dependent",
+    });
+    expect(result.items.some((item) => item.kind === "test" && item.source === "src/auth.test.ts" && item.origin === "graph")).toBe(true);
     expect(result.items.some((item) => item.kind === "test" && item.source === "tests/billing.test.ts")).toBe(false);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "confirmed")).toBe(true);
     expect(result.items.some((item) => item.kind === "memory" && item.status === "proposed")).toBe(true);
@@ -102,6 +110,7 @@ describe("task-oriented context builder", () => {
     expect(() => buildTaskContext(location, "refresh auth", { dependencyLimit: 0 })).toThrow("dependencyLimit");
     expect(() => buildTaskContext(location, "refresh auth", { testLimit: 51 })).toThrow("testLimit");
   });
+
 
   it("marks context as stale when indexed source files have changed", () => {
     setup();
