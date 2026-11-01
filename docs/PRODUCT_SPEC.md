@@ -192,9 +192,9 @@ No initialization or indexing operation may upload repository content. No team s
 - Keep lexical/structural retrieval useful without embeddings.
 
 ### Agent integration
-- Expose read-only retrieval tools over local MCP stdio.
+- Expose retrieval tools over local MCP stdio; allow explicit incremental index reconciliation and proposed-only memory creation. Confirmation and other memory lifecycle mutations remain human-controlled.
 - Validate all tool inputs.
-- Keep writes and indexing under explicit CLI control in the initial release.
+- Keep index reconciliation and memory proposal as explicit MCP calls; never silently confirm a proposal. Other memory lifecycle mutations remain under explicit CLI control.
 - Avoid logging source contents or memory bodies unnecessarily.
 
 ## 11. Non-functional requirements
