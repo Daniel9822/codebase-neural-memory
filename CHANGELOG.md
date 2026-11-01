@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Preserve bounded multiline TypeScript/JavaScript declaration headers in indexed symbol signatures; keep implementation bodies available only through bounded source retrieval.
 - Add freshness warnings to all indexed MCP reads, with optional strict refusal and guarded incremental auto-update.
 - Add bounded inline source snippets to `symbol_lookup` and `file_details`, including independent source/index hashes.
 - Add explicit path/symbol anchors and origin labels to `task_context` to suppress broad fallback noise.
