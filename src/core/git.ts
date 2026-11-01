@@ -164,7 +164,7 @@ export function getGitBlame(
   const requestedLines = endLine - startLine + 1;
   if (requestedLines > 200) throw new Error("Git blame range cannot exceed 200 lines.");
 
-  const normalized = filePath.replace(/\\\\/g, "/");
+  const normalized = filePath.replaceAll("\\", "/");
   if (!normalized || normalized.length > 500 || normalized.startsWith("/") ||
       /^[a-zA-Z]:/.test(normalized) ||
       normalized.split("/").some((part) => !part || part === "." || part === "..")) {
