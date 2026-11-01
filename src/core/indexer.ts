@@ -153,56 +153,56 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
     try {
       let entry: Dirent | null;
       while (!stopped && (entry = handle.readSync()) !== null) {
-      processedEntries += 1;
-      if (options.maxProcessed !== undefined && processedEntries > options.maxProcessed) {
-        truncated = true;
-        stopped = true;
-        break;
-      }
-      const absolutePath = join(directory, entry.name);
-      const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
-      if (isIgnored(absolutePath, scopes)) continue;
-      if (entry.isDirectory() && selectedPaths.length > 0 &&
-        !selectedPaths.some((selected) => selected === relativePath || selected.startsWith(relativePath + "/") || relativePath.startsWith(selected + "/"))) continue;
-      const selected = isWithinIndexScope(relativePath, selectedPaths, includeMatcher);
-      if (selected && isSupportedSourceFile(relativePath) &&
-        options.maxFiles !== undefined && scanned >= options.maxFiles) {
-        truncated = true;
-        stopped = true;
-        break;
-      }
-      if (entry.isSymbolicLink()) {
-        if (selected && isSupportedSourceFile(relativePath)) {
-          scanned += 1;
-          skipped += 1;
-          skippedFiles.push(relativePath + ": symbolic link");
+        processedEntries += 1;
+        if (options.maxProcessed !== undefined && processedEntries > options.maxProcessed) {
+          truncated = true;
+          stopped = true;
+          break;
         }
-        continue;
-      }
-      if (entry.isDirectory()) {
-        walk(absolutePath, scopes);
-        continue;
-      }
-      if (!entry.isFile() || !isSupportedSourceFile(relativePath) || !selected) continue;
-      presentPaths.add(relativePath);
-      scanned += 1;
-      try {
-        const stat = statSync(absolutePath);
-        if (stat.size > MAX_FILE_BYTES) { skipped += 1; skippedFiles.push(relativePath + ": exceeds " + MAX_FILE_BYTES + " bytes"); continue; }
-        const content = readFileSync(absolutePath);
-        if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
-        const source = content.toString("utf8");
-        output.push({
-          relativePath,
-          size: stat.size,
-          mtime: stat.mtime,
-          hash: createHash("sha256").update(content).digest("hex"),
-          source,
-        });
-      } catch (error) {
-        failed += 1;
-        errors.push(relativePath + ": " + (error instanceof Error ? error.message : String(error)));
-      }
+        const absolutePath = join(directory, entry.name);
+        const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
+        if (isIgnored(absolutePath, scopes)) continue;
+        if (entry.isDirectory() && selectedPaths.length > 0 &&
+          !selectedPaths.some((selected) => selected === relativePath || selected.startsWith(relativePath + "/") || relativePath.startsWith(selected + "/"))) continue;
+        const selected = isWithinIndexScope(relativePath, selectedPaths, includeMatcher);
+        if (selected && isSupportedSourceFile(relativePath) &&
+          options.maxFiles !== undefined && scanned >= options.maxFiles) {
+          truncated = true;
+          stopped = true;
+          break;
+        }
+        if (entry.isSymbolicLink()) {
+          if (selected && isSupportedSourceFile(relativePath)) {
+            scanned += 1;
+            skipped += 1;
+            skippedFiles.push(relativePath + ": symbolic link");
+          }
+          continue;
+        }
+        if (entry.isDirectory()) {
+          walk(absolutePath, scopes);
+          continue;
+        }
+        if (!entry.isFile() || !isSupportedSourceFile(relativePath) || !selected) continue;
+        presentPaths.add(relativePath);
+        scanned += 1;
+        try {
+          const stat = statSync(absolutePath);
+          if (stat.size > MAX_FILE_BYTES) { skipped += 1; skippedFiles.push(relativePath + ": exceeds " + MAX_FILE_BYTES + " bytes"); continue; }
+          const content = readFileSync(absolutePath);
+          if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
+          const source = content.toString("utf8");
+          output.push({
+            relativePath,
+            size: stat.size,
+            mtime: stat.mtime,
+            hash: createHash("sha256").update(content).digest("hex"),
+            source,
+          });
+        } catch (error) {
+          failed += 1;
+          errors.push(relativePath + ": " + (error instanceof Error ? error.message : String(error)));
+        }
       }
     } catch (error) {
       failed += 1;
