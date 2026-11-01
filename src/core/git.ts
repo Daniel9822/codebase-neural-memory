@@ -1,7 +1,6 @@
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { realpathSync } from "node:fs";
-import { resolve } from "node:path";
 
 export interface GitSnapshot {
   available: boolean;
@@ -28,8 +27,11 @@ function runGit(rootPath: string, args: string[]): string | null {
 
 /** Read only the repository identity and working-tree state; never changes Git metadata. */
 export function getGitSnapshot(rootPath: string): GitSnapshot {
-  const reportedRoot = runGit(rootPath, ["rev-parse", "--show-toplevel"]);
-  if (!reportedRoot) {
+  // Do not parse or realpath Git's --show-toplevel output: Git for Windows may
+  // report MSYS paths (/c/...) while Node expects Win32 paths. --show-prefix
+  // is path-format independent and is empty only when cwd is the repo root.
+  const prefix = runGit(rootPath, ["rev-parse", "--show-prefix"]);
+  if (prefix === null || prefix.length > 0) {
     return {
       available: false,
       repositoryRoot: null,
@@ -42,27 +44,9 @@ export function getGitSnapshot(rootPath: string): GitSnapshot {
   }
 
   let repositoryRoot: string;
-  let requestedRoot: string;
   try {
-    repositoryRoot = realpathSync(reportedRoot);
-    requestedRoot = realpathSync(rootPath);
+    repositoryRoot = realpathSync(rootPath);
   } catch {
-    return {
-      available: false,
-      repositoryRoot: null,
-      commit: null,
-      branch: null,
-      dirty: null,
-      changedPathCount: null,
-      statusHash: null,
-    };
-  }
-
-  const normalize = (value: string) => resolve(value).replaceAll("\\", "/");
-  const rootsMatch = process.platform === "win32"
-    ? normalize(repositoryRoot).toLowerCase() === normalize(requestedRoot).toLowerCase()
-    : normalize(repositoryRoot) === normalize(requestedRoot);
-  if (!rootsMatch) {
     return {
       available: false,
       repositoryRoot: null,
