@@ -1,0 +1,202 @@
+{
+  "schemaVersion": 1,
+  "repository": "Daniel9822/codebase-neural-memory",
+  "referenceCommit": "4e57cadc49fedea2f88359a204c10568c3dece48",
+  "instructions": "Run each prompt unchanged in both conditions. Do not show expectedEvidence to the evaluated agent. The evaluator uses expectedEvidence and the protocol rubric after each run.",
+  "tasks": [
+    {
+      "id": "CNM-AGENT-01",
+      "category": "navigation",
+      "difficulty": "medium",
+      "prompt": "Trace the MCP index_freshness tool from its registration through the core implementation. Explain the exact conditions that make an index current, stale, incomplete, or not indexed, and list the Git metadata returned.",
+      "expectedEvidence": {
+        "files": [
+          "src/adapters/mcp/server.ts",
+          "src/core/indexer.ts",
+          "src/core/git.ts"
+        ],
+        "facts": [
+          "index_freshness delegates to getIndexFreshness",
+          "file additions/changes/deletions affect freshness",
+          "commit, branch, or worktree-status hash changes make a Git-backed index stale",
+          "Git-unavailable non-Git folders remain supported; missing Git metadata after a Git-backed index is incomplete"
+        ]
+      },
+      "acceptance": [
+        "Call path is correct",
+        "All freshness states and Git fields are described accurately",
+        "No watcher or automatic reindex behavior is falsely claimed"
+      ]
+    },
+    {
+      "id": "CNM-AGENT-02",
+      "category": "navigation",
+      "difficulty": "medium",
+      "prompt": "Explain how memory_freshness evaluates both a memory's source file and optional commit_sha. Enumerate the commit relationship statuses and explain when requiresReview becomes true. State whether the operation mutates memory lifecycle.",
+      "expectedEvidence": {
+        "files": [
+          "src/core/memories.ts",
+          "src/core/git.ts",
+          "tests/git-awareness.test.ts"
+        ],
+        "facts": [
+          "source fingerprints and Git ancestry are checked separately",
+          "commit statuses are not-referenced, unavailable, unknown, current, ancestor, ahead, diverged",
+          "non-current or unavailable commit references require review",
+          "freshness inspection does not mutate memory content or lifecycle status",
+          "commit-only memories are included"
+        ]
+      },
+      "acceptance": [
+        "All statuses are listed correctly",
+        "Review behavior is correct",
+        "No automatic confirmation/obsolescence is claimed"
+      ]
+    },
+    {
+      "id": "CNM-AGENT-03",
+      "category": "debugging",
+      "difficulty": "medium",
+      "prompt": "A developer switches to another branch whose HEAD differs from the indexed commit, but every supported source file has the same content hash. Predict the result of cnm freshness and identify the exact flags that explain it. Give the safe recovery action.",
+      "expectedEvidence": {
+        "files": [
+          "src/core/indexer.ts",
+          "src/core/git.ts",
+          "tests/git-awareness.test.ts"
+        ],
+        "facts": [
+          "the index is stale even if file hashes are unchanged",
+          "commitChanged and possibly branchChanged are reported",
+          "reindex captures the new commit/branch snapshot"
+        ]
+      },
+      "acceptance": [
+        "Predicts stale correctly",
+        "Identifies the relevant Git fields",
+        "Recommends explicit reindex rather than silently treating the index as current"
+      ]
+    },
+    {
+      "id": "CNM-AGENT-04",
+      "category": "debugging",
+      "difficulty": "hard",
+      "prompt": "A memory references a commit on a side branch. The checked-out branch is first at the side branch's parent, then receives a different commit. Explain the expected commitStatus in both states and why the source file can still report current.",
+      "expectedEvidence": {
+        "files": [
+          "src/core/git.ts",
+          "src/core/memories.ts",
+          "tests/git-awareness.test.ts"
+        ],
+        "facts": [
+          "when current HEAD is an ancestor of the referenced commit, status is ahead",
+          "after both branches advance independently, status is diverged",
+          "file fingerprint status is independent from commit ancestry status",
+          "requiresReview is true for both non-current relationships"
+        ]
+      },
+      "acceptance": [
+        "ahead and diverged are distinguished correctly",
+        "File status and commit status are not conflated",
+        "Review requirement is correct"
+      ]
+    },
+    {
+      "id": "CNM-AGENT-05",
+      "category": "code-understanding",
+      "difficulty": "hard",
+      "prompt": "Trace task_context from the MCP adapter to the core builder. Identify the candidate sources, ranking signals, and the limits that prevent an unbounded response.",
+      "expectedEvidence": {
+        "files": [
+          "src/adapters/mcp/server.ts",
+          "src/core/context.ts",
+          "tests/context.test.ts"
+        ],
+        "facts": [
+          "candidate sources include symbols, files/graph, memories, and test-path matches",
+          "ranking signals are explicit/explainable",
+          "limits bound candidate count and response characters",
+          "source references are retained"
+        ]
+      },
+      "acceptance": [
+        "Core call path is correct",
+        "Candidate sources and ranking signals are complete",
+        "At least two relevant bounds are identified"
+      ]
+    },
+    {
+      "id": "CNM-AGENT-06",
+      "category": "navigation",
+      "difficulty": "easy",
+      "prompt": "Find the database migration that introduced indexed Git branch and worktree metadata. Explain how an existing database receives the columns and identify the regression test that verifies migration behavior.",
+      "expectedEvidence": {
+        "files": [
+          "src/storage/database.ts",
+          "tests/migrations.test.ts",
+          "tests/git-awareness.test.ts"
+        ],
+        "facts": [
+          "migration version is 10",
+          "columns include indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths",
+          "migration checks existing columns before ALTER TABLE",
+          "migration tests assert version and columns"
+        ]
+      },
+      "acceptance": [
+        "Migration version and all columns are correct",
+        "Upgrade is described as idempotent",
+        "Correct test file is cited"
+      ]
+    },
+    {
+      "id": "CNM-AGENT-07",
+      "category": "code-understanding",
+      "difficulty": "medium",
+      "prompt": "Explain how CNM reconciles a Git rename and deletion into its index. Identify what happens to file identities, symbols, imports, graph relations, unresolved imports, and FTS entries, and point to tests that prove the result.",
+      "expectedEvidence": {
+        "files": [
+          "src/core/indexer.ts",
+          "src/storage/database.ts",
+          "tests/git-awareness.test.ts",
+          "tests/indexer.test.ts"
+        ],
+        "facts": [
+          "rename is observed as an added path plus deleted path",
+          "old path records are removed and new path is indexed",
+          "dependent graph/search structures are rebuilt or cleaned",
+          "incremental reconciliation and forced reindex converge in the Git-awareness test"
+        ]
+      },
+      "acceptance": [
+        "Rename/delete behavior is accurate",
+        "No stale old-path identity is claimed to remain",
+        "Evidence includes convergence coverage"
+      ]
+    },
+    {
+      "id": "CNM-AGENT-08",
+      "category": "debugging",
+      "difficulty": "medium",
+      "prompt": "A repository is opened outside Git, and one memory has a commit_sha. Explain the index_freshness and memory_freshness behavior, including whether indexing is blocked and whether the memory requires review.",
+      "expectedEvidence": {
+        "files": [
+          "src/core/git.ts",
+          "src/core/indexer.ts",
+          "src/core/memories.ts",
+          "tests/git-awareness.test.ts"
+        ],
+        "facts": [
+          "indexing remains available in non-Git folders",
+          "index_freshness reports Git metadata unavailable while file freshness still works",
+          "a memory with a commit reference cannot verify it without Git and requires review",
+          "a memory without a commit reference does not require review solely because Git is unavailable"
+        ]
+      },
+      "acceptance": [
+        "Non-Git indexing compatibility is correct",
+        "Commit provenance is marked unavailable",
+        "No false commit verification is claimed"
+      ]
+    }
+  ]
+}

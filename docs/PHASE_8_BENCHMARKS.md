@@ -117,5 +117,5 @@ Retrieval metrics were identical across the three scales because the labeled dom
 
 1. Add a checked-in or generated real-world repository fixture with a known source layout and expected relationships.
 2. Expand labeled retrieval cases to file-level and task-context queries with independently reviewed relevance judgments.
-3. Add controlled agent-task comparisons with and without CNM.
+3. Execute the paired tasks in [`benchmarks/agent-tasks.json`](../benchmarks/agent-tasks.json) using [`docs/AGENT_EVALUATION_PROTOCOL.md`](AGENT_EVALUATION_PROTOCOL.md), with and without CNM.
 4. Repeat baselines on Windows and macOS before setting regression thresholds.
