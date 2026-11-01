@@ -212,7 +212,7 @@ describe("explicit memory lifecycle", () => {
     expect(recallMemories(location, "how does the play command work")).toEqual(
       expect.arrayContaining([expect.objectContaining({ id: confirmed, status: "confirmed" })]),
     );
-    expect(recallMemories(location, "", 20, { status: undefined, list: true }).map((item) => item.id))
+    expect(recallMemories(location, "", 20, { list: true }).map((item) => item.id))
       .toContain(proposed);
     expect(recallMemories(location, "", 20, { statuses: ["proposed"] })).toEqual([
       expect.objectContaining({ id: proposed, status: "proposed" }),
