@@ -281,7 +281,7 @@ export function lookupTaskContextDetails(
     }
     const detail = getFileDetails(location, path, Math.min(20, limit));
     const item: TaskContextItem = {
-      kind: "file", title: path, source: path, score: 1,
+      kind: "file", origin: "anchor", title: path, source: path, score: 1,
       signals: ["explicit-follow-up-lookup", "existing-context-source"],
       detail: {
         indexRevision: detail.indexRevision, contentHash: detail.contentHash,
