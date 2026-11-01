@@ -38,6 +38,7 @@ cnm map
 cnm search "registerParticipant"
 cnm explain "TournamentService"
 cnm impact "src/services/tournamentService.ts"
+cnm symbol-impact "registerParticipant" --file "src/services/tournamentService.ts" --direction incoming --depth 3
 cnm dependencies "src/services/tournamentService.ts" --depth 2
 cnm remember "Duplicate registration is prohibited" "A participant may only be registered once in an active tournament."
 cnm memories
@@ -75,7 +76,7 @@ cnm index
 cnm mcp
 ```
 
-The server uses stdio and exposes fourteen tools: eleven read/retrieval tools and three explicit local write operations (`index_update`, `memory_propose`, and `memory_transition`). The memory transition tool can confirm a proposal only after the user clearly authorizes it.
+The server uses stdio and exposes fifteen tools: twelve read/retrieval tools and three explicit local write operations (`index_update`, `memory_propose`, and `memory_transition`). The memory transition tool can confirm a proposal only after the user clearly authorizes it.
 
 - `project_overview` — local repository/index summary.
 - `index_freshness` — source-file and Git commit/branch/working-tree freshness versus the index.
@@ -85,7 +86,8 @@ The server uses stdio and exposes fourteen tools: eleven read/retrieval tools an
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
 - `file_details` — bounded indexed file metadata, symbols, imports, and relations; `inlineSnippets` optionally includes bounded source for the first symbols.
 - `source_excerpt` — bounded current source-code lines from an indexed file, with line ranges, SHA-256 comparison against the index, and explicit stale/truncation status.
-- `change_impact` — bounded reverse-import impact traversal.
+- `change_impact` — bounded reverse-import impact traversal at the file level.
+- `symbol_impact` — bounded symbol-level traversal over `CALLS`, `EXTENDS`, and `IMPLEMENTS`, returning shortest relation distances, source locations, and per-edge evidence. Incoming traversal finds callers/implementors that may be affected; outgoing traversal finds dependencies. Ambiguous symbol names return candidates and require a path/kind/line filter.
 - `task_context` — deterministic, bounded task context from indexed facts and memories; optional exact path/symbol anchors disable broad lexical symbol fallback and label each item origin.
 - `memory_freshness` — source-file fingerprints and Git commit ancestry for linked or commit-referenced memories.
 - `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
@@ -139,7 +141,7 @@ CNM does not create a memory directory in the repository and does not modify `.g
 
 ## What is indexed
 
-Use `cnm relations <symbol>` to inspect incoming and outgoing symbol relationships (such as `CALLS`, `EXTENDS`, and `IMPLEMENTS`) with file locations, provenance, confidence, and index revision. Use `--limit` to bound the result. `cnm dependencies <file> --depth <number> --limit <number> --max-processed <number>` returns direct or transitive imports with depth, a dependency chain, and `chainEvidence` containing provenance, confidence, and index revision for every edge in that chain; the JSON response reports whether either traversal budget truncated the result. Defaults are 100 unique results and 1,000 examined import edges. `cnm file <path> --limit <number>` returns indexed file metadata, symbols, resolved and unresolved imports, symbol relationships, and provenance. The per-collection limit defaults to 100 and has a maximum of 500; the response includes total counts and truncation flags for each collection. The MCP `file_details` tool accepts the same optional `limit`. These details are read from the existing index; CNM does not infer additional entities for this view.
+Use `cnm relations <symbol>` to inspect direct incoming and outgoing symbol relationships (such as `CALLS`, `EXTENDS`, and `IMPLEMENTS`) with file locations, provenance, confidence, and index revision. Use `cnm symbol-impact <symbol> --direction incoming --depth 3` to traverse those edges and measure shortest symbol-to-symbol distances; disambiguate repeated names with `--file`, `--kind`, or `--start-line`. Traversal is bounded by depth, result, and processed-edge limits and reports truncation. `cnm dependencies <file> --depth <number> --limit <number> --max-processed <number>` returns direct or transitive imports with depth, a dependency chain, and `chainEvidence` containing provenance, confidence, and index revision for every edge in that chain; the JSON response reports whether either traversal budget truncated the result. Defaults are 100 unique results and 1,000 examined import edges. `cnm file <path> --limit <number>` returns indexed file metadata, symbols, resolved and unresolved imports, symbol relationships, and provenance. The per-collection limit defaults to 100 and has a maximum of 500; the response includes total counts and truncation flags for each collection. The MCP `file_details` tool accepts the same optional `limit`. These details are read from the existing index; CNM does not infer additional entities for this view.
 
 File and symbol nodes receive deterministic SHA-256 identifiers derived from their project-relative identity; these identifiers survive forced reindexing and line-only shifts. Internal SQLite row IDs remain implementation details.
 
