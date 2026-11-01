@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
-import { indexWithDatabase } from "../src/core/indexer.js";
+import { indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
 import { getProjectMapReport } from "../src/core/retrieval.js";
 
 let temporaryDirectory = "";
@@ -72,6 +72,24 @@ describe("indexWithDatabase", () => {
     expect(summary.added).toBe(2);
     expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([
       { path: "src/nested/match.ts" }, { path: "src/root.ts" },
+    ]);
+  });
+
+  it("allows bounded MCP-style reconciliation to commit processed files and report the remaining scope", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "a.ts"), "export const beforeA = true;");
+    writeFileSync(join(location.rootPath, "b.ts"), "export const beforeB = true;");
+    indexWithDatabase(database!, location);
+    writeFileSync(join(location.rootPath, "a.ts"), "export const afterA = true;");
+    writeFileSync(join(location.rootPath, "b.ts"), "export const afterB = true;");
+
+    const summary = updateProjectIndex(location, { paths: ["."], maxFiles: 1 });
+
+    expect(summary.updated).toBe(1);
+    expect(summary.truncated).toBe(true);
+    expect(summary.deleted).toBe(0);
+    expect(database!.prepare("SELECT name FROM symbols ORDER BY name").all()).toEqual([
+      { name: "afterA" }, { name: "beforeB" },
     ]);
   });
 
