@@ -111,7 +111,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly eleven tools and publishes the expected input schemas", async () => {
+  it("discovers exactly thirteen tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -244,13 +244,25 @@ describe("MCP adapter protocol contract", () => {
   it("supports explicit incremental index updates and stores agent memories as proposed", async () => {
     createProject();
     const client = await connectClient();
+    indexWithDatabase(database!, location, false, ["excluded.ts"]);
     const initialRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
     writeFileSync(join(location.rootPath, "helper.ts"), "export function helper() { return false; }\\n");
+    writeFileSync(join(location.rootPath, "excluded.ts"), "export function shouldStayExcluded() {}\\n");
 
     const update = await client.request("tools/call", { name: "index_update", arguments: {} });
     const updateResult = update.result as { content: Array<{ text: string }> };
     expect(JSON.parse(updateResult.content[0]!.text)).toMatchObject({ updated: 1, unchanged: 1 });
     expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision).toBe(initialRevision + 1);
+    expect(database!.prepare("SELECT path FROM files WHERE path = 'excluded.ts'").get()).toBeUndefined();
+
+    const filtered = await client.request("tools/call", {
+      name: "symbol_lookup",
+      arguments: { query: "target", kind: "function", filePath: "main.ts", exported: true, limit: 5 },
+    });
+    const filteredResult = filtered.result as { content: Array<{ text: string }> };
+    expect(JSON.parse(filteredResult.content[0]!.text)).toEqual([
+      expect.objectContaining({ name: "target", kind: "function", filePath: "main.ts", exported: true }),
+    ]);
 
     const proposal = await client.request("tools/call", {
       name: "memory_propose",
