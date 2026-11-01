@@ -259,7 +259,8 @@ Exit condition: documented benchmarks, stable regression tests, and no known dat
 - [x] Add optional symbol kind, project-relative path-prefix, and export filters to MCP symbol lookup.
 - [x] Verify MCP schemas, valid calls, invalid inputs, incremental update behavior, exclusion preservation, and proposed-only memory status in CI.
 - [x] Add bounded symbol-level impact traversal over `CALLS`, `EXTENDS`, and `IMPLEMENTS`, including BFS shortest distances, per-edge evidence, ambiguity handling, and CLI/MCP access (PR #65).
-- [ ] Complete the remaining agent-capability gaps: richer signature/body retrieval, test-to-symbol mapping, granular task-context budgets, Git blame/session rationale, and explicit architectural component grouping/distances. Current symbol-impact traversal measures symbol-to-symbol paths; it does not infer conceptual components.
+- [x] Map recognized test callback symbols to imported source symbols through indexed `CALLS` edges and expose the relationship through `symbol_impact` (PR #65); this is static syntax evidence, not runtime coverage.
+- [ ] Complete the remaining agent-capability gaps: richer signature/body retrieval, granular task-context budgets, Git blame/session rationale, and explicit architectural component grouping/distances. Current symbol-impact traversal measures symbol-to-symbol paths; it does not infer conceptual components.
 - [ ] Evaluate bounded reindex controls and stronger path/glob matching before broad adoption.
 
 Deliverable: agents can explicitly refresh derived index state and submit reviewable memory suggestions without silently confirming project knowledge.
