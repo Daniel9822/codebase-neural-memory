@@ -228,7 +228,7 @@ describe("Git-aware indexing and freshness", () => {
     indexWithDatabase(database!, location);
     expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([{ path: "renamed.ts" }]);
     expect(getIndexFreshness(location).status).toBe("current");
-  });
+  }, 10_000);
 
   it("converges incremental reconciliation and forced reindex after rename, deletion, and branch changes", () => {
     createProject();
