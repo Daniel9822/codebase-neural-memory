@@ -69,6 +69,36 @@ describe("task-oriented context builder", () => {
     expect(() => lookupTaskContextDetails(location, context, ["src/not-in-context.ts"])).toThrow("not referenced");
   });
 
+  it("enforces independent per-kind context budgets and reports their usage", () => {
+    setup();
+    remember(location, "Refresh auth token", "Rotate the refresh token safely.", "decision", "src/auth.ts");
+    proposeMemory(location, "Auth edge case", "Review expiration boundaries.", "note");
+    const result = buildTaskContext(location, "refresh auth token tests", {
+      maxItems: 20,
+      maxCharacters: 12000,
+      symbolLimit: 1,
+      fileLimit: 1,
+      dependencyLimit: 1,
+      testLimit: 1,
+      memoryLimit: 1,
+    });
+    const counts = Object.fromEntries(
+      ["symbol", "file", "dependency", "test", "memory"].map((kind) => [
+        kind, result.items.filter((item) => item.kind === kind).length,
+      ]),
+    );
+    expect(counts).toEqual({ symbol: 1, file: 1, dependency: 1, test: 1, memory: 1 });
+    expect(result.budget.perKind).toEqual({
+      symbol: { limit: 1, used: 1 },
+      file: { limit: 1, used: 1 },
+      dependency: { limit: 1, used: 1 },
+      test: { limit: 1, used: 1 },
+      memory: { limit: 1, used: 1 },
+    });
+    expect(() => buildTaskContext(location, "refresh auth", { dependencyLimit: 0 })).toThrow("dependencyLimit");
+    expect(() => buildTaskContext(location, "refresh auth", { testLimit: 51 })).toThrow("testLimit");
+  });
+
   it("marks context as stale when indexed source files have changed", () => {
     setup();
     writeFileSync(join(location.rootPath, "src", "auth.ts"), "export function refreshAuthToken() { return false; }\\n");
