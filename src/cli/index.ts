@@ -10,6 +10,7 @@ import { deleteMemory, inspectMemoryFreshness, proposeMemory, recallMemories, re
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
 import { buildTaskContext } from "../core/context.js";
+import { checkAgentInstructions, ensureAgentInstructions, renderAgentInstructions, type AgentTool } from "../core/agents-md.js";
 
 const program = new Command();
 
@@ -44,7 +45,36 @@ program.command("init")
     try { ensureProject(db, location); } finally { db.close(); }
     console.log(`Initialized memory for ${basename(location.rootPath)}.`);
     console.log(`Private database: ${location.databasePath}`);
-    console.log("No files were added to or modified inside the repository.");
+    const agentInstructions = ensureAgentInstructions(location);
+    console.log(`Agent instructions: ${agentInstructions.status} (${agentInstructions.path}).`);
+  });
+
+program.command("agents-md")
+  .description("Generate or check CNM agent instructions in the repository AGENTS.md.")
+  .option("--check", "Check whether the managed instructions match this CNM version")
+  .option("--force", "Refresh the CNM-managed section without replacing user-authored content")
+  .option("--print", "Print the generated managed section without writing")
+  .option("--tool <tool>", "Agent flavor: opencode, claude, cursor, or generic", "generic")
+  .action((options: { check?: boolean; force?: boolean; print?: boolean; tool: AgentTool }) => {
+    const location = currentLocation();
+    if (options.print) {
+      console.log(renderAgentInstructions(options.tool));
+      return;
+    }
+    if (options.check) {
+      const result = checkAgentInstructions(location, options.tool);
+      if (result.status === "current") {
+        console.log("AGENTS.md CNM instructions are current.");
+        return;
+      }
+      console.error(result.status === "missing"
+        ? "AGENTS.md is missing."
+        : "AGENTS.md CNM instructions are missing or outdated.");
+      process.exitCode = result.status === "missing" ? 2 : 1;
+      return;
+    }
+    const result = ensureAgentInstructions(location, options.tool);
+    console.log(`AGENTS.md CNM instructions: ${result.status}.`);
   });
 
 program.command("index")
