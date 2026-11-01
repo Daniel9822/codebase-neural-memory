@@ -83,7 +83,7 @@ describe("indexWithDatabase", () => {
     writeFileSync(join(location.rootPath, "a.ts"), "export const afterA = true;");
     writeFileSync(join(location.rootPath, "b.ts"), "export const afterB = true;");
 
-    const summary = updateProjectIndex(location, { paths: ["."], maxFiles: 1 });
+    const summary = updateProjectIndex(location, { paths: ["a.ts", "b.ts"], maxFiles: 1 });
 
     expect(summary.updated).toBe(1);
     expect(summary.truncated).toBe(true);
