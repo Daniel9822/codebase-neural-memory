@@ -73,4 +73,22 @@ describe("integrated CNM integrity regressions", () => {
       { name: "retained" },
     ]);
   });
+  it("reports a symlinked package manifest encountered while resolving an extended config", () => {
+    createProject();
+    const packageDirectory = join(location.rootPath, "node_modules", "shared-config");
+    const outsideManifest = join(temporaryDirectory, "outside-package.json");
+    mkdirSync(packageDirectory, { recursive: true });
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "shared-config" }));
+    writeFileSync(join(packageDirectory, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true } }));
+    writeFileSync(outsideManifest, JSON.stringify({ tsconfig: "tsconfig.json" }));
+    symlinkSync(outsideManifest, join(packageDirectory, "package.json"), "file");
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;\\n");
+
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("node_modules/shared-config/package.json"))).toBe(true);
+  });
+
 });
