@@ -93,7 +93,8 @@ function boundedItems(
     if (!previous || item.score > previous.score) unique.set(key, item);
   }
   const ranked = [...unique.values()].sort((a, b) =>
-    b.score - a.score || compareCodeUnits(a.source, b.source) || compareCodeUnits(a.title, b.title));
+    b.score - a.score || compareCodeUnits(a.source, b.source) ||
+    compareCodeUnits(a.title, b.title) || compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   const items: TaskContextItem[] = [];
   // maxCharacters is the exact character length of JSON.stringify(items), including
   // the array brackets, commas, quotes, and serialized item fields.
@@ -185,14 +186,10 @@ export function buildTaskContext(
   let testCandidatesTruncated = false;
   let dependencyCandidatesTruncated = false;
   const addTestCandidate = (item: TaskContextItem) => {
-    if (seenTestPaths.has(item.source)) return;
-    if (seenTestPaths.size >= testLimit) { testCandidatesTruncated = true; return; }
     seenTestPaths.add(item.source);
     candidates.push(item);
   };
   const addDependencyCandidate = (item: TaskContextItem) => {
-    if (seenDependencyPaths.has(item.source)) return;
-    if (seenDependencyPaths.size >= dependencyLimit) { dependencyCandidatesTruncated = true; return; }
     seenDependencyPaths.add(item.source);
     candidates.push(item);
   };
@@ -225,9 +222,7 @@ export function buildTaskContext(
         const ambiguous = /ambiguous/i.test(unresolved.status) || unresolved.candidates.length > 1;
         warnings.push(`Import "${unresolved.specifier}" in ${symbol.filePath} is ${ambiguous ? "ambiguous" : "unresolved"}; candidates: ${unresolved.candidates.length ? unresolved.candidates.join(", ") : "none"}.`);
       }
-      const remainingDependencies = dependencyLimit - seenDependencyPaths.size;
-      if (remainingDependencies > 0) {
-        const dependencies = findDependencies(location, symbol.filePath, 1, Math.min(20, remainingDependencies), 100);
+      const dependencies = findDependencies(location, symbol.filePath, 1, 20, 100);
         for (const dependency of dependencies.dependencies) {
           addDependencyCandidate({
             kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
@@ -240,7 +235,6 @@ export function buildTaskContext(
           dependencyCandidatesTruncated = true;
           warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
         }
-      }
       // Map the indexed source file back to tests through actual reverse-import
       // relations, rather than relying only on test filenames containing task words.
       if (!seenImpactFiles.has(symbol.filePath)) {
@@ -275,9 +269,7 @@ export function buildTaskContext(
         relations: detail.relations.slice(0, 10),
       },
     });
-    const remainingDependencies = dependencyLimit - seenDependencyPaths.size;
-    if (remainingDependencies > 0) {
-      const dependencies = findDependencies(location, path, 1, Math.min(20, remainingDependencies), 100);
+    const dependencies = findDependencies(location, path, 1, 20, 100);
       for (const dependency of dependencies.dependencies) {
         addDependencyCandidate({
           kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
@@ -289,7 +281,6 @@ export function buildTaskContext(
         dependencyCandidatesTruncated = true;
         warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
       }
-    }
   }
 
   const testDb = openDatabase(location);
@@ -334,6 +325,8 @@ export function buildTaskContext(
       detail: { matchingAnchors },
     });
   }
+  testCandidatesTruncated = seenTestPaths.size > testLimit;
+  dependencyCandidatesTruncated = seenDependencyPaths.size > dependencyLimit;
   if (testPathDiscoveryTruncated) warnings.push("Test-path discovery was truncated at 500 indexed candidates; matching tests may be missing.");
   if (testCandidatesTruncated) warnings.push(`Test candidates were truncated at the configured testLimit of ${testLimit}.`);
   if (dependencyCandidatesTruncated) warnings.push(`Dependency candidates were truncated at the configured dependencyLimit of ${dependencyLimit}.`);
