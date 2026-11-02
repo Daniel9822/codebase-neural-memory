@@ -149,8 +149,6 @@ function createSafeTypeScriptHost(
   const root = fileSystem.realpathSync(projectRoot);
   const host = ts.createCompilerHost(options);
   const trustedExternalDirectories = new Set<string>();
-  const defaultGetDirectories = (host.getDirectories ?? ts.sys.getDirectories).bind(host);
-  const defaultReadDirectory = (host.readDirectory ?? ts.sys.readDirectory).bind(host);
 
   // TypeScript's own standard library is a fixed, installation-derived root.
   try {
@@ -225,10 +223,23 @@ function createSafeTypeScriptHost(
   };
 
   host.directoryExists = (directoryName) => isSafeDirectory(directoryName);
-  host.getDirectories = (path) => {
-    if (!isSafeDirectory(path)) return [];
-    return defaultGetDirectories(path).filter((entry) => isSafeDirectory(join(path, entry)));
+  const safeRealpath = (path: string): string => {
+    const absolute = resolve(path);
+    if (!isSafeDirectory(dirname(absolute)) && !isSafeDirectory(absolute)) {
+      throw new Error("TypeScript path resolution crossed an untrusted directory.");
+    }
+    const canonical = fileSystem.realpathSync(absolute);
+    if (isPackageManagerRootSymlink(absolute) && fileSystem.lstatSync(absolute).isSymbolicLink() &&
+        fileSystem.lstatSync(canonical).isDirectory()) {
+      trustedExternalDirectories.add(canonical);
+    }
+    if (!isWithinPath(canonical, root) &&
+        ![...trustedExternalDirectories].some((trusted) => isWithinPath(canonical, trusted))) {
+      throw new Error("TypeScript path resolution escaped approved roots.");
+    }
+    return canonical;
   };
+  host.realpath = safeRealpath;
   const getSafeFileSystemEntries = (directory: string): { files: string[]; directories: string[] } => {
     if (!isSafeDirectory(directory)) {
       throw new Error("TypeScript directory enumeration crossed an untrusted directory.");
@@ -262,6 +273,7 @@ function createSafeTypeScriptHost(
     }
     return { files, directories };
   };
+  host.getDirectories = (path) => getSafeFileSystemEntries(path).directories;
   host.readDirectory = (path, extensions, excludes, includes, depth) =>
     ts.matchFiles(
       path,
@@ -272,24 +284,8 @@ function createSafeTypeScriptHost(
       ts.sys.getCurrentDirectory(),
       depth,
       getSafeFileSystemEntries,
-      host.realpath,
+      safeRealpath,
     ).filter((entry) => isSafeFileCandidate(entry));
-  host.realpath = (path) => {
-    const absolute = resolve(path);
-    if (!isSafeDirectory(dirname(absolute)) && !isSafeDirectory(absolute)) {
-      throw new Error("TypeScript path resolution crossed an untrusted directory.");
-    }
-    const canonical = fileSystem.realpathSync(absolute);
-    if (isPackageManagerRootSymlink(absolute) && fileSystem.lstatSync(absolute).isSymbolicLink() &&
-        fileSystem.lstatSync(canonical).isDirectory()) {
-      trustedExternalDirectories.add(canonical);
-    }
-    if (!isWithinPath(canonical, root) &&
-        ![...trustedExternalDirectories].some((trusted) => isWithinPath(canonical, trusted))) {
-      throw new Error("TypeScript path resolution escaped approved roots.");
-    }
-    return canonical;
-  };
   host.fileExists = (path) => isSafeFileCandidate(path) &&
     readTypeScriptInputSafely(path, root) !== undefined;
   host.readFile = (path) => isSafeFileCandidate(path)
