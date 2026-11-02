@@ -218,6 +218,11 @@ export interface SemanticPackageManifestSnapshot {
   manifestCount: number;
 }
 
+export interface SemanticResolutionInput {
+  containingFile: string;
+  specifier: string;
+}
+
 const MAX_SEMANTIC_PACKAGE_MANIFESTS = 10_000;
 
 function isNodeModulesPackageManifest(path: string): boolean {
@@ -228,12 +233,12 @@ function isNodeModulesPackageManifest(path: string): boolean {
 
 /**
  * Fingerprint the package.json files actually consulted by TypeScript's
- * semantic module resolver. This deliberately tracks resolver observations,
- * not every package installed in node_modules.
+ * module resolver for the indexed import specifiers. This avoids scanning
+ * node_modules or constructing a full TypeScript program during freshness.
  */
 export function inspectSemanticPackageManifests(
   rootPath: string,
-  indexedPaths: string[],
+  resolutionInputs: SemanticResolutionInput[],
 ): SemanticPackageManifestSnapshot {
   const root = resolve(rootPath);
   const rootConfigPath = join(root, "tsconfig.json").replaceAll("\\", "/");
@@ -267,15 +272,18 @@ export function inspectSemanticPackageManifests(
   type ManifestRead = { content: Buffer | null; failure: string | null };
   const consulted = new Map<string, ManifestRead>();
   const errors: string[] = [];
+  let manifestLimitExceeded = false;
   const readManifest = (candidate: string): ManifestRead => {
     const absolute = resolve(candidate);
     const key = absolute.replaceAll("\\", "/");
     const previous = consulted.get(key);
     if (previous) return previous;
     if (consulted.size >= MAX_SEMANTIC_PACKAGE_MANIFESTS) {
-      const failure = "semantic package-manifest inspection exceeded its safety limit";
-      errors.push(failure);
-      return { content: null, failure };
+      if (!manifestLimitExceeded) {
+        errors.push("TypeScript semantic package-manifest inspection exceeded its safety limit.");
+        manifestLimitExceeded = true;
+      }
+      return { content: null, failure: "safety-limit" };
     }
     let result: ManifestRead;
     try {
@@ -309,24 +317,29 @@ export function inspectSemanticPackageManifests(
     return defaultReadFile(path);
   };
 
-  const rootNames = indexedPaths.map((path) => resolve(root, path));
-  // Creating the program exercises the same TypeScript module-resolution
-  // path used by semantic diagnostics and records package metadata reads.
-  // Materialize the program's source graph. Module resolution consults package
-  // manifests while TypeScript constructs this graph; semantic diagnostics are
-  // deliberately not run here because they are handled by the normal pass.
-  ts.createProgram({ rootNames, options, host });
+  const uniqueInputs = new Map<string, SemanticResolutionInput>();
+  for (const input of resolutionInputs) {
+    const containingFile = resolve(root, input.containingFile);
+    uniqueInputs.set(containingFile + "\0" + input.specifier, { containingFile, specifier: input.specifier });
+  }
+  for (const input of [...uniqueInputs.values()].sort((a, b) =>
+    compareCodeUnits(a.containingFile, b.containingFile) || compareCodeUnits(a.specifier, b.specifier))) {
+    ts.resolveModuleName(input.specifier, input.containingFile, options, host);
+  }
+  for (const typeName of options.types ?? []) {
+    ts.resolveTypeReferenceDirective(typeName, join(root, "__cnm_type_reference__.ts"), options, host);
+  }
 
   const hash = createHash("sha256");
   for (const [path, manifest] of [...consulted].sort(([a], [b]) => compareCodeUnits(a, b))) {
-    hash.update(path).update("\\0");
+    hash.update(path).update("\0");
     if (manifest.content) {
-      hash.update("present\\0").update(manifest.content);
+      hash.update("present\0").update(manifest.content);
+      const manifestText = manifest.content.toString("utf8");
+      if (!Buffer.from(manifestText, "utf8").equals(manifest.content)) {
+        errors.push(path + ": TypeScript package manifest is not valid UTF-8.");
+      }
       try {
-        const manifestText = manifest.content.toString("utf8");
-        if (!Buffer.from(manifestText, "utf8").equals(manifest.content)) {
-          errors.push(path + ": TypeScript package manifest is not valid UTF-8.");
-        }
         const parsed: unknown = JSON.parse(manifestText);
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
           errors.push(path + ": TypeScript package manifest must contain a JSON object.");
@@ -338,7 +351,7 @@ export function inspectSemanticPackageManifests(
       hash.update(manifest.failure === "ENOENT" || manifest.failure === "ENOTDIR"
         ? "<missing>" : "<unreadable:" + (manifest.failure ?? "unknown") + ">");
     }
-    hash.update("\\0");
+    hash.update("\0");
   }
   return {
     hash: hash.digest("hex"),
