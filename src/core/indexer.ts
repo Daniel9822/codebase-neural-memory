@@ -92,6 +92,7 @@ function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buff
     const read = readFileWithinRoot(root, absoluteCandidate, {
       canonicalRoot: root,
       rejectFinalSymlink: true,
+      rejectHardLinks: true,
     });
     // Recheck parent components after the descriptor-bound read to detect
     // substitutions that occurred after the pre-open path inspection.
