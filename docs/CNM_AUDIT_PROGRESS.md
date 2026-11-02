@@ -122,6 +122,14 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [ ] Keep descriptor-relative directory traversal and extended package-manifest race semantics open until stronger guarantees and broader regression coverage are established.
 
 
+### CNM-06 follow-up — bounded memory freshness
+
+- [x] Bound `inspectMemoryFreshness` to 100 records by default and 500 maximum.
+- [x] Add targeted memory-ID freshness inspection (maximum 50 IDs) so `task_context` hashes only the memory candidates it actually returns.
+- [x] Change `cnm memory freshness` to use the bounded report, expose `--limit` (1–500), and return total/truncation metadata.
+- [x] Update README, architecture, and product-contract documentation to match the CLI and context budgets.
+- [ ] Verify the memory freshness and task-context tests plus the final cross-platform CI matrix before merge.
+
 ### Integrated CNM close-out regression — PR #122 (2026-11-02)
 
 - [x] Add a combined regression for directory-to-symlink replacement, incomplete discovery, simultaneous source-file drift, and relation-configuration drift.
