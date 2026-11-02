@@ -11,6 +11,7 @@ import type { IndexSummary } from "../shared/types.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
 
 const MAX_FILE_BYTES = 1_000_000;
+const MAX_DIRECTORY_ENTRIES_FOR_SORT = 100_000;
 const DEFAULT_EXCLUDES = [
   ".git", ".hg", ".svn", "node_modules", "bower_components", "vendor",
   "dist", "build", "coverage", ".next", ".nuxt", ".output", "out",
@@ -40,6 +41,7 @@ interface DiscoveryResult {
   skipped: number;
   failed: number;
   truncated: boolean;
+  abortRequired: boolean;
   errors: string[];
   skippedFiles: string[];
 }
@@ -131,7 +133,8 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
   let scanned = 0;
   let skipped = 0;
   let failed = 0;
-  let processedEntries = 0;
+  let enumeratedEntries = 0;
+  let abortRequired = false;
   let truncated = false;
   let stopped = false;
   const rootScope = loadIgnoreRules(root, true, extraExcludes);
@@ -141,8 +144,6 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
     const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
     let handle: ReturnType<typeof opendirSync>;
     try {
-      // Stream directory entries instead of materializing and sorting an
-      // unbounded array. maxProcessed now bounds actual enumeration work too.
       handle = opendirSync(directory);
     } catch (error) {
       failed += 1;
@@ -151,14 +152,26 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
       return;
     }
     try {
+      // Sort each directory before selecting bounded candidates. If the
+      // enumeration budget is exceeded, abort the whole update rather than
+      // committing a filesystem-order-dependent partial selection.
+      const entries: Dirent[] = [];
       let entry: Dirent | null;
       while (!stopped && (entry = handle.readSync()) !== null) {
-        processedEntries += 1;
-        if (options.maxProcessed !== undefined && processedEntries > options.maxProcessed) {
+        if ((options.maxProcessed !== undefined && enumeratedEntries >= options.maxProcessed) ||
+            entries.length >= MAX_DIRECTORY_ENTRIES_FOR_SORT) {
           truncated = true;
+          abortRequired = true;
           stopped = true;
+          protectedDirectories.add(directoryPath);
           break;
         }
+        entries.push(entry);
+        enumeratedEntries += 1;
+      }
+      entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
+      for (const entry of entries) {
+        if (stopped) break;
         const absolutePath = join(directory, entry.name);
         const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
         if (isIgnored(absolutePath, scopes)) continue;
@@ -218,8 +231,8 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
   };
   walk(root, [rootScope]);
   return {
-    files: output.sort((a, b) => a.relativePath.localeCompare(b.relativePath)),
-    presentPaths, protectedDirectories, scanned, skipped, failed, truncated,
+    files: output.sort((a, b) => a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0),
+    presentPaths, protectedDirectories, scanned, skipped, failed, truncated, abortRequired,
     errors: errors.sort((a, b) => a.localeCompare(b)),
     skippedFiles: skippedFiles.sort((a, b) => a.localeCompare(b)),
   };
@@ -679,7 +692,7 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
     }
     fileChanges.sort((a, b) => a.path.localeCompare(b.path) || a.status.localeCompare(b.status));
     const gitMetadataUnavailable = git.status === "unavailable" && project.indexed_worktree_status_hash !== null;
-    const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0 || gitMetadataUnavailable;
+    const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.truncated || discovery.abortRequired || discovery.protectedDirectories.size > 0 || gitMetadataUnavailable;
     const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0 || git.status === "changed" || git.status === "unrecorded";
     return {
       status: incomplete ? "incomplete" : stale ? "stale" : "current",
@@ -765,6 +778,9 @@ export function indexWithDatabase(
   const discovery = discoverFiles(location.rootPath, extraExcludes, options);
   const scoped = Boolean(options.paths?.length || options.include?.length ||
     options.maxFiles !== undefined || options.maxProcessed !== undefined);
+  if (discovery.abortRequired) {
+    throw new Error("Index update aborted: deterministic discovery budget was exceeded; no index changes were committed.");
+  }
   if (options.requireCompleteSnapshot &&
       (discovery.failed > 0 || discovery.skipped > 0 || discovery.truncated || discovery.protectedDirectories.size > 0)) {
     throw new Error("Index update aborted: source discovery is incomplete; no index changes were committed. Resolve skipped or unreadable files and retry.");
