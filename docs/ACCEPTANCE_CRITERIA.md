@@ -285,6 +285,7 @@ Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code ins
 - [x] Dirty working-tree changes are detected by the Git porcelain snapshot and supported-file content hashes.
 - [x] Commit and branch changes are reported as stale even when supported source-file hashes are unchanged (`tests/git-awareness.test.ts`).
 - [x] Relation-resolution configuration drift, including transitive `tsconfig` extends files and relevant package manifests, marks the index stale until a successful relation rebuild updates its fingerprint (`tests/indexer.test.ts`; PR #78).
+- [ ] TypeScript semantic module resolution fingerprints every consulted external `node_modules/package.json` (including resolver-observed missing candidates), detects relevant manifest drift, ignores unused manifests, and reports malformed/unsafe reads as incomplete; verified by CNM-01 semantic-manifest regressions.
 - [x] Git renames reconcile as one added and one deleted path; existing deletion tests verify stale symbols, FTS rows, and graph relations are removed.
 - [x] Freshness uses a deterministic full scan rather than relying on file-watcher events; therefore missed watcher notifications cannot suppress reconciliation. A watcher is not implemented.
 - [x] A clean reindex and incremental reconciliation converge to equivalent logical state across branch switches, renames, deletions, symbols, imports, calls, heritage, relations, unresolved imports, and FTS (`tests/git-awareness.test.ts`).
