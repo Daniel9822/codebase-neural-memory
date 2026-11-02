@@ -49,7 +49,7 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
     if (error instanceof Error && error.message === "File path resolves outside the project root.") {
       throw new Error("Memory source path must resolve inside the project root");
     }
-    if (error instanceof Error && (error.message === "Path must reference a regular file." || error.message.includes("ELOOP"))) {
+    if (error instanceof Error && (error.message === "Path must reference a regular file." || error.message === "Symlink file paths are not allowed." || error.message.includes("ELOOP"))) {
       throw new Error("Memory source path must reference a file");
     }
     throw error;
