@@ -91,7 +91,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Report malformed TypeScript JSON, missing extended configs, malformed package manifests, and unsafe/unreadable config files through bounded freshness errors; classify these states as `incomplete` instead of silently reporting `current`.
 - [x] Add regression coverage for malformed `tsconfig.json`, a missing extended config, malformed `package.json`, and a final-component symlink config.
 - [x] Verify PR #116 CI runs 41438435498 and 41438442638 passed; PR #116 is merged into `main`.
-- [ ] Directory enumeration still opens recursively by path after Dirent classification; directory replacement race hardening is proposed in PR #117 and remains unmerged.
+- [ ] Directory identity checks are merged in PR #117. Residual limitation: Node's path-based opendirSync does not bind checks to the opened descriptor.
 
 
 ### CNM-01 / CNM-05 follow-up — inherited TypeScript config safe reads (2026-11-02)
@@ -99,9 +99,9 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Route `ts.parseJsonConfigFileContent` through a config host whose `readFile` uses `readConfigTextSafely`; inherited configs can no longer be read through TypeScript's default filesystem host.
 - [x] Replace `existsSync` / `statSync` candidate selection for `extends` paths with `lstat` plus verified safe reads. Missing candidates still allow standard `.json` and `tsconfig.json` fallbacks; unsafe/unreadable candidates remain diagnosable.
 - [x] Add a regression where the root config extends a final-component symlink to an outside config; no alias import relation may be created and freshness must be `incomplete`.
-- [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on the inherited-config hardening PR.
-- [ ] Package-manifest `tsconfig` metadata (malformed, non-string, symlink, and unreadable cases) still needs explicit diagnostics and regression coverage.
-- [x] Directory replacement race hardening is implemented in PR #117; its refreshed cross-platform CI remains pending.
+- [x] Verify inherited-config hardening in merged PR #118; cross-platform CI passed.
+- [x] PR #119 follow-up covers malformed and non-string `tsconfig` metadata in package manifests; symlink/unreadable manifest cases remain part of the broader security audit.
+- [x] Directory replacement race hardening is merged in PR #117; CI run 41439352404 passed across the required test/build/smoke and benchmark matrix.
 
 
 ### CNM-01 / CNM-05 follow-up — merged configuration diagnostics and directory identity (2026-11-02)
@@ -110,5 +110,13 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Validate directory identity with `lstat`, canonical `realpath`, root containment, and device/inode identity before recursive enumeration.
 - [x] Revalidate identity after directory open, while reading entries, before processing entries, and after source reads.
 - [x] Add deterministic directory replacement injection through a narrow directory-opener seam; avoid spying on immutable ESM namespace exports.
-- [ ] Verify typecheck, full tests, build, smoke, and Linux/Windows/macOS CI on the refreshed PR #117 head.
+- [x] Verify typecheck, full tests, build, smoke, and Linux/Windows/macOS CI on PR #117 head; run 41439352404 passed.
 - [ ] Descriptor-relative directory opening remains unavailable through Node's path-based `opendirSync`; current repeated path identity checks are fail-closed detection, not an `openat`/descriptor-bound guarantee.
+
+
+### CNM-01 / CNM-05 reconciliation after PRs #117 and #118 (2026-11-02)
+
+- [x] PR #117 merged as `2daebc4f14446287ecf39729a09b093bf994b127`; CI run [41439352404](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41439352404) passed the test/build/smoke and benchmark matrix. Directory identity checks and deterministic replacement regression are in `main`.
+- [x] PR #118 merged as `d10bc6e9f5a05ca78766477bf93640ca92cf54bf`; inherited TypeScript config parsing uses the verified reader and final-component symlink regression is in `main`.
+- [x] Reconciled stale audit entries that incorrectly described #117/#118 as unmerged or validation-pending.
+- [ ] Keep descriptor-relative directory traversal and extended package-manifest race semantics open until stronger guarantees and broader regression coverage are established.
