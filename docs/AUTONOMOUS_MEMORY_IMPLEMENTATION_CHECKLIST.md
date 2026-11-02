@@ -56,9 +56,9 @@ These are documentation-level observations, not yet a complete source-level audi
 ## A1. CNM-02 — Protect indexed records from directory symlinks
 
 - [ ] Trace discovery, symlink classification, completeness flags, and every reconciliation/deletion path.
-- [ ] Reproduce: index real files, replace a directory with a directory symlink, run indexing/reconciliation.
-- [ ] Ensure symlink directories are never followed outside the project root.
-- [ ] Represent unsafe/uninspectable discovery as incomplete/protected, not as proof that previously indexed files were deleted.
+- [x] Reproduce: index real files, replace a directory with a directory symlink, run indexing/reconciliation (PR #75; `tests/indexer.test.ts`; CI 41404323034).
+- [x] Ensure symlink directories are never followed outside the project root (PR #75; directory symlink is skipped and its scope protected).
+- [x] Represent unsafe/uninspectable discovery as incomplete/protected, not as proof that previously indexed files were deleted (PR #75; full reconciliation aborts).
 - [ ] Prevent deletion of file, symbol, relation, and FTS records under an uninspected scope.
 - [ ] Add regression tests for directory symlinks, replacement after initial indexing, nested links, dangling links, and supported platform behavior.
 - [ ] Verify safe behavior for full and selective/budgeted indexing.
@@ -69,12 +69,12 @@ These are documentation-level observations, not yet a complete source-level audi
 ## A2. CNM-01 — Include relation-resolution configuration in freshness
 
 - [ ] Inventory every input that affects import/relation resolution (including applicable `tsconfig.json`, `package.json`, and any other actually consumed configuration).
-- [ ] Trace how configuration is read, normalized, fingerprinted, persisted, and compared by freshness.
-- [ ] Define a stable canonical fingerprint that changes only for relevant resolution inputs.
-- [ ] Persist the fingerprint atomically with the index/relation revision.
+- [x] Trace how configuration is read, normalized, fingerprinted, persisted, and compared by freshness (PR #82; CI 41406437168).
+- [ ] Define a fingerprint that changes only for resolution-relevant inputs. Current implementation fingerprints whole relevant `package.json` files conservatively, so unrelated manifest edits can also mark the index stale; narrow to resolution-relevant fields if measurements justify it.
+- [x] Persist the fingerprint atomically with the index/relation revision (existing index transaction, verified by config-only rebuild test in PR #82).
 - [ ] Report missing, changed, malformed, and unreadable configuration distinctly.
-- [ ] Add non-Git fixture tests that modify aliases/exports without changing source files.
-- [ ] Verify relation rebuilding updates graph edges and returns freshness to current.
+- [x] Add a non-Git fixture that modifies a `tsconfig` alias without changing source files (PR #82; `tests/indexer.test.ts`).
+- [x] Verify relation rebuilding updates graph edges and returns freshness to current after a config-only change (PR #82; `tests/indexer.test.ts`).
 - [ ] Test unchanged normalized configuration, invalid JSON, removed config, and configuration read failures.
 
 **Acceptance:** a relevant configuration change is detected even without Git or source-file changes; relation rebuild is reproducible and freshness returns to current only after successful completion.
@@ -83,11 +83,11 @@ These are documentation-level observations, not yet a complete source-level audi
 
 - [ ] Enumerate all MCP indexed-read handlers and their preflight/update/read sequences.
 - [ ] Identify operations that can mix index revisions or source snapshots.
-- [ ] Define strict and non-strict behavior for state changes during a read.
-- [ ] Bind each response to a revision/snapshot where practical and recheck relevant state after the operation.
-- [ ] In strict mode, reject inconsistent results with a structured, actionable error.
-- [ ] In non-strict mode, preserve useful output only with an explicit inconsistency warning/status.
-- [ ] Avoid silently combining records from different snapshots.
+- [x] Define strict and non-strict behavior for state changes during a read (PR #77; `tests/mcp-freshness.test.ts`).
+- [x] Recheck relevant source freshness and index revision after the operation (PR #77; `readResponse`).
+- [x] In strict mode, reject inconsistent results with a structured, actionable error (PR #77).
+- [x] In non-strict mode, preserve useful output with an explicit post-read inconsistency warning (PR #77).
+- [x] Refuse strict reads when the index revision changes during the operation; warn in non-strict mode (PR #77).
 - [ ] Add deterministic race/injected-change tests for source mutation, index revision change, and discovery becoming incomplete.
 - [ ] Verify error envelopes and response bounds remain consistent with the MCP contract.
 
@@ -97,8 +97,8 @@ These are documentation-level observations, not yet a complete source-level audi
 
 - [ ] Inventory every filesystem read/open for project-controlled paths, including excerpts, indexing, config, and source inspection.
 - [ ] Identify time-of-check/time-of-use gaps between path validation and opening/reading.
-- [ ] Use platform-appropriate safe open/identity checks where available; do not assume `realpath` alone closes a race.
-- [ ] Verify the opened object remains within the allowed project boundary and matches expected file identity/metadata.
+- [ ] Audit and harden all project-controlled filesystem reads. `source_excerpt` now uses a verified file descriptor, `O_NOFOLLOW` where available, and post-open containment/identity checks (PR #76); other read sites still require audit.
+- [ ] Verify every opened object remains inside the project boundary and matches expected file identity/metadata; source excerpts are covered by PR #76, but all other call sites remain open.
 - [ ] Define a safe fallback where the platform cannot provide equivalent guarantees.
 - [ ] Add tests that replace a validated file or parent directory with a symlink between validation and open/read.
 - [ ] Test traversal, absolute paths, hard links where relevant, dangling links, and file replacement.
@@ -124,7 +124,7 @@ These are documentation-level observations, not yet a complete source-level audi
 - [ ] Inventory all full, selective, bounded, retry, and failure recovery index paths.
 - [ ] Mark discovery completeness and selected scope explicitly in the internal result contract.
 - [ ] Identify every deletion/reconciliation call reachable after partial, truncated, failed, or unsafe discovery.
-- [ ] Require a complete validated snapshot before any destructive reconciliation beyond a safely bounded scope.
+- [ ] Require a complete validated snapshot before every destructive reconciliation. The CLI-facing `indexProject` and `updateProjectIndex` paths now guard unscoped runs (PR #79), but all direct/internal entry points still need audit.
 - [ ] Preserve records outside inspected scope and under incomplete scopes.
 - [ ] Add failure injection for traversal limits, unreadable directories, symlinks, parser failures, interruption, and partial discovery.
 - [ ] Verify index, symbols, relations, and FTS updates are atomic/recoverable as designed.
@@ -377,3 +377,9 @@ These are documentation-level observations, not yet a complete source-level audi
 | Date | Work item | Evidence / commit / PR / CI | Outcome / next action |
 |---|---|---|---|
 | 2026-11-02 | Initial documentation-level baseline review | `main`: `docs/ROADMAP.md`, `docs/PRODUCT_SPEC.md`, `docs/ACCEPTANCE_CRITERIA.md`, `docs/PHASE_6_MCP_CONTRACT.md`, `docs/AGENT_WORKFLOW.md`, `AGENTS.md`, `package.json` inspected | Source-level audit and CI verification still required; all implementation checklist items remain open. |
+
+| 2026-11-02 | CNM-02 directory symlink replacement | PR #75; CI 41404323034; merge `3d7d94de32151b1f891308d7e661c945cfd694b9` | Targeted regression merged; broader symlink combinations remain open. |
+| 2026-11-02 | CNM-05 source-excerpt safe open/read | PR #76; CI 41404690251; merge `da7e7fd90a15a39af551237ca7c3ee6868ccc43a` | Descriptor-based read and identity checks merged; other path-based read sites still require audit. |
+| 2026-11-02 | CNM-04 post-read freshness | PR #77; CI 41405092697; merge `e5fffa774c180aa45ea60195cf28dead2ea51f10` | Strict refusal and non-strict warning after a deterministic mutation test merged. |
+| 2026-11-02 | CNM-03 full-index snapshot guard | PR #79; CI 41405788148; merge `7b1f4b8b9edb4d1a8c73db1cac4ad38c9bbdaaf9` | CLI-facing full indexing now refuses incomplete discovery; all destructive paths still need final audit. |
+| 2026-11-02 | CNM-01 relation configuration freshness | PR #82; CI 41406437168; merge `2dc4c51c3dfad03a41ec6af6798bff4702dbb92e` | Config-only drift marks index stale; successful rebuild clears the flag. |
