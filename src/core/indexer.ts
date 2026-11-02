@@ -1099,6 +1099,20 @@ export function indexWithDatabase(
     throw new Error("Index update aborted: source discovery is incomplete; no index changes were committed. Resolve skipped or unreadable files and retry.");
   }
   const { files: discovered, presentPaths } = discovery;
+  const indexedConfigPaths = (db.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>)
+    .map((file) => file.path);
+  const configScopeFiles = scoped
+    ? [...new Set([...indexedConfigPaths, ...discovered.map((file) => file.relativePath)])]
+        .sort(compareCodeUnits).map((path) => ({ path }))
+    : discovered.map((file) => ({ path: file.relativePath }));
+  const initialRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles);
+  if (options.requireCompleteSnapshot) {
+    const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles);
+    if (configErrors.length > 0) {
+      throw new Error("Index update aborted: relation configuration is incomplete; no index changes were committed. " +
+        configErrors.slice(0, MAX_INDEX_DETAIL_ITEMS).join(" "));
+    }
+  }
   return db.transaction(() => {
     const projectState = db.prepare("SELECT relations_config_hash FROM projects WHERE id = ?").get(location.id) as {
       relations_config_hash: string | null;
@@ -1215,7 +1229,11 @@ export function indexWithDatabase(
       db.prepare("UPDATE relations SET index_revision = ?").run(revisionRow.index_revision);
       summary.relations = (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
     }
-    db.prepare("UPDATE projects SET relations_config_hash = ? WHERE id = ?").run(currentRelationsConfigHash, location.id);
+    const verifiedRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles);
+    if (verifiedRelationsConfigHash !== initialRelationsConfigHash) {
+      throw new Error("Index update aborted: relation configuration changed during indexing; no index changes were committed. Retry the update.");
+    }
+    db.prepare("UPDATE projects SET relations_config_hash = ? WHERE id = ?").run(verifiedRelationsConfigHash, location.id);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
     if (options.requireCompleteSnapshot) {
       const finalDiscovery = discoverFiles(location.rootPath, extraExcludes, options);
