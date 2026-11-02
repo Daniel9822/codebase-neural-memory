@@ -1,5 +1,5 @@
 import { findDependencies, findImpact, getFileDetails, searchSymbols } from "./retrieval.js";
-import { inspectMemoryFreshness, recallMemories } from "./memories.js";
+import { inspectMemoryFreshness, recallMemoriesReport } from "./memories.js";
 import type { ProjectLocation } from "./project.js";
 import { openDatabase } from "../storage/database.js";
 import { getIndexFreshness } from "./indexer.js";
@@ -306,7 +306,9 @@ export function buildTaskContext(
   if (testCandidatesTruncated) warnings.push(`Test candidates were truncated at the configured testLimit of ${testLimit}.`);
   if (dependencyCandidatesTruncated) warnings.push(`Dependency candidates were truncated at the configured dependencyLimit of ${dependencyLimit}.`);
 
-  const matchedMemories = (explicitAnchorMode ? [] : recallMemories(location, "", 500))
+  const memoryRecall = explicitAnchorMode ? null : recallMemoriesReport(location, "", 500);
+  if (memoryRecall?.truncated) warnings.push(`Memory candidates were truncated: examined ${memoryRecall.processedCandidates} of ${memoryRecall.totalEligible} eligible memories.`);
+  const matchedMemories = (memoryRecall?.records ?? [])
     .map((memory) => ({ memory, matches: anchors.filter((anchor) =>
       `${memory.title} ${memory.content} ${memory.category}`.toLowerCase().includes(anchor)).length }))
     .filter((entry) => entry.matches > 0)
