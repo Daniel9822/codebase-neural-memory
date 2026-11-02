@@ -131,3 +131,4 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Add a strict MCP freshness regression where a second independent SQLite connection advances the index revision during a read; the first handler must refuse the mixed-snapshot result.
 - [ ] Verify the new tests on the latest PR head with GitHub Actions (typecheck, full tests, build, smoke, and benchmark matrix).
 - [ ] Continue the cross-process/MCP-handler race audit and remaining destructive reconciliation call-site review; this PR does not close CNM-01–CNM-06 globally.
+- [ ] Complete the CNM-05 audit of TypeScript program/dependency reads in `src/core/import-diagnostics.ts`: config bytes use the verified reader, but `ts.createProgram` and `ts.resolveModuleName` still rely on TypeScript's default filesystem host for dependency resolution; define and test the intended symlink/external-package boundary.
