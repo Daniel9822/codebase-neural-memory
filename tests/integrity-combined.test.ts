@@ -121,4 +121,23 @@ describe("integrated CNM integrity regressions", () => {
     expect(() => indexProject(location)).toThrow(/relation configuration is incomplete/i);
   });
 
+  it("fingerprints package metadata that selects an extended TypeScript config", () => {
+    createProject();
+    const packageDirectory = join(location.rootPath, "node_modules", "shared-config");
+    mkdirSync(packageDirectory, { recursive: true });
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ tsconfig: "base-a.json" }));
+    writeFileSync(join(packageDirectory, "base-a.json"), JSON.stringify({ compilerOptions: { strict: true } }));
+    writeFileSync(join(packageDirectory, "base-b.json"), JSON.stringify({ compilerOptions: { strict: false } }));
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "shared-config" }));
+    writeFileSync(join(location.rootPath, "main.ts"), "export function main() { return true; }");
+
+    indexWithDatabase(database!, location);
+    expect(getIndexFreshness(location).status).toBe("current");
+
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ tsconfig: "base-b.json" }));
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("stale");
+    expect(freshness.relationsConfigChanged).toBe(true);
+  });
+
 });
