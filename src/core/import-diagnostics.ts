@@ -165,8 +165,20 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
         }
         return true;
       }
-      return [...trustedExternalDirectories].some((trusted) => isWithinPath(absolute, trusted)) &&
-        lstatSync(absolute).isDirectory();
+      for (const trusted of trustedExternalDirectories) {
+        if (!isWithinPath(absolute, trusted)) continue;
+        const relativeDirectory = relative(trusted, absolute);
+        let current = trusted;
+        for (const segment of relativeDirectory.split(sep).filter(Boolean)) {
+          current = join(current, segment);
+          const identity = lstatSync(current);
+          // Package-manager links are trusted only at their registered root.
+          // A second symlink below that root could redirect resolution again.
+          if (identity.isSymbolicLink() || !identity.isDirectory()) return false;
+        }
+        return true;
+      }
+      return false;
     } catch {
       return false;
     }
