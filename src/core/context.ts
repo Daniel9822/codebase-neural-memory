@@ -283,13 +283,16 @@ export function buildTaskContext(
 
   const testDb = openDatabase(location);
   let testPaths: string[];
+  let testPathDiscoveryTruncated = false;
   try {
-    testPaths = (testDb.prepare(`
+    const testPathRows = testDb.prepare(`
       SELECT path FROM files
       WHERE lower(path) LIKE '%test%' OR lower(path) LIKE '%spec%'
-      ORDER BY path LIMIT 500
-    `).all() as Array<{ path: string }>).map((row) => row.path)
-      .filter((path) => /(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path));
+      ORDER BY path LIMIT 501
+    `).all() as Array<{ path: string }>;
+    testPathDiscoveryTruncated = testPathRows.length > 500;
+    testPaths = testPathRows.slice(0, 500).map((row) => row.path)
+      .filter((path) => /(^|[/\\\\])tests?([/\\\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path));
   } finally { testDb.close(); }
   for (const path of testPaths) {
     const matchingAnchors = explicitAnchorMode ? [] : anchors.filter((anchor) => path.toLowerCase().includes(anchor));
@@ -303,6 +306,7 @@ export function buildTaskContext(
       detail: { matchingAnchors },
     });
   }
+  if (testPathDiscoveryTruncated) warnings.push("Test-path discovery was truncated at 500 indexed candidates; matching tests may be missing.");
   if (testCandidatesTruncated) warnings.push(`Test candidates were truncated at the configured testLimit of ${testLimit}.`);
   if (dependencyCandidatesTruncated) warnings.push(`Dependency candidates were truncated at the configured dependencyLimit of ${dependencyLimit}.`);
 
@@ -342,7 +346,7 @@ export function buildTaskContext(
   if (symbolCandidatesTruncated) truncatedKinds.add("symbol");
   if (fileCandidatesTruncated) truncatedKinds.add("file");
   if (dependencyCandidatesTruncated) truncatedKinds.add("dependency");
-  if (testCandidatesTruncated) truncatedKinds.add("test");
+  if (testCandidatesTruncated || testPathDiscoveryTruncated) truncatedKinds.add("test");
   if (memoryCandidatesTruncated) truncatedKinds.add("memory");
   if (bounded.truncated) warnings.push("Context was truncated to respect the configured item or character budget.");
   if (truncatedKinds.size > 0) warnings.push(`Per-kind context budgets truncated: ${[...truncatedKinds].join(", ")}.`);

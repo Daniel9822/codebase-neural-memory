@@ -367,3 +367,11 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Apply `symbol_lookup` kind, project-relative path-prefix, and export filters in SQL before the bounded candidate window.
 - [x] Add a regression fixture with more than 1,000 unfiltered candidates and a matching symbol beyond that window.
 - [ ] Complete the remaining MCP output-contract audit for ranking, deterministic tie-breaks, processing budgets, and order-before-truncation across all registered tools.
+
+
+### CNM-06 follow-up — task-context test discovery (2026-11-02)
+
+- [x] Detect when the 500-entry lexical test-path discovery window is exceeded, expose a warning, and mark the `test` context kind as truncated.
+- [x] Add regression coverage with more than 500 indexed test paths and a matching test beyond the bounded discovery window.
+- [x] Document the bound and its incompleteness semantics in the MCP contract.
+
