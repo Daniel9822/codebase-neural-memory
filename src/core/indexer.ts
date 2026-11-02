@@ -1155,16 +1155,14 @@ export function indexWithDatabase(
     ? [...new Set([...indexedConfigPaths, ...discovered.map((file) => file.relativePath)])]
         .sort(compareCodeUnits).map((path) => ({ path }))
     : discovered.map((file) => ({ path: file.relativePath }));
+  const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles);
+  if (configErrors.length > 0) {
+    throw new Error("Index update aborted: relation configuration is incomplete; no index changes were committed. " +
+      configErrors.slice(0, MAX_INDEX_DETAIL_ITEMS).join(" "));
+  }
   const initialRelationsConfigHash = options.requireCompleteSnapshot
     ? computeRelationsConfigHash(location.rootPath, configScopeFiles)
     : null;
-  if (options.requireCompleteSnapshot) {
-    const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles);
-    if (configErrors.length > 0) {
-      throw new Error("Index update aborted: relation configuration is incomplete; no index changes were committed. " +
-        configErrors.slice(0, MAX_INDEX_DETAIL_ITEMS).join(" "));
-    }
-  }
   return db.transaction(() => {
     const projectState = db.prepare("SELECT relations_config_hash FROM projects WHERE id = ?").get(location.id) as {
       relations_config_hash: string | null;
