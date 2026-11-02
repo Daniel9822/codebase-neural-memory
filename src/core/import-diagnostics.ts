@@ -25,6 +25,22 @@ export interface ImportDiagnostic {
 const IMPORT_DIAGNOSTIC_CODES = new Set([2307, 2305, 2614, 2724, 1192]);
 const BUILTINS = new Set(builtinModules.flatMap((name) => [name, name.replace(/^node:/, "")]));
 
+type TypeScriptMatchFiles = (
+  path: string,
+  extensions: readonly string[] | undefined,
+  excludes: readonly string[] | undefined,
+  includes: readonly string[] | undefined,
+  useCaseSensitiveFileNames: boolean,
+  currentDirectory: string,
+  depth: number | undefined,
+  getFileSystemEntries: (path: string) => { files: string[]; directories: string[] },
+  realpath: (path: string) => string,
+) => string[];
+
+const matchTypeScriptFiles = (ts as unknown as { matchFiles: TypeScriptMatchFiles }).matchFiles;
+
+
+
 function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buffer {
   const root = realpathSync(projectRoot);
   const absoluteCandidate = resolve(candidatePath);
@@ -273,9 +289,10 @@ export function createSafeTypeScriptHost(
     }
     return { files, directories };
   };
-  host.getDirectories = (path) => getSafeFileSystemEntries(path).directories;
-  host.readDirectory = (path, extensions, excludes, includes, depth) =>
-    ts.matchFiles(
+  host.getDirectories = (path) => isSafeDirectory(path) ? getSafeFileSystemEntries(path).directories : [];
+  host.readDirectory = (path, extensions, excludes, includes, depth) => {
+    if (!isSafeDirectory(path)) return [];
+    return matchTypeScriptFiles(
       path,
       extensions,
       excludes,
@@ -286,6 +303,7 @@ export function createSafeTypeScriptHost(
       getSafeFileSystemEntries,
       safeRealpath,
     ).filter((entry) => isSafeFileCandidate(entry));
+  };
   host.fileExists = (path) => isSafeFileCandidate(path) &&
     readTypeScriptInputSafely(path, root) !== undefined;
   host.readFile = (path) => isSafeFileCandidate(path)
