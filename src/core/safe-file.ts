@@ -48,7 +48,16 @@ export function readFileWithinRoot(rootPath: string, candidatePath: string, opti
         afterReadStat.size !== openedStat.size || afterReadStat.mtimeMs !== openedStat.mtimeMs) {
       throw new Error("File changed while being read; retry the read.");
     }
-    return { canonicalPath: afterOpenPath, stat: afterReadStat, content };
+    const afterReadPath = realpathSync(absolutePath);
+    assertWithinRoot(canonicalRoot, afterReadPath);
+    if (options.rejectFinalSymlink && lstatSync(absolutePath).isSymbolicLink()) {
+      throw new Error("Symlink file paths are not allowed.");
+    }
+    const finalPathStat = statSync(afterReadPath);
+    if (afterReadStat.dev !== finalPathStat.dev || afterReadStat.ino !== finalPathStat.ino) {
+      throw new Error("File path changed during read; retry the read.");
+    }
+    return { canonicalPath: afterReadPath, stat: afterReadStat, content };
   } finally {
     closeSync(descriptor);
   }
