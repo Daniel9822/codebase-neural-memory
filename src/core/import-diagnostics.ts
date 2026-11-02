@@ -141,7 +141,7 @@ function isWithinPath(candidate: string, parent: string): boolean {
  * Physical package-manager targets are admitted only after a lexical path
  * beneath this project's node_modules has resolved to that directory.
  */
-function createSafeTypeScriptHost(
+export function createSafeTypeScriptHost(
   options: ts.CompilerOptions,
   projectRoot: string,
   fileSystem: TypeScriptHostFileSystem = defaultTypeScriptHostFileSystem,
