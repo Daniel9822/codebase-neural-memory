@@ -189,7 +189,7 @@ program.command("explain <symbol>")
 
 program.command("relations <symbol>")
   .description("Show incoming and outgoing symbol relationships with evidence.")
-  .option("--limit <number>", "Maximum relationships", parsePositiveInteger, 50)
+  .option("--limit <number>", "Maximum relationships (1-500)", parsePositiveInteger, 50)
   .action((symbol: string, options: { limit: number }) => {
     const relations = getSymbolRelations(ensureInitialized(), symbol, options.limit);
     if (relations.length === 0) {

@@ -209,26 +209,18 @@ export function getProjectOverview(location: ProjectLocation): ProjectOverview {
   }
 }
 
+/** @deprecated Prefer getProjectMapReport to retain exact totals and truncation metadata. */
 export function getProjectMap(location: ProjectLocation, limit = 80): Array<{ path: string; imports: string[]; unresolvedImports: Array<{ specifier: string; status: string; candidates: string[] }> }> {
-  const db = openDatabase(location);
-  try {
-    return db.prepare(`
-      SELECT f.path AS path,
-        COALESCE((SELECT json_group_array(target.path)
-          FROM relations r JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
-          WHERE r.source_kind = 'file' AND r.source_id = f.id AND r.kind = 'IMPORTS'), '[]') AS imports,
-        COALESCE((SELECT json_group_array(json_object(
-          'specifier', u.module_specifier, 'status', u.status, 'candidates', json(u.candidates_json)
-        )) FROM unresolved_imports u WHERE u.source_file_id = f.id), '[]') AS unresolvedImports
-      FROM files f ORDER BY f.path LIMIT ?
-    `).all(limit).map((row: any) => ({
-      path: row.path as string,
-      imports: JSON.parse(row.imports as string) as string[],
-      unresolvedImports: JSON.parse(row.unresolvedImports as string) as Array<{ specifier: string; status: string; candidates: string[] }>,
-    }));
-  } finally {
-    db.close();
-  }
+  const report = getProjectMapReport(location, limit);
+  return report.files.map((file) => ({
+    path: file.path,
+    imports: file.imports,
+    unresolvedImports: file.unresolvedImports.map((item) => ({
+      specifier: item.specifier,
+      status: item.status,
+      candidates: item.candidates,
+    })),
+  }));
 }
 
 export interface ProjectMapReport {
@@ -729,9 +721,11 @@ export interface SymbolRelationHit {
   indexRevision: number;
 }
 
+const MAX_SYMBOL_RELATIONS = 500;
+
 export function getSymbolRelations(location: ProjectLocation, name: string, limit = 50): SymbolRelationHit[] {
-  if (!Number.isSafeInteger(limit) || limit < 1) {
-    throw new Error("Relation limit must be a positive safe integer.");
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_SYMBOL_RELATIONS) {
+    throw new Error(`Relation limit must be a positive safe integer no greater than ${MAX_SYMBOL_RELATIONS}.`);
   }
   const db = openDatabase(location);
   try {

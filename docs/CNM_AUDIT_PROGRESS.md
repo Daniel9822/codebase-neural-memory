@@ -32,7 +32,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Confirmed `index_update` could return unbounded `errors` and `skippedFiles` arrays even though discovery is capped at 100,000 examined entries.
 - [x] Cap each diagnostic detail collection at 200 sorted entries, preserving exact counters and adding `totals`, `limits.detailItems`, and `detailsTruncated` metadata.
 - [x] Add an MCP regression with 205 skipped symlink paths to prove exact totals, deterministic details, and explicit truncation.
-- [ ] Verify CI and merge the change before closing the broader MCP output-contract audit.
+- [x] Verify CI runs 41431584105 and 41431576683 and merge PR #110 (`da169033995f6c295aad0f28065968b367f1ad90`); broader MCP output-contract audit remains open.
 
 
 ### CNM-06 follow-up — CLI project map output budget (2026-11-02)
@@ -40,8 +40,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Confirmed the legacy `cnm map` command used `getProjectMap`, decoding every unresolved-import candidate array and accepting an unbounded file limit.
 - [x] Switch the CLI to the shared bounded `getProjectMapReport` contract: 1–200 files, 200 nested rows per file, 200 candidates per import, and 2,000 candidate paths globally.
 - [x] Surface exact file/candidate truncation and TypeScript import diagnostics in CLI output; candidate evidence remains fully persisted in SQLite.
-- [ ] Verify CI and merge; then continue auditing remaining CLI and MCP retrieval entry points.
-- [x] Verify CI (runs 41431584105 and 41431576683 passed) and merge PR #110 (`da169033995f6c295aad0f28065968b367f1ad90`); the broader MCP output-contract audit remains open.
+- [x] Verify CI run 41434244151 passed and merge PR #112 (`b20429746fcb77c95856673baa52381854a42701`); continue auditing remaining CLI and MCP retrieval entry points.
 
 
 ### CNM-06 follow-up — file_details candidate output budget (2026-11-02)
@@ -49,4 +48,12 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Confirmed `getFileDetails` parsed each unresolved import's complete `candidates_json` array into JavaScript, bypassing the outer per-collection limit.
 - [x] Bound candidates to 200 per import and 2,000 globally per selected file; expose per-import and aggregate totals/truncation metadata.
 - [x] Add regression coverage for 11 imports with 1,000 candidates each and the bounded `task_context` projection.
-- [ ] Verify CI and merge before closing the broader MCP output-contract audit.
+- [x] Verify PR #111 CI run 41433329768 passed on Windows and Ubuntu verification plus Windows/Ubuntu/macOS benchmarks; merge commit `614b8db2de7837fcf251db3f0dd64bdb39a73293`. Broader MCP output-contract audit remains open.
+
+
+### CNM-06 follow-up — symbol relation result ceiling (2026-11-02)
+
+- [x] Confirmed `getSymbolRelations` accepted any positive safe integer, allowing arbitrarily large relation result materialization from the core/CLI API.
+- [x] Enforce a 500-result ceiling in the core API and document the CLI limit.
+- [x] Route the deprecated legacy `getProjectMap` API through `getProjectMapReport`, so external core callers also receive bounded candidate arrays and the 1–200 file limit; add regression coverage for its legacy projection.
+- [ ] Verify CI and merge; continue auditing all remaining CLI result-limit inputs.

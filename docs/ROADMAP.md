@@ -390,10 +390,17 @@ This work turns CNM into an agent-ready project capability rather than relying o
 
 - [x] Route `cnm map` through `getProjectMapReport` rather than the unbounded legacy projection.
 - [x] Enforce the same 1–200 file limit and per-file/global candidate budgets used by MCP, with explicit truncation output.
-- [ ] Verify CI and merge; continue the cross-surface output audit.
+- [x] Verify CI run 41434244151 passed and merge PR #112 (`b20429746fcb77c95856673baa52381854a42701`); continue the cross-surface output audit.
 ### CNM-06 follow-up — file_details candidate output budget (2026-11-02)
 
 - [x] Identified unbounded nested `candidates_json` decoding in `file_details`, despite its per-collection result limit.
 - [x] Add a 200-candidate-per-import cap and 2,000-candidate global budget per file, with exact candidate totals and truncation metadata.
 - [x] Add MCP regression coverage with 11 unresolved imports and 11,000 stored candidate paths, including the nested `task_context` presentation bound.
-- [ ] Verify CI and merge before closing this retrieval-output sub-audit.
+- [x] Verify PR #111 CI run 41433329768 passed on Windows and Ubuntu verification plus Windows/Ubuntu/macOS benchmarks; merge commit `614b8db2de7837fcf251db3f0dd64bdb39a73293`.
+
+
+### CNM-06 follow-up — bounded symbol relations
+
+- [x] Enforce a 500-result maximum in `getSymbolRelations`; reject zero, unsafe, and over-limit values.
+- [x] Document the CLI `cnm relations --limit` range as 1–500.
+- [ ] Verify CI and merge; continue the cross-surface output audit.
