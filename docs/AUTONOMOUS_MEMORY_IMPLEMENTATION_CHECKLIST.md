@@ -121,17 +121,16 @@ This is a scoped source audit, not a completion claim for Workstream B or the me
 **Acceptance:** project-local content reads are descriptor-verified and fail closed on detected substitution; unsupported descriptor-bound directory guarantees are explicitly documented. This is not a claim that every path-based directory race is eliminated.
 ## A5. CNM-06 — Deterministic candidate selection under limits
 
-- [ ] Inventory every place where candidate collections are ranked, truncated, or bounded.
-- [ ] Define stable tie-breakers for all ranking paths (including paths/IDs and any score ties).
-- [ ] Normalize candidates before truncation without changing intended relevance ordering.
-- [ ] Make set/map iteration and filesystem discovery order irrelevant to selected output.
-- [ ] Add repeated-run tests with shuffled insertion/discovery order and exact-boundary limits.
-- [ ] Cover result, processing, file, character, and nested collection budgets.
-- [ ] Verify totals/truncation metadata remains accurate after deterministic selection.
-- [ ] Document any intentional nondeterminism (ideally none for identical state and parameters).
+- [x] Inventory bounded/ranked collections across symbol search/exact lookup/relations, file/project/component maps, dependency/change/symbol-impact traversals, task context, memories, Git history/blame, freshness, and index-update diagnostics.
+- [x] Define locale-independent code-unit tie-breakers for symbol rank, exact lookup, relation details, graph edges, and context candidates; SQL queries include stable path/line/name/kind/signature/ID or relation evidence keys.
+- [x] Normalize explicit task-context anchors, follow-up source paths, and set-valued symbol-impact relation filters before candidate selection/truncation.
+- [x] Collect dependency/test context candidates before applying per-kind output limits; rank/deduplicate deterministically, with a bounded per-anchor graph query and an explicit 500-path lexical test-discovery window.
+- [x] Make duplicate candidate resolution stable on equal scores; apply per-kind, global item, and exact serialized-character budgets after ranking, and report every omitted kind including omissions caused by global/character limits.
+- [x] Preserve nested candidate totals across omitted unresolved imports in `file_details`; expose `resultsTruncated` for exact-symbol, symbol-relation, and symbol-search result caps, plus `candidateWindowTruncated` for bounded search candidate discovery.
+- [x] Add regressions for reversed explicit anchors/follow-up paths, relation-filter permutations, candidate-window overflow, exact symbol/relation truncation, nested candidate totals under a smaller file-details limit, and context truncation-kind metadata.
+- [x] Document intentional bounded windows and their truncation signals; identical indexed state and normalized parameters produce identical selected results and metadata.
 
-**Acceptance:** identical logical inputs and parameters produce identical selected items, order, totals, and truncation metadata.
-
+**Acceptance:** identical logical inputs and parameters produce identical selected items, order, totals, and truncation metadata. Any bounded candidate window that can omit matches exposes a truncation signal.
 ## A6. CNM-03 — Require complete snapshots for destructive selective paths
 
 - [ ] Inventory all full, selective, bounded, retry, and failure recovery index paths.
