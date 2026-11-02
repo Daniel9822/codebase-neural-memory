@@ -161,6 +161,36 @@ describe("MCP bounded output and project isolation", () => {
     expect(entry.truncated.imports).toBe(true);
   }, 15_000);
 
+  it("applies a deterministic global candidate budget before decoding candidate arrays", async () => {
+    const { location, root } = createProject("candidate-budget");
+    writeFileSync(join(root, "entry.ts"), [
+      'import "./ambiguous-a";',
+      'import "./ambiguous-b";',
+      'import "./ambiguous-c";',
+    ].join("\n"));
+    indexWithDatabase(databases[0]!, location);
+    const unresolved = databases[0]!.prepare(
+      "SELECT id, module_specifier FROM unresolved_imports WHERE source_file_id = (SELECT id FROM files WHERE path = 'entry.ts') ORDER BY module_specifier",
+    ).all() as Array<{ id: number; module_specifier: string }>;
+    expect(unresolved).toHaveLength(3);
+    const paths = Array.from({ length: 1_000 }, (_, index) => `candidate/${String(index).padStart(4, "0")}.ts`);
+    const update = databases[0]!.prepare("UPDATE unresolved_imports SET status = 'ambiguous', candidates_json = ? WHERE id = ?");
+    for (const item of unresolved) update.run(JSON.stringify(paths), item.id);
+
+    const client = await connect(location);
+    const map = await client.call("project_map", { limit: 10 });
+    const entry = map.files.find((file: { path: string }) => file.path === "entry.ts");
+    expect(map.candidateBudget).toBe(2_000);
+    expect(map.candidatePathsTotal).toBe(3_000);
+    expect(map.candidatePathsReturned).toBe(2_000);
+    expect(map.candidatePathsTruncated).toBe(true);
+    expect(entry.unresolvedImports.map((item: { candidates: string[] }) => item.candidates.length))
+      .toEqual([1_000, 1_000, 0]);
+    expect(entry.unresolvedImports.map((item: { candidatesTotal: number; candidatesTruncated: boolean }) =>
+      [item.candidatesTotal, item.candidatesTruncated]))
+      .toEqual([[1_000, false], [1_000, false], [1_000, true]]);
+  });
+
   it("keeps concurrent MCP servers isolated to their own repositories and memories", async () => {
     const first = createProject("first");
     const second = createProject("second");
