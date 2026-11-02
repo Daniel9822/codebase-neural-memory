@@ -21,3 +21,12 @@ Audit started 2026-11-02 against main. Source inspection has identified follow-u
 
 - [ ] CNM-05 safe file reads: PR #76 opened with descriptor-based reads, post-open canonical containment, file identity checks, and an outside-root symlink substitution regression. CI run 41404690251 is in progress; the first run exposed a malformed test fixture, which was corrected in the current head. Keep the item open until the latest CI passes and the remaining filesystem read sites are audited.
 - [ ] CNM-06 deterministic limits: source inspection found that `discoverFiles` streams raw directory enumeration order and stops when `maxFiles` / `maxProcessed` budgets are reached, sorting only the selected output afterward. This can make the selected subset depend on filesystem enumeration order. Design a deterministic bounded policy that does not silently violate the processing budget, then add shuffled-order regression tests.
+
+## Progress update — CNM-05 merged
+
+- [x] CNM-05 source-excerpt read now uses an opened descriptor, post-open canonical containment and file identity checks, and closes the descriptor in a `finally` block.
+- Regression: replacing an indexed source file with a symlink outside the project is rejected.
+- CI: run 41404690251 passed typecheck, tests, build, and smoke on Ubuntu and Windows; benchmark jobs passed on Ubuntu, Windows, and macOS.
+- Merge commit: `da7e7fd90a15a39af551237ca7c3ee6868ccc43a`.
+- Remaining scope: audit other filesystem reads and add deterministic race injection where feasible. CNM-05 is not fully closed until those call sites and platform limitations are reviewed.
+
