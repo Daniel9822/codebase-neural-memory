@@ -289,6 +289,8 @@ describe("getSymbolRelations", () => {
         relatedStartLine: 1, relatedEndLine: 1, confidence: 1, provenance: "typescript-ast-heritage", indexRevision: 1,
       },
     ]);
+    expect(() => getSymbolRelations(location, "Worker", 501)).toThrow("Relation limit must be a positive safe integer no greater than 500.");
+    expect(() => getSymbolRelations(location, "Worker", 0)).toThrow("Relation limit must be a positive safe integer no greater than 500.");
     expect(getSymbolRelations(location, "Base")).toEqual([
       {
         direction: "incoming", relation: "EXTENDS", symbolName: "Base", symbolKind: "class",
