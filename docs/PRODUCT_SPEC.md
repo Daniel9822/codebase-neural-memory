@@ -92,7 +92,7 @@ The repository currently documents and contains an initial JavaScript/TypeScript
 - File hashing to skip unchanged files on later indexing runs.
 - Extraction of functions, classes, methods, interfaces, type aliases, enums, and imports.
 - Local call facts and conservative import relationships, including provenance, confidence, and index revision.
-- Deterministic lexical symbol ranking over exact names, name terms, signature terms, export status, and FTS5 BM25, with a safely escaped LIKE fallback.
+- Deterministic lexical symbol ranking over exact names, name terms, signature terms, export status, and FTS5 BM25, with a safely escaped LIKE fallback. Kind, path-prefix, and export filters are applied before the bounded candidate window; stable tie-breaks do not depend on host locale.
 - Project map, incoming/outgoing symbol relations, direct/transitive dependency traversal with per-edge chain evidence and explicit limits, reverse-import file impact, and bounded symbol-level impact traversal with shortest distances across CALLS/EXTENDS/IMPLEMENTS edges, including recognized test-case callback symbols linked to the imported source symbols they call (static syntax evidence, not runtime coverage).
 - Bounded file details with source metadata, symbols, resolved/unresolved imports, relations, per-collection totals, and truncation flags.
 - Bounded TypeScript-backed import diagnostics for unresolved external packages and invalid named/default export bindings, exposed through `project_map`; compiler/build validation remains authoritative for full program correctness.

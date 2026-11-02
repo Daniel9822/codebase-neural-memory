@@ -360,3 +360,10 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Add full regression coverage and cross-platform CI evidence for the new generator, retrieval ranking, and memory transition tool before merge (PR #58; Ubuntu/Windows verification and Ubuntu/Windows/macOS benchmark matrix passed).
 
 **Acceptance:** a fresh project gets useful agent instructions from `cnm init`; an existing `AGENTS.md` retains its original content; natural-language queries discover relevant confirmed and proposed memories; and only an explicit user approval allows the agent to confirm a proposal.
+
+
+### CNM-06 follow-up — MCP retrieval contracts (2026-11-02)
+
+- [x] Apply `symbol_lookup` kind, project-relative path-prefix, and export filters in SQL before the bounded candidate window.
+- [x] Add a regression fixture with more than 1,000 unfiltered candidates and a matching symbol beyond that window.
+- [ ] Complete the remaining MCP output-contract audit for ranking, deterministic tie-breaks, processing budgets, and order-before-truncation across all registered tools.

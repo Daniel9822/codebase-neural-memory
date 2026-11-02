@@ -90,7 +90,18 @@ function rankSearchCandidates(
   ).slice(0, limit);
 }
 
-export function searchSymbols(location: ProjectLocation, query: string, limit = 20): RankedSearchHit[] {
+export interface SymbolSearchFilters {
+  kind?: string;
+  filePathPrefix?: string;
+  exported?: boolean;
+}
+
+export function searchSymbols(
+  location: ProjectLocation,
+  query: string,
+  limit = 20,
+  filters: SymbolSearchFilters = {},
+): RankedSearchHit[] {
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_SEARCH_RESULTS) {
     throw new Error("Search limit must be a positive safe integer no greater than 1000.");
   }
@@ -99,6 +110,21 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
   const db = openDatabase(location);
   try {
     const candidateLimit = Math.min(MAX_SEARCH_CANDIDATES, Math.max(limit, limit * 20));
+    const filterConditions: string[] = [];
+    const filterParameters: Array<string | number> = [];
+    if (filters.kind !== undefined) {
+      filterConditions.push("s.kind = ?");
+      filterParameters.push(filters.kind);
+    }
+    if (filters.filePathPrefix !== undefined) {
+      filterConditions.push("(f.path = ? OR substr(f.path, 1, length(?) + 1) = ? || '/')");
+      filterParameters.push(filters.filePathPrefix, filters.filePathPrefix, filters.filePathPrefix);
+    }
+    if (filters.exported !== undefined) {
+      filterConditions.push("s.exported = ?");
+      filterParameters.push(filters.exported ? 1 : 0);
+    }
+    const filterSql = filterConditions.length > 0 ? ` AND ${filterConditions.join(" AND ")}` : "";
     const ftsQuery = tokens.map((token) => `"${token.replaceAll('"', '""')}"*`).join(" OR ");
     try {
       const rows = tokens.some((token) => /[\\%_]/.test(token))
@@ -110,19 +136,19 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
         FROM symbols_fts
         JOIN symbols s ON s.id = symbols_fts.rowid
         JOIN files f ON f.id = s.file_id
-        WHERE symbols_fts MATCH ?
-        ORDER BY ftsRank, f.path, s.start_line, s.name
+        WHERE symbols_fts MATCH ?${filterSql}
+        ORDER BY ftsRank, f.path, s.start_line, s.name, s.kind
         LIMIT ?
-      `).all(ftsQuery, candidateLimit) as Array<SearchHit & { ftsRank: number }>;
+      `).all(ftsQuery, ...filterParameters, candidateLimit) as Array<SearchHit & { ftsRank: number }>;
       const fallbackParameters = tokens.flatMap((token) => [`%${escapeLikePattern(token)}%`, `%${escapeLikePattern(token)}%`]);
       const fallbackRows = db.prepare(`
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
-        WHERE ${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")}
-        ORDER BY f.path, s.start_line, s.name
+        WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
+        ORDER BY f.path, s.start_line, s.name, s.kind
         LIMIT ?
-      `).all(...fallbackParameters, candidateLimit) as SearchHit[];
+      `).all(...fallbackParameters, ...filterParameters, candidateLimit) as SearchHit[];
       const combined = new Map<string, SearchHit & { ftsRank?: number }>();
       for (const row of rows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}`, row);
       for (const row of fallbackRows) {
@@ -137,10 +163,10 @@ export function searchSymbols(location: ProjectLocation, query: string, limit = 
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
-        WHERE ${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")}
-        ORDER BY f.path, s.start_line, s.name
+        WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
+        ORDER BY f.path, s.start_line, s.name, s.kind
         LIMIT ?
-      `).all(...parameters, candidateLimit) as SearchHit[];
+      `).all(...parameters, ...filterParameters, candidateLimit) as SearchHit[];
       return rankSearchCandidates(rows.map((row) => ({ ...row })), tokens, limit);
     }
   } finally {

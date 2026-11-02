@@ -82,7 +82,7 @@ The server uses stdio and exposes eighteen tools: thirteen read/retrieval tools 
 - `project_overview` — local repository/index summary.
 - `index_freshness` — source-file and Git commit/branch/working-tree freshness versus the index.
 - `project_map` — indexed files, resolved/unresolved imports, and bounded TypeScript-backed external import diagnostics (`missing-package` / `missing-export`).
-- `symbol_lookup` — bounded lexical symbol search with optional kind, file-path-prefix, export filters, and opt-in verified inline source (`includeSource`).
+- `symbol_lookup` — bounded lexical symbol search with kind, file-path-prefix, and export filters applied before candidate truncation, plus opt-in verified inline source (`includeSource`). Ranking tie-breaks use locale-independent code-unit ordering.
 - `index_update` — incrementally reconcile changed/deleted/added source files while retaining configured exclusions.
 - `dependency_graph` — bounded direct/transitive import traversal with edge evidence.
 - `file_details` — bounded indexed file metadata, symbols, imports, and relations; `inlineSnippets` optionally includes bounded source for the first symbols.
