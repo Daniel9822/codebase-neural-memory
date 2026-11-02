@@ -319,42 +319,47 @@ function memoryMatchScore(row: MemoryRecord, query: string, tokens: string[]): n
 
 /** Retrieve project memories by natural-language lexical relevance and lifecycle filters.
  * Proposed entries are discoverable by default but remain explicitly unconfirmed. */
-export function recallMemories(
-  location: ProjectLocation,
-  query = "",
-  limit = 20,
-  options: MemoryRecallOptions = {},
-): MemoryRecord[] {
-  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
-    throw new Error("Memory limit must be a positive safe integer no greater than 500");
-  }
+export interface MemoryRecallReport {
+  records: MemoryRecord[];
+  totalEligible: number;
+  processedCandidates: number;
+  limit: number;
+  truncated: boolean;
+}
+
+/** Retrieve bounded project memories and disclose when the candidate window is incomplete. */
+export function recallMemoriesReport(
+  location: ProjectLocation, query = "", limit = 20, options: MemoryRecallOptions = {},
+): MemoryRecallReport {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) throw new Error("Memory limit must be a positive safe integer no greater than 500");
   const db = openDatabase(location);
   try {
-    const includeRejected = options.statuses?.includes("rejected") ?? false;
-    const rows = db.prepare(`SELECT id, category, title, content, status, source_path AS sourcePath,
-      commit_sha AS commitSha, source_hash AS sourceHash, author, updated_by AS updatedBy,
-      created_at AS createdAt, updated_at AS updatedAt FROM memories
-      ${includeRejected ? "" : "WHERE status != 'rejected'"} ORDER BY updated_at DESC, id LIMIT 5000`).all() as MemoryRecord[];
-    const statuses = options.statuses ? new Set(options.statuses) : null;
-    const category = options.category ? normalizeMemoryText(options.category) : null;
-    const filtered = rows.filter((row) =>
-      (!statuses || statuses.has(row.status)) &&
-      (!category || normalizeMemoryText(row.category) === category),
-    );
+    const conditions: string[] = [];
+    const parameters: Array<string | number> = [];
+    if (!(options.statuses?.includes("rejected") ?? false)) conditions.push("status != 'rejected'");
+    if (options.statuses && options.statuses.length > 0) {
+      conditions.push("status IN (" + options.statuses.map(() => "?").join(", ") + ")");
+      parameters.push(...options.statuses);
+    }
+    if (options.category) { conditions.push("lower(category) = lower(?)"); parameters.push(options.category.trim()); }
+    const where = conditions.length ? " WHERE " + conditions.join(" AND ") : "";
+    const totalEligible = (db.prepare("SELECT COUNT(*) AS count FROM memories" + where).get(...parameters) as { count: number }).count;
+    const rows = db.prepare("SELECT id, category, title, content, status, source_path AS sourcePath, commit_sha AS commitSha, source_hash AS sourceHash, author, updated_by AS updatedBy, created_at AS createdAt, updated_at AS updatedAt FROM memories" + where + " ORDER BY updated_at DESC, id LIMIT 5000").all(...parameters) as MemoryRecord[];
     const normalizedQuery = normalizeMemoryText(query);
-    if (!normalizedQuery || options.list) return filtered.slice(0, limit);
-    const tokens = [...new Set(normalizedQuery.split(" ").filter((token) =>
-      token.length > 1 && !MEMORY_QUERY_STOP_WORDS.has(token)))];
-    if (tokens.length === 0) return filtered.slice(0, limit);
-    return filtered
-      .map((row) => ({ row, score: memoryMatchScore(row, normalizedQuery, tokens) }))
-      .filter((item) => item.score > 0)
-      .sort((left, right) => right.score - left.score ||
-        compareCodeUnits(right.row.updatedAt, left.row.updatedAt) ||
-        compareCodeUnits(left.row.id, right.row.id))
-      .slice(0, limit)
-      .map((item) => item.row);
-  } finally {
-    db.close();
-  }
+    let ranked: MemoryRecord[];
+    if (!normalizedQuery || options.list) ranked = rows;
+    else {
+      const tokens = [...new Set(normalizedQuery.split(" ").filter((token) => token.length > 1 && !MEMORY_QUERY_STOP_WORDS.has(token)))];
+      ranked = tokens.length === 0 ? rows : rows.map((row) => ({ row, score: memoryMatchScore(row, normalizedQuery, tokens) }))
+        .filter((item) => item.score > 0)
+        .sort((left, right) => right.score - left.score || compareCodeUnits(right.row.updatedAt, left.row.updatedAt) || compareCodeUnits(left.row.id, right.row.id))
+        .map((item) => item.row);
+    }
+    return { records: ranked.slice(0, limit), totalEligible, processedCandidates: rows.length, limit, truncated: totalEligible > rows.length || ranked.length > limit };
+  } finally { db.close(); }
+}
+
+/** Backwards-compatible record-only API. Use recallMemoriesReport when completeness matters. */
+export function recallMemories(location: ProjectLocation, query = "", limit = 20, options: MemoryRecallOptions = {}): MemoryRecord[] {
+  return recallMemoriesReport(location, query, limit, options).records;
 }

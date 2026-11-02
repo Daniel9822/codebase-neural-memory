@@ -424,7 +424,7 @@ The following capabilities remain open: signature-regex search, public-contract 
 - [ ] Re-running initialization is idempotent; the managed block includes a version and content hash.
 - [ ] `cnm agents-md --check` exits 0 when synchronized, 1 when outdated, and 2 when missing.
 - [ ] `cnm agents-md --print` prints without writing; supported tool flavors are validated.
-- [ ] `memory_recall` finds relevant memories from natural-language terms, supports list/status/category filters, and includes proposed memories by default without mislabeling their status.
+- [x] `memory_recall` finds relevant memories from natural-language terms, supports list/status/category filters, includes proposed memories by default without mislabeling their status, and reports total eligible records, processed candidates, and truncation when the bounded candidate window is incomplete (`tests/memories.test.ts`).
 - [ ] An agent can call `memory_transition` to confirm a proposal only after the user explicitly authorizes it; no automatic promotion is allowed.
 - [ ] A different agent using the same initialized project can recall the same local memories.
 - [x] TypeScript semantic import diagnostics identify supported missing-package and missing-export cases during indexing; `project_map` exposes them, and `file_details` exposes bounded per-file diagnostics with totals/truncation. Compiler/build validation remains required because this is not a complete compiler run.
