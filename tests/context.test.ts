@@ -132,7 +132,7 @@ describe("task-oriented context builder", () => {
     writeFileSync(join(location.rootPath, "src", "b-anchor.ts"), "import './y-dependency';\\nexport const b = true;");
     writeFileSync(join(location.rootPath, "src", "z-dependency.ts"), "export const z = true;");
     writeFileSync(join(location.rootPath, "src", "y-dependency.ts"), "export const y = true;");
-    indexWithDatabase(db!, location);
+    indexWithDatabase(db!, location, true);
 
     const forward = buildTaskContext(location, "dependency selection", {
       anchors: { paths: ["src/b-anchor.ts", "src/a-anchor.ts"] }, dependencyLimit: 1,
