@@ -126,6 +126,29 @@ describe("task-oriented context builder", () => {
     expect(() => lookupTaskContextDetails(location, context, ["src/not-in-context.ts"])).toThrow("not referenced");
   });
 
+  it("selects the same highest-ranked dependency when explicit anchors arrive in a different order", () => {
+    setup();
+    writeFileSync(join(location.rootPath, "a-anchor.ts"), "import './z-dependency';\\nexport const a = true;");
+    writeFileSync(join(location.rootPath, "b-anchor.ts"), "import './y-dependency';\\nexport const b = true;");
+    writeFileSync(join(location.rootPath, "z-dependency.ts"), "export const z = true;");
+    writeFileSync(join(location.rootPath, "y-dependency.ts"), "export const y = true;");
+    indexWithDatabase(db!, location);
+
+    const forward = buildTaskContext(location, "dependency selection", {
+      anchors: { paths: ["b-anchor.ts", "a-anchor.ts"] }, dependencyLimit: 1,
+    });
+    const reversed = buildTaskContext(location, "dependency selection", {
+      anchors: { paths: ["a-anchor.ts", "b-anchor.ts"] }, dependencyLimit: 1,
+    });
+
+    const selected = (result: ReturnType<typeof buildTaskContext>) =>
+      result.items.filter((item) => item.kind === "dependency").map((item) => item.source);
+    expect(selected(forward)).toEqual(["y-dependency.ts"]);
+    expect(selected(reversed)).toEqual(selected(forward));
+    expect(forward.budget.truncatedKinds).toContain("dependency");
+    expect(reversed.budget.truncatedKinds).toContain("dependency");
+  });
+
   it("enforces independent per-kind context budgets and reports their usage", () => {
     setup();
     remember(location, "Refresh auth token", "Rotate the refresh token safely.", "decision", "src/auth.ts");
