@@ -184,6 +184,63 @@ describe("integrated CNM integrity regressions", () => {
     expect(freshness.relationsConfigChanged).toBe(true);
   });
 
+  it("fingerprints only node_modules manifests consulted by semantic TypeScript resolution", () => {
+    createProject();
+    const packageDirectory = join(location.rootPath, "node_modules", "semantic-fixture");
+    const unusedPackageDirectory = join(location.rootPath, "node_modules", "unused-fixture");
+    mkdirSync(packageDirectory, { recursive: true });
+    mkdirSync(unusedPackageDirectory, { recursive: true });
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ types: "./index-a.d.ts" }));
+    writeFileSync(join(packageDirectory, "index-a.d.ts"), "export declare const onlyA: string;");
+    writeFileSync(join(packageDirectory, "index-b.d.ts"), "export declare const onlyB: string;");
+    writeFileSync(join(unusedPackageDirectory, "package.json"), JSON.stringify({ name: "unused-fixture", version: "1.0.0" }));
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { onlyA } from "semantic-fixture";\nexport const value = onlyA;');
+
+    indexWithDatabase(database!, location);
+    expect(getIndexFreshness(location).status).toBe("current");
+
+    writeFileSync(join(unusedPackageDirectory, "package.json"), JSON.stringify({ name: "unused-fixture", version: "2.0.0" }));
+    expect(getIndexFreshness(location).status).toBe("current");
+
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ types: "./index-b.d.ts" }));
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("stale");
+    expect(freshness.relationsConfigChanged).toBe(true);
+  });
+
+  it("fails closed when a consulted semantic dependency manifest becomes a symlink", () => {
+    createProject();
+    const packageDirectory = join(location.rootPath, "node_modules", "semantic-fixture");
+    const packageManifest = join(packageDirectory, "package.json");
+    const outsideManifest = join(temporaryDirectory, "outside-semantic-package.json");
+    mkdirSync(packageDirectory, { recursive: true });
+    writeFileSync(packageManifest, JSON.stringify({ types: "./index.d.ts" }));
+    writeFileSync(join(packageDirectory, "index.d.ts"), "export declare const value: string;");
+    writeFileSync(outsideManifest, JSON.stringify({ types: "./outside.d.ts" }));
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { value } from "semantic-fixture";\nexport const result = value;');
+    indexWithDatabase(database!, location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+
+    rmSync(packageManifest);
+    symlinkSync(outsideManifest, packageManifest, "file");
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("semantic-fixture/package.json"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+
+    rmSync(packageManifest);
+    writeFileSync(packageManifest, "{ invalid package metadata");
+    const malformedFreshness = getIndexFreshness(location);
+    expect(malformedFreshness.status).toBe("incomplete");
+    expect(malformedFreshness.errors.some((error) => error.includes("invalid JSON"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+  });
+
   it("continues to support an explicitly external TypeScript extends target", () => {
     createProject();
     const externalConfig = join(temporaryDirectory, "outside-tsconfig.json");

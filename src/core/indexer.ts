@@ -6,7 +6,7 @@ import ignore from "ignore";
 import type { ProjectLocation } from "./project.js";
 import { getGitSnapshot, sameGitSnapshot } from "./git.js";
 import { isSupportedSourceFile, parseTypeScriptFile } from "./typescript-parser.js";
-import { analyzeImportDiagnostics } from "./import-diagnostics.js";
+import { analyzeImportDiagnostics, inspectSemanticPackageManifests, type SemanticResolutionInput } from "./import-diagnostics.js";
 import type { IndexSummary } from "../shared/types.js";
 import { readFileWithinRoot } from "./safe-file.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
@@ -703,7 +703,48 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
   return [...visited].sort((a, b) => compareCodeUnits(a, b));
 }
 
-function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>): string[] {
+function collectSemanticResolutionInputs(
+  db: MemoryDatabase,
+  files: Array<{ path: string }>,
+  discovered: DiscoveredFile[] = [],
+): SemanticResolutionInput[] {
+  const includedPaths = new Set(files.map((file) => file.path));
+  const byFile = new Map<string, Set<string>>();
+  const rows = db.prepare(`
+    SELECT files.path, file_imports.module_specifier
+    FROM files
+    JOIN file_imports ON file_imports.file_id = files.id
+    ORDER BY files.path, file_imports.module_specifier
+  `).all() as Array<{ path: string; module_specifier: string }>;
+  for (const row of rows) {
+    if (!includedPaths.has(row.path)) continue;
+    const specifiers = byFile.get(row.path) ?? new Set<string>();
+    specifiers.add(row.module_specifier);
+    byFile.set(row.path, specifiers);
+  }
+  // Freshly discovered source supersedes the persisted import list during
+  // preflight, so new/changed imports are covered before any database writes.
+  for (const file of discovered) {
+    if (!includedPaths.has(file.relativePath)) continue;
+    try {
+      const preprocessed = ts.preProcessFile(file.source, true, true);
+      byFile.set(file.relativePath, new Set(preprocessed.importedFiles.map((item) => item.fileName)));
+    } catch {
+      // Malformed files are handled by the normal per-file indexing path.
+      // Preserve their last committed import set during preflight so a
+      // diagnostic source cannot abort an otherwise valid partial update.
+    }
+  }
+  return [...byFile.entries()].flatMap(([containingFile, specifiers]) =>
+    [...specifiers].map((specifier) => ({ containingFile, specifier })))
+    .sort((a, b) => compareCodeUnits(a.containingFile, b.containingFile) || compareCodeUnits(a.specifier, b.specifier));
+}
+
+function inspectRelationsConfig(
+  rootPath: string,
+  files: Array<{ path: string }>,
+  semanticManifests: ReturnType<typeof inspectSemanticPackageManifests>,
+): string[] {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
     let directory = posix.dirname(file.path.replaceAll("\\", "/"));
@@ -761,10 +802,15 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": TypeScript configuration must contain a JSON object.");
     }
   }
+  diagnostics.push(...semanticManifests.errors);
   return [...new Set(diagnostics)].sort(compareCodeUnits);
 }
 
-function computeRelationsConfigHash(rootPath: string, files: Array<{ path: string }>): string {
+function computeRelationsConfigHash(
+  rootPath: string,
+  files: Array<{ path: string }>,
+  semanticManifests: ReturnType<typeof inspectSemanticPackageManifests>,
+): string {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
     let directory = posix.dirname(file.path.replaceAll("\\", "/"));
@@ -793,6 +839,7 @@ function computeRelationsConfigHash(rootPath: string, files: Array<{ path: strin
     }
     hash.update("\0");
   }
+  hash.update("typescript-semantic-package-manifests\\0").update(semanticManifests.hash).update("\\0");
   return hash.digest("hex");
 }
 
@@ -1034,8 +1081,10 @@ export function getIndexFreshness(
     const discovery = discover(location.rootPath, excludes);
     const indexed = db.prepare("SELECT path, content_hash FROM files ORDER BY path").all() as Array<{ path: string; content_hash: string }>;
     const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
-    const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed) !== project.relations_config_hash;
-    const relationsConfigErrors = inspectRelationsConfig(location.rootPath, indexed);
+    const semanticInputs = collectSemanticResolutionInputs(db, indexed);
+    const semanticManifests = inspectSemanticPackageManifests(location.rootPath, semanticInputs);
+    const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed, semanticManifests) !== project.relations_config_hash;
+    const relationsConfigErrors = inspectRelationsConfig(location.rootPath, indexed, semanticManifests);
     let addedFiles = 0;
     let changedFiles = 0;
     let deletedFiles = 0;
@@ -1165,8 +1214,10 @@ export function indexWithDatabase(
     ? [...new Set([...indexedConfigPaths, ...discovered.map((file) => file.relativePath)])]
         .sort(compareCodeUnits).map((path) => ({ path }))
     : discovered.map((file) => ({ path: file.relativePath }));
-  const initialRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles);
-  const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles);
+  const initialSemanticInputs = collectSemanticResolutionInputs(db, configScopeFiles, discovered);
+  const initialSemanticManifests = inspectSemanticPackageManifests(location.rootPath, initialSemanticInputs);
+  const initialRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles, initialSemanticManifests);
+  const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles, initialSemanticManifests);
   if (configErrors.length > 0) {
     throw new Error("Index update aborted: relation configuration is incomplete; no index changes were committed. " +
       configErrors.slice(0, MAX_INDEX_DETAIL_ITEMS).join(" "));
@@ -1275,7 +1326,9 @@ export function indexWithDatabase(
     // package/TypeScript configuration. Rebuild only when one of those inputs changed.
     const sourceIndexChanged = summary.added > 0 || summary.updated > 0 || summary.deleted > 0;
     const configFiles = db.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
-    const currentRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles);
+    const currentSemanticInputs = collectSemanticResolutionInputs(db, configFiles);
+    const currentSemanticManifests = inspectSemanticPackageManifests(location.rootPath, currentSemanticInputs);
+    const currentRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles, currentSemanticManifests);
     // Extended configs may resolve outside the project tree; until their full
     // transitive dependency graph is fingerprinted, conservatively rebuild.
     const relationsNeedRebuild = sourceIndexChanged || hasExtendedTsConfig(location.rootPath) ||
@@ -1288,7 +1341,9 @@ export function indexWithDatabase(
       db.prepare("UPDATE relations SET index_revision = ?").run(revisionRow.index_revision);
       summary.relations = (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
     }
-    const verifiedRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles);
+    const verifiedSemanticInputs = collectSemanticResolutionInputs(db, configScopeFiles);
+    const verifiedSemanticManifests = inspectSemanticPackageManifests(location.rootPath, verifiedSemanticInputs);
+    const verifiedRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles, verifiedSemanticManifests);
     if (verifiedRelationsConfigHash !== initialRelationsConfigHash) {
       throw new Error("Index update aborted: relation configuration changed during indexing; no index changes were committed. Retry the update.");
     }

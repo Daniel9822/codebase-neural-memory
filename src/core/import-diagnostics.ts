@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { builtinModules } from "node:module";
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
@@ -23,57 +24,61 @@ export interface ImportDiagnostic {
 const IMPORT_DIAGNOSTIC_CODES = new Set([2307, 2305, 2614, 2724, 1192]);
 const BUILTINS = new Set(builtinModules.flatMap((name) => [name, name.replace(/^node:/, "")]));
 
+function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buffer {
+  const root = realpathSync(projectRoot);
+  const absoluteCandidate = resolve(candidatePath);
+  const relativeCandidate = relative(root, absoluteCandidate).split(sep).join("/");
+  const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
+    isAbsolute(relativeCandidate);
+  if (!external) {
+    const relativeParent = relative(root, dirname(absoluteCandidate));
+    let current = root;
+    for (const segment of relativeParent.split(sep).filter(Boolean)) {
+      current = join(current, segment);
+      const identity = lstatSync(current);
+      const currentRelative = relative(root, current).split(sep).join("/");
+      if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
+        throw new Error("Configuration path traverses a symbolic-link directory.");
+      }
+      if (!identity.isDirectory() && !identity.isSymbolicLink()) {
+        throw new Error("Configuration parent is not a directory.");
+      }
+    }
+  }
+  const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
+  if (!external && !packageManagerPath) {
+    const read = readFileWithinRoot(root, absoluteCandidate, {
+      canonicalRoot: root,
+      rejectFinalSymlink: true,
+    });
+    const relativeParentAfterRead = relative(root, dirname(absoluteCandidate));
+    let currentAfterRead = root;
+    for (const segment of relativeParentAfterRead.split(sep).filter(Boolean)) {
+      currentAfterRead = join(currentAfterRead, segment);
+      const identity = lstatSync(currentAfterRead);
+      const currentRelative = relative(root, currentAfterRead).split(sep).join("/");
+      if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
+        throw new Error("Configuration path traverses a symbolic-link directory.");
+      }
+      if (!identity.isDirectory() && !identity.isSymbolicLink()) {
+        throw new Error("Configuration parent is not a directory.");
+      }
+    }
+    return read.content;
+  }
+  // Explicit external config targets and package-manager directory symlinks
+  // remain supported; the final manifest component itself must be a real file.
+  const canonicalParent = realpathSync(dirname(candidatePath));
+  const canonicalCandidate = join(canonicalParent, basename(candidatePath));
+  return readFileWithinRoot(canonicalParent, canonicalCandidate, {
+    canonicalRoot: canonicalParent,
+    rejectFinalSymlink: true,
+  }).content;
+}
+
 function readConfigTextSafely(candidatePath: string, projectRoot: string): string | undefined {
   try {
-    const root = realpathSync(projectRoot);
-    const absoluteCandidate = resolve(candidatePath);
-    const relativeCandidate = relative(root, absoluteCandidate).split(sep).join("/");
-    const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
-      isAbsolute(relativeCandidate);
-    if (!external) {
-      const relativeParent = relative(root, dirname(absoluteCandidate));
-      let current = root;
-      for (const segment of relativeParent.split(sep).filter(Boolean)) {
-        current = join(current, segment);
-        const identity = lstatSync(current);
-        const currentRelative = relative(root, current).split(sep).join("/");
-        if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
-          throw new Error("Configuration path traverses a symbolic-link directory.");
-        }
-        if (!identity.isDirectory() && !identity.isSymbolicLink()) {
-          throw new Error("Configuration parent is not a directory.");
-        }
-      }
-    }
-    const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
-    if (!external && !packageManagerPath) {
-      const read = readFileWithinRoot(root, absoluteCandidate, {
-        canonicalRoot: root,
-        rejectFinalSymlink: true,
-      });
-      const relativeParentAfterRead = relative(root, dirname(absoluteCandidate));
-      let currentAfterRead = root;
-      for (const segment of relativeParentAfterRead.split(sep).filter(Boolean)) {
-        currentAfterRead = join(currentAfterRead, segment);
-        const identity = lstatSync(currentAfterRead);
-        const currentRelative = relative(root, currentAfterRead).split(sep).join("/");
-        if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
-          throw new Error("Configuration path traverses a symbolic-link directory.");
-        }
-        if (!identity.isDirectory() && !identity.isSymbolicLink()) {
-          throw new Error("Configuration parent is not a directory.");
-        }
-      }
-      return read.content.toString("utf8");
-    }
-    // Explicit external "extends" targets and package-manager links under
-    // node_modules remain supported; final-component symlinks still fail closed.
-    const canonicalParent = realpathSync(dirname(candidatePath));
-    const canonicalCandidate = join(canonicalParent, basename(candidatePath));
-    return readFileWithinRoot(canonicalParent, canonicalCandidate, {
-      canonicalRoot: canonicalParent,
-      rejectFinalSymlink: true,
-    }).content.toString("utf8");
+    return readConfigBytesSafely(candidatePath, projectRoot).toString("utf8");
   } catch {
     return undefined;
   }
@@ -204,4 +209,153 @@ export function analyzeImportDiagnostics(
   return [...unique.values()].sort((a, b) =>
     compareCodeUnits(a.filePath, b.filePath) || a.line - b.line || a.column - b.column || a.code - b.code,
   );
+}
+
+
+export interface SemanticPackageManifestSnapshot {
+  hash: string;
+  errors: string[];
+  manifestCount: number;
+}
+
+export interface SemanticResolutionInput {
+  containingFile: string;
+  specifier: string;
+}
+
+const MAX_SEMANTIC_PACKAGE_MANIFESTS = 10_000;
+
+function isNodeModulesPackageManifest(path: string): boolean {
+  const normalized = resolve(path).replaceAll("\\", "/");
+  const segments = normalized.split("/");
+  return segments.at(-1) === "package.json" && segments.includes("node_modules");
+}
+
+/**
+ * Fingerprint the package.json files actually consulted by TypeScript's
+ * module resolver for the indexed import specifiers. This avoids scanning
+ * node_modules or constructing a full TypeScript program during freshness.
+ */
+export function inspectSemanticPackageManifests(
+  rootPath: string,
+  resolutionInputs: SemanticResolutionInput[],
+): SemanticPackageManifestSnapshot {
+  const root = resolve(rootPath);
+  const rootConfigPath = join(root, "tsconfig.json").replaceAll("\\", "/");
+  let options: ts.CompilerOptions = {
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    target: ts.ScriptTarget.ES2022,
+    allowJs: true,
+    checkJs: false,
+    skipLibCheck: true,
+    noEmit: true,
+  };
+  const config = ts.readConfigFile(rootConfigPath, (path) => readConfigTextSafely(path, root));
+  if (!config.error) {
+    const configHost: ts.ParseConfigHost = {
+      ...ts.sys,
+      readFile: (path) => readConfigTextSafely(path, root),
+      readDirectory: () => [],
+    };
+    const parsed = ts.parseJsonConfigFileContent(config.config, configHost, root, undefined, rootConfigPath);
+    options = {
+      ...options,
+      ...parsed.options,
+      allowJs: parsed.options.allowJs ?? true,
+      checkJs: false,
+      skipLibCheck: true,
+      noEmit: true,
+    };
+  }
+
+  type ManifestRead = { content: Buffer | null; failure: string | null };
+  const consulted = new Map<string, ManifestRead>();
+  const errors: string[] = [];
+  let manifestLimitExceeded = false;
+  const readManifest = (candidate: string): ManifestRead => {
+    const absolute = resolve(candidate);
+    const key = absolute.replaceAll("\\", "/");
+    const previous = consulted.get(key);
+    if (previous) return previous;
+    if (consulted.size >= MAX_SEMANTIC_PACKAGE_MANIFESTS) {
+      if (!manifestLimitExceeded) {
+        errors.push("TypeScript semantic package-manifest inspection exceeded its safety limit.");
+        manifestLimitExceeded = true;
+      }
+      return { content: null, failure: "safety-limit" };
+    }
+    let result: ManifestRead;
+    try {
+      result = { content: readConfigBytesSafely(absolute, root), failure: null };
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
+      result = { content: null, failure: code };
+    }
+    if (result.failure && result.failure !== "ENOENT" && result.failure !== "ENOTDIR") {
+      const relativePath = relative(root, absolute).replaceAll("\\", "/");
+      const displayPath = relativePath === ".." || relativePath.startsWith("../") || isAbsolute(relativePath)
+        ? absolute
+        : relativePath;
+      errors.push(displayPath + ": TypeScript package manifest could not be safely read (" + result.failure + ").");
+    }
+    consulted.set(key, result);
+    return result;
+  };
+
+  const host = ts.createCompilerHost(options);
+  const defaultFileExists = host.fileExists.bind(host);
+  const defaultReadFile = host.readFile.bind(host);
+  host.fileExists = (path) => isNodeModulesPackageManifest(path)
+    ? readManifest(path).content !== null
+    : defaultFileExists(path);
+  host.readFile = (path) => {
+    if (isNodeModulesPackageManifest(path)) {
+      const manifest = readManifest(path);
+      return manifest.content?.toString("utf8");
+    }
+    return defaultReadFile(path);
+  };
+
+  const uniqueInputs = new Map<string, SemanticResolutionInput>();
+  for (const input of resolutionInputs) {
+    const containingFile = resolve(root, input.containingFile);
+    uniqueInputs.set(containingFile + "\0" + input.specifier, { containingFile, specifier: input.specifier });
+  }
+  for (const input of [...uniqueInputs.values()].sort((a, b) =>
+    compareCodeUnits(a.containingFile, b.containingFile) || compareCodeUnits(a.specifier, b.specifier))) {
+    ts.resolveModuleName(input.specifier, input.containingFile, options, host);
+  }
+  for (const typeName of options.types ?? []) {
+    ts.resolveTypeReferenceDirective(typeName, join(root, "__cnm_type_reference__.ts"), options, host);
+  }
+
+  const hash = createHash("sha256");
+  for (const [path, manifest] of [...consulted].sort(([a], [b]) => compareCodeUnits(a, b))) {
+    hash.update(path).update("\0");
+    if (manifest.content) {
+      hash.update("present\0").update(manifest.content);
+      const manifestText = manifest.content.toString("utf8");
+      if (!Buffer.from(manifestText, "utf8").equals(manifest.content)) {
+        errors.push(path + ": TypeScript package manifest is not valid UTF-8.");
+      }
+      try {
+        const parsed: unknown = JSON.parse(manifestText);
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          errors.push(path + ": TypeScript package manifest must contain a JSON object.");
+        }
+      } catch {
+        errors.push(path + ": TypeScript package manifest contains invalid JSON.");
+      }
+    } else {
+      hash.update(manifest.failure === "ENOENT" || manifest.failure === "ENOTDIR"
+        ? "<missing>" : "<unreadable:" + (manifest.failure ?? "unknown") + ">");
+    }
+    hash.update("\0");
+  }
+  return {
+    hash: hash.digest("hex"),
+    errors: [...new Set(errors)].sort(compareCodeUnits),
+    manifestCount: consulted.size,
+  };
 }
