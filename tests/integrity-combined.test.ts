@@ -109,6 +109,31 @@ describe("integrated CNM integrity regressions", () => {
     expect(database!.prepare("SELECT COUNT(*) AS count FROM relations").get()).toEqual({ count: 0 });
   });
 
+  it("protects indexed descendants when an ignored directory is replaced by a symlink", () => {
+    createProject();
+    const indexedDirectory = join(location.rootPath, "src");
+    const savedDirectory = join(temporaryDirectory, "saved-src");
+    const outsideDirectory = join(temporaryDirectory, "outside-src");
+    mkdirSync(indexedDirectory, { recursive: true });
+    mkdirSync(outsideDirectory, { recursive: true });
+    writeFileSync(join(indexedDirectory, "main.ts"), "export function main() { return true; }");
+    indexProject(location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+
+    writeFileSync(join(location.rootPath, ".gitignore"), "src/");
+    renameSync(indexedDirectory, savedDirectory);
+    writeFileSync(join(outsideDirectory, "main.ts"), "export function main() { return false; }");
+    symlinkSync(outsideDirectory, indexedDirectory, "dir");
+
+    expect(() => indexProject(location)).toThrow(/source discovery is incomplete/i);
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.deletedFiles).toBe(0);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+    expect(database!.prepare("SELECT path FROM files").all()).toEqual([{ path: "src/main.ts" }]);
+  });
+
   it("rejects project-local extends through symlinked parent directories and preserves the existing index", () => {
     createProject();
     const linkedConfigDirectory = join(location.rootPath, "configs");
