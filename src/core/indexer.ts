@@ -970,6 +970,9 @@ export function indexWithDatabase(
       scanned: discovery.scanned, added: 0, updated: 0, unchanged: 0, deleted: 0,
       symbols: 0, relations: 0, skipped: discovery.skipped, failed: discovery.failed,
       errors: [...discovery.errors], skippedFiles: [...discovery.skippedFiles],
+      totals: { errors: discovery.failed, skippedFiles: discovery.skipped },
+      limits: { detailItems: MAX_INDEX_DETAIL_ITEMS },
+      detailsTruncated: { errors: false, skippedFiles: false },
       truncated: discovery.truncated,
     };
 
