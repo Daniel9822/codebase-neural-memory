@@ -209,6 +209,14 @@ describe("MCP bounded output and project isolation", () => {
     expect(details.unresolvedImports.every((item: { candidatesTotal: number; candidatesTruncated: boolean }) =>
       item.candidatesTotal === 1_000 && item.candidatesTruncated)).toBe(true);
     expect(details.truncated.candidatePaths).toBe(true);
+
+    const context = await client.call("task_context", {
+      task: "inspect unresolved modules",
+      anchors: { paths: ["entry.ts"] },
+    });
+    const contextFile = context.items.find((item: { kind: string }) => item.kind === "file");
+    expect(contextFile.detail.unresolvedImports.every((item: { candidates: string[]; candidatesTruncated: boolean }) =>
+      item.candidates.length <= 5 && item.candidatesTruncated)).toBe(true);
   });
 
   it("bounds index_update diagnostic details while preserving exact totals", async () => {
