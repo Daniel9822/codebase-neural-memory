@@ -105,6 +105,28 @@ describe("symbol retrieval contracts", () => {
     expect(hits[0]?.candidateWindowTruncated).toBe(true);
   });
 
+  it("reports truncation for bounded exact symbol and relation lookups", () => {
+    createProject();
+    for (let index = 0; index < 21; index += 1) {
+      writeFileSync(join(location.rootPath, `lookup-${String(index).padStart(2, "0")}.ts`),
+        "export function lookupTarget() { return true; }");
+    }
+    writeFileSync(join(location.rootPath, "target.ts"), "export function target() { return true; }");
+    writeFileSync(join(location.rootPath, "caller-a.ts"), 'import { target } from "./target"; export function callerA() { return target(); }');
+    writeFileSync(join(location.rootPath, "caller-b.ts"), 'import { target } from "./target"; export function callerB() { return target(); }');
+    indexWithDatabase(database!, location);
+
+    const exact = explainSymbol(location, "lookupTarget");
+    expect(exact).toHaveLength(20);
+    expect(exact.every((item) => item.resultsTruncated)).toBe(true);
+    expect(explainSymbol(location, "target").every((item) => !item.resultsTruncated)).toBe(true);
+
+    const limitedRelations = getSymbolRelations(location, "target", 1);
+    expect(limitedRelations).toHaveLength(1);
+    expect(limitedRelations[0]?.resultsTruncated).toBe(true);
+    expect(getSymbolRelations(location, "target", 10).every((item) => !item.resultsTruncated)).toBe(true);
+  });
+
   it("escapes SQL LIKE wildcards in literal symbol-name queries", () => {
     createProject();
     writeFileSync(join(location.rootPath, "names.ts"), `
