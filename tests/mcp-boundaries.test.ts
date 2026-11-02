@@ -164,7 +164,7 @@ describe("MCP bounded output and project isolation", () => {
   it("applies a deterministic global candidate budget before decoding candidate arrays", async () => {
     const { location, root } = createProject("candidate-budget");
     const imports = Array.from({ length: 11 }, (_, index) => `import "./ambiguous-${String(index).padStart(2, "0")}"; `);
-    writeFileSync(join(root, "entry.ts"), imports.join("\n"));
+    writeFileSync(join(root, "entry.ts"), `${imports.join("\n")}\nexport const entry = true;`);
     indexWithDatabase(databases[0]!, location);
     const unresolved = databases[0]!.prepare(
       "SELECT id, module_specifier FROM unresolved_imports WHERE source_file_id = (SELECT id FROM files WHERE path = 'entry.ts') ORDER BY module_specifier",
@@ -185,6 +185,38 @@ describe("MCP bounded output and project isolation", () => {
       .toEqual([...Array(10).fill(200), 0]);
     expect(entry.unresolvedImports.every((item: { candidatesTotal: number; candidatesTruncated: boolean }) =>
       item.candidatesTotal === 1_000 && item.candidatesTruncated)).toBe(true);
+  });
+
+  it("bounds file_details unresolved-import candidate materialization globally", async () => {
+    const { location, root } = createProject("file-details-candidate-budget");
+    const imports = Array.from({ length: 11 }, (_, index) => `import "./missing-${String(index).padStart(2, "0")}";`);
+    writeFileSync(join(root, "entry.ts"), `${imports.join("\n")}\nexport const entry = true;`);
+    indexWithDatabase(databases[0]!, location);
+    const unresolved = databases[0]!.prepare(
+      "SELECT id FROM unresolved_imports WHERE source_file_id = (SELECT id FROM files WHERE path = 'entry.ts') ORDER BY module_specifier",
+    ).all() as Array<{ id: number }>;
+    expect(unresolved).toHaveLength(11);
+    const paths = Array.from({ length: 1_000 }, (_, index) => `candidate/${String(index).padStart(4, "0")}.ts`);
+    const update = databases[0]!.prepare("UPDATE unresolved_imports SET status = 'ambiguous', candidates_json = ? WHERE id = ?");
+    for (const item of unresolved) update.run(JSON.stringify(paths), item.id);
+
+    const client = await connect(location);
+    const details = await client.call("file_details", { path: "entry.ts", limit: 20 });
+    expect(details.limits).toEqual({ perCollection: 20, candidatesPerImport: 200, candidateBudget: 2_000 });
+    expect(details.totals.candidatePaths).toBe(11_000);
+    expect(details.unresolvedImports.map((item: { candidates: string[] }) => item.candidates.length))
+      .toEqual([...Array(10).fill(200), 0]);
+    expect(details.unresolvedImports.every((item: { candidatesTotal: number; candidatesTruncated: boolean }) =>
+      item.candidatesTotal === 1_000 && item.candidatesTruncated)).toBe(true);
+    expect(details.truncated.candidatePaths).toBe(true);
+
+    const context = await client.call("task_context", {
+      task: "inspect unresolved modules",
+      anchors: { paths: ["entry.ts"], symbols: ["entry"] },
+    });
+    const contextFile = context.items.find((item: { kind: string }) => item.kind === "file");
+    expect(contextFile.detail.unresolvedImports.every((item: { candidates: string[]; candidatesTruncated: boolean }) =>
+      item.candidates.length <= 5 && item.candidatesTruncated)).toBe(true);
   });
 
   it("bounds index_update diagnostic details while preserving exact totals", async () => {

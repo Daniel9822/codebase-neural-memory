@@ -59,6 +59,17 @@ function anchorsFor(task: string): string[] {
     .map((word) => word.toLowerCase()))].slice(0, 20);
 }
 
+function boundedUnresolvedImports(items: Array<{
+  specifier: string; status: string; candidates: string[];
+  candidatesTotal: number; candidatesTruncated: boolean;
+}>) {
+  return items.slice(0, 5).map((item) => ({
+    ...item,
+    candidates: item.candidates.slice(0, 5),
+    candidatesTruncated: item.candidatesTruncated || item.candidates.length > 5,
+  }));
+}
+
 function itemIdentity(item: TaskContextItem): string {
   if (item.kind === "symbol") return `${item.kind}:${item.source}:${item.title}`;
   if (item.kind === "memory" && item.detail && typeof item.detail === "object" && "id" in item.detail) {
@@ -206,7 +217,7 @@ export function buildTaskContext(
           contentHash: detail.contentHash,
           symbols: detail.symbols.slice(0, 10).map((entry) => ({ name: entry.name, kind: entry.kind, startLine: entry.startLine, endLine: entry.endLine })),
           imports: detail.imports.slice(0, 10),
-          unresolvedImports: detail.unresolvedImports.slice(0, 5),
+          unresolvedImports: boundedUnresolvedImports(detail.unresolvedImports),
           relations: detail.relations.slice(0, 10),
         },
       });
@@ -260,7 +271,7 @@ export function buildTaskContext(
       detail: {
         indexRevision: detail.indexRevision, contentHash: detail.contentHash,
         symbols: detail.symbols.slice(0, 10).map((entry) => ({ name: entry.name, kind: entry.kind, startLine: entry.startLine, endLine: entry.endLine })),
-        imports: detail.imports.slice(0, 10), unresolvedImports: detail.unresolvedImports.slice(0, 5),
+        imports: detail.imports.slice(0, 10), unresolvedImports: boundedUnresolvedImports(detail.unresolvedImports),
         relations: detail.relations.slice(0, 10),
       },
     });
@@ -413,7 +424,7 @@ export function lookupTaskContextDetails(
       signals: ["explicit-follow-up-lookup", "existing-context-source"],
       detail: {
         indexRevision: detail.indexRevision, contentHash: detail.contentHash,
-        symbols: detail.symbols, imports: detail.imports, unresolvedImports: detail.unresolvedImports,
+        symbols: detail.symbols, imports: detail.imports, unresolvedImports: boundedUnresolvedImports(detail.unresolvedImports),
         relations: detail.relations, totals: detail.totals, truncated: detail.truncated,
       },
     };

@@ -32,4 +32,12 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Confirmed `index_update` could return unbounded `errors` and `skippedFiles` arrays even though discovery is capped at 100,000 examined entries.
 - [x] Cap each diagnostic detail collection at 200 sorted entries, preserving exact counters and adding `totals`, `limits.detailItems`, and `detailsTruncated` metadata.
 - [x] Add an MCP regression with 205 skipped symlink paths to prove exact totals, deterministic details, and explicit truncation.
-- [ ] Verify CI and merge the change before closing the broader MCP output-contract audit.
+- [x] Verify CI (runs 41431584105 and 41431576683 passed) and merge PR #110 (`da169033995f6c295aad0f28065968b367f1ad90`); the broader MCP output-contract audit remains open.
+
+
+### CNM-06 follow-up — file_details candidate output budget (2026-11-02)
+
+- [x] Confirmed `getFileDetails` parsed each unresolved import's complete `candidates_json` array into JavaScript, bypassing the outer per-collection limit.
+- [x] Bound candidates to 200 per import and 2,000 globally per selected file; expose per-import and aggregate totals/truncation metadata.
+- [x] Add regression coverage for 11 imports with 1,000 candidates each and the bounded `task_context` projection.
+- [ ] Verify CI and merge before closing the broader MCP output-contract audit.
