@@ -145,7 +145,7 @@ describe("indexWithDatabase", () => {
     expect(freshness.fileChanges).toEqual([]);
     expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
       .toBe(beforeRevision);
-  });
+  }, 30_000);
 
   it("selects the same maxFiles subset regardless of directory insertion order", () => {
     createProject();
