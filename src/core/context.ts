@@ -348,7 +348,7 @@ export function buildTaskContext(
       || compareCodeUnits(a.memory.id, b.memory.id));
   const memoryCandidatesTruncated = matchedMemories.length > memoryLimit;
   const memories = matchedMemories.slice(0, memoryLimit).map((entry) => entry.memory);
-  const freshness = inspectMemoryFreshness(location);
+  const freshness = inspectMemoryFreshness(location, memoryLimit, memories.map((memory) => memory.id));
   const freshnessById = new Map(freshness.map((entry) => [entry.id, entry]));
   for (const memory of memories) {
     const sourceFreshness = freshnessById.get(memory.id);
