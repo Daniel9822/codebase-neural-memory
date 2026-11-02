@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
-import { indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
+import { indexProject, indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
 import { getProjectMapReport } from "../src/core/retrieval.js";
 
 let temporaryDirectory = "";
@@ -239,6 +239,7 @@ describe("indexWithDatabase", () => {
     symlinkSync(outsideDirectory, sourceDirectory, "dir");
 
     expect(() => updateProjectIndex(location)).toThrow(/discovery is incomplete/i);
+    expect(() => indexProject(location)).toThrow(/discovery is incomplete/i);
     const after = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
     expect(after).toEqual([{ path: "src/nested.ts" }]);
   });
