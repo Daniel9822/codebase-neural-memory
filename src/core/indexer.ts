@@ -1004,6 +1004,7 @@ function gitFreshness(project: IndexedGitMetadata, current: ReturnType<typeof ge
   };
 }
 
+/** @internal Optional discovery injection is reserved for deterministic filesystem-failure tests. */
 export function getIndexFreshness(
   location: ProjectLocation,
   discover: (rootPath: string, explicitExcludes: string[]) => DiscoveryResult = discoverFiles,
