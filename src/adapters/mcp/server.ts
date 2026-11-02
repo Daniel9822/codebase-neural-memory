@@ -226,7 +226,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   server.registerTool("dependency_graph", {
     description: "Traverse direct or transitive file imports with relation provenance, confidence, depth, dependency chains, and explicit truncation limits.",
     inputSchema: z.object({
-      path: z.string().min(1),
+      path: z.string().min(1).max(500),
       depth: z.number().int().min(1).max(20).optional(),
       limit: z.number().int().min(1).max(100).optional(),
       maxProcessed: z.number().int().min(1).max(10000).optional(),
@@ -237,7 +237,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   server.registerTool("file_details", {
     description: "Return bounded indexed file metadata, symbols, resolved and unresolved imports, symbol relationships, and relation provenance. inlineSnippets adds bounded source for the first snippetLimit symbols.",
     inputSchema: z.object({
-      path: z.string().min(1),
+      path: z.string().min(1).max(500),
       limit: z.number().int().min(1).max(500).optional(),
       inlineSnippets: z.boolean().optional(),
       snippetLimit: z.number().int().min(1).max(10).optional(),
@@ -262,7 +262,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   server.registerTool("source_excerpt", {
     description: "Read a bounded line range from an indexed source file inside the project root. Returns current source text, line bounds, SHA-256 freshness against the index, and truncation metadata.",
     inputSchema: z.object({
-      path: z.string().min(1),
+      path: z.string().min(1).max(500),
       startLine: z.number().int().min(1),
       endLine: z.number().int().min(1),
       maxCharacters: z.number().int().min(100).max(20_000).optional(),
@@ -309,7 +309,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   server.registerTool("change_impact", {
     description: "Find indexed files that import a target file, recursively, with explicit result and processing limits.",
     inputSchema: z.object({
-      path: z.string().min(1),
+      path: z.string().min(1).max(500),
       limit: z.number().int().min(1).max(5000).optional(),
       maxProcessed: z.number().int().min(1).max(10000).optional(),
     }),
@@ -344,7 +344,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   server.registerTool("task_context", {
     description: "Build deterministic, bounded task context from indexed symbols, file relationships, local memories, and matching test paths. Results include ranking signals, lifecycle status, source references, and freshness warnings.",
     inputSchema: z.object({
-      task: z.string().min(1),
+      task: z.string().min(1).max(2_000),
       maxItems: z.number().int().min(1).max(100).optional(),
       maxCharacters: z.number().int().min(100).max(50000).optional(),
       symbolLimit: z.number().int().min(1).max(50).optional(),
