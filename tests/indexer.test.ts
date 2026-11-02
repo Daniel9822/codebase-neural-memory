@@ -366,6 +366,42 @@ describe("indexWithDatabase", () => {
     expect(discovery.files).toEqual([]);
   });
 
+  it("preserves the complete indexed record when a source file is replaced by a symlink", () => {
+    createProject();
+    const sourcePath = join(location.rootPath, "source.ts");
+    const consumerPath = join(location.rootPath, "consumer.ts");
+    const outsidePath = join(temporaryDirectory, "outside.ts");
+    writeFileSync(sourcePath, "export function retained() { return true; }");
+    writeFileSync(consumerPath, 'import { retained } from "./source";\nexport function consume() { return retained(); }');
+    indexProject(location);
+
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    const beforeFiles = database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all();
+    const beforeSymbols = database!.prepare("SELECT f.path, s.name, s.signature FROM symbols s JOIN files f ON f.id = s.file_id ORDER BY f.path, s.name").all();
+    const beforeFts = database!.prepare("SELECT file_path, name, signature FROM symbols_fts ORDER BY file_path, name").all();
+    const beforeRelations = database!.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance FROM relations ORDER BY kind, source_id, target_id").all();
+    expect(beforeSymbols.length).toBeGreaterThan(0);
+    expect(beforeFts.length).toBeGreaterThan(0);
+    expect(beforeRelations.length).toBeGreaterThan(0);
+
+    rmSync(sourcePath);
+    writeFileSync(outsidePath, "export function outside() { return false; }");
+    symlinkSync(outsidePath, sourcePath, "file");
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.deletedFiles).toBe(0);
+    expect(freshness.skippedFiles).toContain("source.ts: symbolic link");
+    expect(() => updateProjectIndex(location)).toThrow(/source discovery is incomplete/i);
+
+    expect(database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id))
+      .toEqual({ index_revision: beforeRevision });
+    expect(database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all()).toEqual(beforeFiles);
+    expect(database!.prepare("SELECT f.path, s.name, s.signature FROM symbols s JOIN files f ON f.id = s.file_id ORDER BY f.path, s.name").all()).toEqual(beforeSymbols);
+    expect(database!.prepare("SELECT file_path, name, signature FROM symbols_fts ORDER BY file_path, name").all()).toEqual(beforeFts);
+    expect(database!.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance FROM relations ORDER BY kind, source_id, target_id").all()).toEqual(beforeRelations);
+  });
+
   it("removes stale symbols, FTS entries, and graph relations when a file is deleted", () => {
     createProject();
     const gonePath = join(location.rootPath, "gone.ts");

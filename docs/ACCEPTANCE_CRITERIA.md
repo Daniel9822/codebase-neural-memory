@@ -365,6 +365,14 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 - **Coverage:** core current/stale hash comparison, project-relative path and range validation, MCP tool discovery/schema/call, real stdio invocation, and existing read-only/no-mutation checks.
 
 
+## CNM-02 — destructive reconciliation and symlink preservation
+
+- [x] File-index deletion is centralized in `indexWithDatabase`; cleanup of symbols, FTS, imports, calls, and heritage is centralized in `clearFileIndex`.
+- [x] Full-scope deletion excludes every indexed path protected by an unreadable scope or symlink entry; selective/budgeted updates do not perform deletion reconciliation.
+- [x] Full reconciliation is transactional, so parse/config/source-snapshot failures roll back file deletion and graph rebuild mutations.
+- [ ] Regression: replacing an indexed source file with a symlink must retain its file record, content hash, symbols, FTS entries, graph relations, and index revision; full update must fail closed (`tests/indexer.test.ts`; awaiting CI).
+- [ ] Descriptor-bound directory traversal remains a documented platform limitation; path-based identity checks do not eliminate swap-and-restore races.
+
 ## 15. MCP agent-capability follow-up (PR #54 — merged)
 
 - [x] `index_update` is discoverable and runs incremental reconciliation without force-reparsing unchanged files.
