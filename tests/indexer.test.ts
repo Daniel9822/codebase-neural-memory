@@ -243,7 +243,7 @@ describe("indexWithDatabase", () => {
     const savedIgnore = join(temporaryDirectory, "saved-nested.gitignore");
     const outsideIgnore = join(temporaryDirectory, "outside-nested.gitignore");
     renameSync(join(location.rootPath, "src", ".gitignore"), savedIgnore);
-    writeFileSync(outsideIgnore, "*.ts\\n");
+    writeFileSync(outsideIgnore, "*.ts\n");
     symlinkSync(outsideIgnore, join(location.rootPath, "src", ".gitignore"));
     writeFileSync(join(location.rootPath, "new-root.ts"), "export const added = true;");
 
