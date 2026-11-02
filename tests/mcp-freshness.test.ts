@@ -191,7 +191,7 @@ describe("post-read freshness validation", () => {
     const afterBlockedWriter = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
     expect(afterBlockedWriter).toBe(beforeRevision);
 
-    const recoveryScript = writerScript.replace("busy_timeout = 100", "busy_timeout = 5_000");
+    const recoveryScript = writerScript.replace("busy_timeout = 100", "busy_timeout = 5000");
     const recoveredWriter = spawnSync(process.execPath, ["--input-type=module", "-e", recoveryScript], {
       cwd: process.cwd(),
       encoding: "utf8",
