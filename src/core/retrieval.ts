@@ -24,6 +24,7 @@ interface RankedSearchHit extends SearchHit {
   rankingSignals: string[];
   searchMethod: "fts5" | "like-fallback";
   candidateWindowTruncated: boolean;
+  resultsTruncated: boolean;
 }
 
 function tokenizeQuery(query: string): string[] {
@@ -46,7 +47,7 @@ function rankSearchCandidates(
   candidateWindowTruncated = false,
 ): RankedSearchHit[] {
   const normalizedTokens = tokens.map((token) => token.toLowerCase());
-  return rows.map((row) => {
+  const ranked = rows.map((row) => {
     const name = row.name.toLowerCase();
     const signature = row.signature.toLowerCase();
     const nameTokens = normalizedTokens.filter((token) => name.includes(token));
@@ -94,7 +95,9 @@ function rankSearchCandidates(
     compareCodeUnits(a.signature, b.signature) ||
     a.endLine - b.endLine ||
     Number(b.exported) - Number(a.exported),
-  ).slice(0, limit);
+  );
+  const resultsTruncated = ranked.length > limit || candidateWindowTruncated;
+  return ranked.slice(0, limit).map((item) => ({ ...item, resultsTruncated }));
 }
 
 export interface SymbolSearchFilters {
@@ -376,19 +379,21 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
   }
 }
 
-export function explainSymbol(location: ProjectLocation, name: string): SearchHit[] {
+export function explainSymbol(location: ProjectLocation, name: string): Array<SearchHit & { resultsTruncated: boolean }> {
   if (typeof name !== "string" || !name.trim() || name.length > 200) {
     throw new Error("Symbol name must be non-empty and no longer than 200 characters.");
   }
   const db = openDatabase(location);
   try {
-    return db.prepare(`
+    const rows = db.prepare(`
       SELECT s.name, s.kind, s.signature, f.path AS filePath,
         s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
       FROM symbols s JOIN files f ON f.id = s.file_id
       WHERE s.name = ? OR s.name LIKE ?
-      ORDER BY s.exported DESC, f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.id LIMIT 20
+      ORDER BY s.exported DESC, f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.id LIMIT 21
     `).all(name, `%${name}%`) as SearchHit[];
+    const resultsTruncated = rows.length > 20;
+    return rows.slice(0, 20).map((row) => ({ ...row, resultsTruncated }));
   } finally {
     db.close();
   }
@@ -737,6 +742,7 @@ export interface SymbolRelationHit {
   confidence: number;
   provenance: string;
   indexRevision: number;
+  resultsTruncated: boolean;
 }
 
 const MAX_SYMBOL_RELATIONS = 500;
@@ -802,7 +808,9 @@ export function getSymbolRelations(location: ProjectLocation, name: string, limi
         relatedSymbolKind, relatedStartLine, relatedEndLine, symbolStartLine, symbolEndLine,
         provenance, confidence, indexRevision
       LIMIT ?
-    `).all(name, name, limit) as SymbolRelationHit[];
+    `).all(name, name, limit + 1) as Array<Omit<SymbolRelationHit, "resultsTruncated">>;
+    const resultsTruncated = rows.length > limit;
+    return rows.slice(0, limit).map((row) => ({ ...row, resultsTruncated }));
   } finally {
     db.close();
   }
