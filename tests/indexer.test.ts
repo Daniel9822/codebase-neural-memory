@@ -1,6 +1,5 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
-import * as fs from "node:fs";
-import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, mkdirSync, opendirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
@@ -326,26 +325,19 @@ describe("indexWithDatabase", () => {
     mkdirSync(outsideDirectory, { recursive: true });
     writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;");
 
-    const originalOpen = fs.opendirSync.bind(fs);
     let replaced = false;
-    const openSpy = vi.spyOn(fs, "opendirSync").mockImplementation(((path: fs.PathLike, ...args: unknown[]) => {
-      if (!replaced && String(path) === sourceDirectory) {
+    const discovery = discoverFiles(location.rootPath, [], {}, (directory) => {
+      if (!replaced && directory === sourceDirectory) {
         replaced = true;
         renameSync(sourceDirectory, movedDirectory);
         symlinkSync(outsideDirectory, sourceDirectory, "dir");
       }
-      return (originalOpen as (...values: unknown[]) => ReturnType<typeof fs.opendirSync>)(path, ...args);
-    }) as typeof fs.opendirSync);
-
-    try {
-      const discovery = discoverFiles(location.rootPath);
-      expect(replaced).toBe(true);
-      expect(discovery.failed).toBeGreaterThan(0);
-      expect(discovery.protectedDirectories.has("src")).toBe(true);
-      expect(discovery.files).toEqual([]);
-    } finally {
-      openSpy.mockRestore();
-    }
+      return opendirSync(directory);
+    });
+    expect(replaced).toBe(true);
+    expect(discovery.failed).toBeGreaterThan(0);
+    expect(discovery.protectedDirectories.has("src")).toBe(true);
+    expect(discovery.files).toEqual([]);
   });
 
   it("removes stale symbols, FTS entries, and graph relations when a file is deleted", () => {
@@ -435,6 +427,42 @@ describe("indexWithDatabase", () => {
     // follow the same final-component symlink through TypeScript's default host.
     expect(database!.prepare("SELECT module_specifier, kind FROM import_diagnostics").all())
       .toEqual([{ module_specifier: "@/helper", kind: "missing-package" }]);
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("tsconfig.json"))).toBe(true);
+  });
+
+  it("marks malformed TypeScript relation configuration as incomplete", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "tsconfig.json"), '{"compilerOptions": {');
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("tsconfig.json") && error.includes("invalid TypeScript configuration"))).toBe(true);
+  });
+
+  it("marks missing extended TypeScript configuration as incomplete", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./tsconfig.missing.json" }));
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("tsconfig.missing.json") && error.includes("ENOENT"))).toBe(true);
+  });
+
+  it("marks malformed package manifests used by relation resolution as incomplete", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "package.json"), '{"name": ');
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("package.json") && error.includes("invalid or unreadable"))).toBe(true);
   });
 
   it("rebuilds graph relations when TypeScript/package configuration changes without source edits", () => {
