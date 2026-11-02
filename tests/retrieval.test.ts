@@ -567,6 +567,14 @@ describe("findSymbolImpact", () => {
     writeFileSync(join(location.rootPath, "child.ts"), 'import { Base } from "./base";\nimport { Contract } from "./contract";\nexport class Child extends Base implements Contract {}\n');
     indexWithDatabase(database!, location);
 
+    const canonicalKinds = findSymbolImpact(location, "target", {
+      filePath: "target.ts", relationKinds: ["CALLS", "EXTENDS", "IMPLEMENTS"],
+    });
+    const permutedKinds = findSymbolImpact(location, "target", {
+      filePath: "target.ts", relationKinds: ["IMPLEMENTS", "CALLS", "EXTENDS"],
+    });
+    expect(permutedKinds).toEqual(canonicalKinds);
+
     const incoming = findSymbolImpact(location, "target", { filePath: "target.ts", depth: 2 });
     expect(incoming).toMatchObject({
       target: { name: "target", filePath: "target.ts" },
