@@ -371,7 +371,8 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 - [x] Full-scope deletion excludes every indexed path protected by an unreadable scope or symlink entry; selective/budgeted updates do not perform deletion reconciliation.
 - [x] Full reconciliation is transactional, so parse/config/source-snapshot failures roll back file deletion and graph rebuild mutations.
 - [x] Regression: replacing an indexed source file with a symlink retains its file record, content hash, symbols, FTS entries, graph relations, and index revision; full update fails closed (`tests/indexer.test.ts`; PR #124; CI run 41470817362 passed).
-- [ ] Descriptor-bound directory traversal remains a documented platform limitation; path-based identity checks do not eliminate swap-and-restore races.
+- [x] Regression: swapping a directory to a symlink during `opendirSync` and restoring it before identity recheck produces `incomplete` freshness, zero deletions, and unchanged indexed rows/revision; opened-handle and second path-opened entry snapshots are compared with a bounded second read (`tests/indexer.test.ts`; PR #125; CI run 41471907118 passed on Ubuntu and Windows; benchmarks passed on Ubuntu, Windows, and macOS).
+- [ ] Descriptor-bound directory traversal remains a documented platform limitation; path-based identity checks and dual enumeration do not eliminate every swap-and-restore race.
 
 ## 15. MCP agent-capability follow-up (PR #54 — merged)
 
