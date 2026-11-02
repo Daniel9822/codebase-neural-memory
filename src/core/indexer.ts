@@ -703,7 +703,11 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
   return [...visited].sort((a, b) => compareCodeUnits(a, b));
 }
 
-function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>): string[] {
+function inspectRelationsConfig(
+  rootPath: string,
+  files: Array<{ path: string }>,
+  semanticManifests = inspectSemanticPackageManifests(rootPath, files.map((file) => file.path)),
+): string[] {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
     let directory = posix.dirname(file.path.replaceAll("\\", "/"));
@@ -761,12 +765,15 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": TypeScript configuration must contain a JSON object.");
     }
   }
-  const semanticManifests = inspectSemanticPackageManifests(rootPath, files.map((file) => file.path));
   diagnostics.push(...semanticManifests.errors);
   return [...new Set(diagnostics)].sort(compareCodeUnits);
 }
 
-function computeRelationsConfigHash(rootPath: string, files: Array<{ path: string }>): string {
+function computeRelationsConfigHash(
+  rootPath: string,
+  files: Array<{ path: string }>,
+  semanticManifests = inspectSemanticPackageManifests(rootPath, files.map((file) => file.path)),
+): string {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
     let directory = posix.dirname(file.path.replaceAll("\\", "/"));
@@ -795,7 +802,6 @@ function computeRelationsConfigHash(rootPath: string, files: Array<{ path: strin
     }
     hash.update("\0");
   }
-  const semanticManifests = inspectSemanticPackageManifests(rootPath, files.map((file) => file.path));
   hash.update("typescript-semantic-package-manifests\\0").update(semanticManifests.hash).update("\\0");
   return hash.digest("hex");
 }
@@ -1038,8 +1044,9 @@ export function getIndexFreshness(
     const discovery = discover(location.rootPath, excludes);
     const indexed = db.prepare("SELECT path, content_hash FROM files ORDER BY path").all() as Array<{ path: string; content_hash: string }>;
     const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
-    const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed) !== project.relations_config_hash;
-    const relationsConfigErrors = inspectRelationsConfig(location.rootPath, indexed);
+    const semanticManifests = inspectSemanticPackageManifests(location.rootPath, indexed.map((file) => file.path));
+    const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed, semanticManifests) !== project.relations_config_hash;
+    const relationsConfigErrors = inspectRelationsConfig(location.rootPath, indexed, semanticManifests);
     let addedFiles = 0;
     let changedFiles = 0;
     let deletedFiles = 0;
@@ -1169,8 +1176,9 @@ export function indexWithDatabase(
     ? [...new Set([...indexedConfigPaths, ...discovered.map((file) => file.relativePath)])]
         .sort(compareCodeUnits).map((path) => ({ path }))
     : discovered.map((file) => ({ path: file.relativePath }));
-  const initialRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles);
-  const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles);
+  const initialSemanticManifests = inspectSemanticPackageManifests(location.rootPath, configScopeFiles.map((file) => file.path));
+  const initialRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles, initialSemanticManifests);
+  const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles, initialSemanticManifests);
   if (configErrors.length > 0) {
     throw new Error("Index update aborted: relation configuration is incomplete; no index changes were committed. " +
       configErrors.slice(0, MAX_INDEX_DETAIL_ITEMS).join(" "));
