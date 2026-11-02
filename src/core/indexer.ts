@@ -71,7 +71,7 @@ function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buff
   assertNoSymlinkedConfigParents(candidatePath, projectRoot);
   const root = realpathSync(projectRoot);
   const absoluteCandidate = resolve(candidatePath);
-  const relativeCandidate = relative(root, absoluteCandidate).replaceAll("\\\\", "/");
+  const relativeCandidate = relative(root, absoluteCandidate).replaceAll("\\", "/");
   const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
     isAbsolute(relativeCandidate);
   const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
