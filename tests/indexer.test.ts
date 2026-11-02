@@ -224,7 +224,7 @@ describe("indexWithDatabase", () => {
     writeFileSync(outsideIgnore, "*.ts\n");
     symlinkSync(outsideIgnore, join(location.rootPath, ".gitignore"));
 
-    expect(() => updateProjectIndex(location)).toThrow(/discovery is incomplete/i);
+    expect(() => updateProjectIndex(location)).toThrow(/discovery could not safely complete/i);
     const after = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
     expect(after).toEqual(before);
   });
