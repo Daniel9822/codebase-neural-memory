@@ -459,7 +459,7 @@ function loadPathAliasConfig(root: string): PathAliasConfig | undefined {
   const read = ts.readConfigFile(typescriptConfigPath, (path) => readConfigTextSafely(path, root));
   if (read.error) return undefined;
   const configDirectory = dirname(configPath);
-  const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: (path) => readConfigTextSafely(path, root) };
+  const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: (path) => readConfigTextSafely(path, root), readDirectory: () => [] };
   const parsed = ts.parseJsonConfigFileContent(read.config, configHost, configDirectory, undefined, typescriptConfigPath);
   const paths = parsed.options.paths;
   if (!paths) return undefined;
