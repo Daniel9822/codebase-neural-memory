@@ -74,6 +74,9 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 
 - [x] Confirmed relation-config bytes are read through `readFileWithinRoot` in `src/core/indexer.ts`; the shared reader uses a file descriptor, `O_NOFOLLOW` where available, root containment checks, descriptor/path identity checks, and post-read revalidation.
 - [x] Confirmed `package.json` manifests used for local package resolution and TypeScript extended-config package metadata use the same safe byte reader.
+- [ ] Close the configuration error-state gap: `readConfigTextSafely` currently converts every safe-read failure to `undefined`; `loadPathAliasConfig`, `readLocalPackages`, and extended-config traversal can then silently omit invalid/unreadable configuration. Freshness hashes raw bytes/error codes, but does not expose a distinct actionable configuration diagnostic or consistently classify an invalid resolution configuration as incomplete.
+- [x] Harden extended-config candidate discovery: candidate selection uses `lstat` and the verified config reader; missing candidates permit normal extension fallbacks, while symlink/unreadable candidates remain visible to freshness diagnostics. TypeScript's config host also uses the verified reader when parsing inherited configs. Package-manifest `tsconfig` metadata error semantics remain open.
+- [ ] Close directory-open race coverage: discovery classifies entries with `Dirent`, then recursively calls `opendirSync(directory)` by path. A directory can be replaced between classification and open; source-file opens are separately root/identity checked, but directory enumeration itself has no verified directory-handle identity contract. Add deterministic replacement injection and fail-closed behavior where supported.
 - [x] Close the configuration error-state gap for freshness: PR #116 reports malformed/unreadable relation configuration through bounded freshness diagnostics and marks the index `incomplete`. Resolution-time fallback behavior remains a separate audit item.
 - [ ] Harden extended-config candidate discovery: `resolveExtendedConfigPath` uses path-based `existsSync` / `statSync` to select candidates before the final safe read. The final byte read is protected, but candidate selection and package-manifest interpretation need explicit missing/malformed/unreadable semantics and race tests.
 - [x] Add directory identity checks before opening and after `opendirSync`, during enumeration, before entry processing, and after source reads; deterministic replacement injection proves fail-closed behavior. Node's path-based API still cannot bind these checks to the opened directory descriptor; retain that limitation.
@@ -88,6 +91,16 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Report malformed TypeScript JSON, missing extended configs, malformed package manifests, and unsafe/unreadable config files through bounded freshness errors; classify these states as `incomplete` instead of silently reporting `current`.
 - [x] Add regression coverage for malformed `tsconfig.json`, a missing extended config, malformed `package.json`, and a final-component symlink config.
 - [x] Verify PR #116 CI runs 41438435498 and 41438442638 passed; PR #116 is merged into `main`.
+- [ ] Directory enumeration still opens recursively by path after Dirent classification; directory replacement race hardening is proposed in PR #117 and remains unmerged.
+
+
+### CNM-01 / CNM-05 follow-up — inherited TypeScript config safe reads (2026-11-02)
+
+- [x] Route `ts.parseJsonConfigFileContent` through a config host whose `readFile` uses `readConfigTextSafely`; inherited configs can no longer be read through TypeScript's default filesystem host.
+- [x] Replace `existsSync` / `statSync` candidate selection for `extends` paths with `lstat` plus verified safe reads. Missing candidates still allow standard `.json` and `tsconfig.json` fallbacks; unsafe/unreadable candidates remain diagnosable.
+- [x] Add a regression where the root config extends a final-component symlink to an outside config; no alias import relation may be created and freshness must be `incomplete`.
+- [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on the inherited-config hardening PR.
+- [ ] Package-manifest `tsconfig` metadata (malformed, non-string, symlink, and unreadable cases) still needs explicit diagnostics and regression coverage.
 - [x] Directory replacement race hardening is implemented in PR #117; its refreshed cross-platform CI remains pending.
 
 

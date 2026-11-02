@@ -432,6 +432,28 @@ describe("indexWithDatabase", () => {
     expect(freshness.errors.some((error) => error.includes("tsconfig.json"))).toBe(true);
   });
 
+  it("does not consume an extended TypeScript config through a final symlink", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"),
+      'import { helper } from "@/helper";\nexport function run() { return helper(); }');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./tsconfig.base.json" }));
+    const outsideConfig = join(temporaryDirectory, "outside-tsconfig.json");
+    writeFileSync(outsideConfig, JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["repository/src/*"] } },
+    }));
+    symlinkSync(outsideConfig, join(location.rootPath, "tsconfig.base.json"));
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
+      .toEqual({ count: 0 });
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("tsconfig.base.json"))).toBe(true);
+  });
+
   it("marks malformed TypeScript relation configuration as incomplete", () => {
     createProject();
     writeFileSync(join(location.rootPath, "tsconfig.json"), '{"compilerOptions": {');

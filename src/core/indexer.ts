@@ -62,6 +62,23 @@ function readConfigTextSafely(candidatePath: string): string | undefined {
   }
 }
 
+function isExtendedConfigCandidate(candidatePath: string): boolean {
+  try {
+    const candidateStat = lstatSync(candidatePath);
+    // Preserve unsafe candidates for the diagnostic pass; never follow a
+    // final-component symlink merely to decide which config path to inspect.
+    if (candidateStat.isSymbolicLink()) return true;
+    if (!candidateStat.isFile()) return false;
+    readConfigBytesSafely(candidatePath);
+    return true;
+  } catch (error) {
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+    // Missing candidates are normal while trying TypeScript's extension and
+    // directory fallbacks. Other failures must remain visible to freshness.
+    return code !== "ENOENT" && code !== "ENOTDIR";
+  }
+}
+
 
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_INDEX_DETAIL_ITEMS = 200;
@@ -416,7 +433,8 @@ function loadPathAliasConfig(root: string): PathAliasConfig | undefined {
   const read = ts.readConfigFile(typescriptConfigPath, readConfigTextSafely);
   if (read.error) return undefined;
   const configDirectory = dirname(configPath);
-  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, configDirectory, undefined, typescriptConfigPath);
+  const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: readConfigTextSafely };
+  const parsed = ts.parseJsonConfigFileContent(read.config, configHost, configDirectory, undefined, typescriptConfigPath);
   const paths = parsed.options.paths;
   if (!paths) return undefined;
   return {
@@ -563,9 +581,7 @@ function resolveExtendedConfigPath(configPath: string, specifier: string): strin
   if (relativeSpecifier) {
     const base = absoluteSpecifier ? resolve(specifier) : resolve(dirname(configPath), specifier);
     const candidates = /\\.json$/i.test(base) ? [base] : [base, base + ".json", join(base, "tsconfig.json")];
-    return candidates.find((candidate) => {
-      try { return existsSync(candidate) && statSync(candidate).isFile(); } catch { return false; }
-    }) ?? candidates[0]!;
+    return candidates.find(isExtendedConfigCandidate) ?? candidates[0]!;
   }
 
   const parts = specifier.split("/");
@@ -586,9 +602,7 @@ function resolveExtendedConfigPath(configPath: string, specifier: string): strin
         if (typeof manifest.tsconfig === "string") candidates.unshift(join(packageRoot, manifest.tsconfig));
       }
     } catch { /* Invalid package metadata is represented by the package config candidates. */ }
-    const resolved = candidates.find((candidate) => {
-      try { return existsSync(candidate) && statSync(candidate).isFile(); } catch { return false; }
-    });
+    const resolved = candidates.find(isExtendedConfigCandidate);
     if (resolved) return resolved;
     const parent = dirname(directory);
     if (parent === directory) return candidates[0]!;
