@@ -105,8 +105,13 @@ function boundedItems(
   let truncated = false;
   const usedByKind: Record<TaskContextItem["kind"], number> = { symbol: 0, file: 0, dependency: 0, test: 0, memory: 0 };
   const truncatedKinds = new Set<TaskContextItem["kind"]>();
-  for (const item of ranked) {
-    if (items.length >= maxItems) { truncated = true; break; }
+  for (let index = 0; index < ranked.length; index += 1) {
+    const item = ranked[index]!;
+    if (items.length >= maxItems) {
+      truncated = true;
+      for (const pending of ranked.slice(index)) truncatedKinds.add(pending.kind);
+      break;
+    }
     if (usedByKind[item.kind] >= perKindLimits[item.kind]) {
       truncated = true;
       truncatedKinds.add(item.kind);
@@ -114,12 +119,20 @@ function boundedItems(
     }
     const candidate = [...items, item];
     const candidateCharacters = JSON.stringify(candidate).length;
-    if (candidateCharacters > maxCharacters) { truncated = true; continue; }
+    if (candidateCharacters > maxCharacters) {
+      truncated = true;
+      truncatedKinds.add(item.kind);
+      continue;
+    }
     items.push(item);
     usedByKind[item.kind] += 1;
     usedCharacters = candidateCharacters;
   }
-  return { items, usedCharacters, usedByKind, truncatedKinds: [...truncatedKinds], truncated };
+  return {
+    items, usedCharacters, usedByKind,
+    truncatedKinds: TASK_CONTEXT_KINDS.filter((kind) => truncatedKinds.has(kind)),
+    truncated,
+  };
 }
 
 /** Build deterministic, bounded task context from the local index and project memories. */
@@ -371,7 +384,7 @@ export function buildTaskContext(
   if (fileCandidatesTruncated) truncatedKinds.add("file");
   if (dependencyCandidatesTruncated) truncatedKinds.add("dependency");
   if (testCandidatesTruncated || testPathDiscoveryTruncated) truncatedKinds.add("test");
-  if (memoryCandidatesTruncated) truncatedKinds.add("memory");
+  if (memoryCandidatesTruncated || memoryRecall?.truncated) truncatedKinds.add("memory");
   if (bounded.truncated) warnings.push("Context was truncated to respect the configured item or character budget.");
   if (truncatedKinds.size > 0) warnings.push(`Per-kind context budgets truncated: ${[...truncatedKinds].join(", ")}.`);
   return {
@@ -381,7 +394,7 @@ export function buildTaskContext(
       maxItems, maxCharacters, usedItems: bounded.items.length, usedCharacters: bounded.usedCharacters,
       truncated: bounded.truncated || truncatedKinds.size > 0,
       perKind: Object.fromEntries(TASK_CONTEXT_KINDS.map((kind) => [kind, { limit: perKindLimits[kind], used: bounded.usedByKind[kind] }])) as Record<TaskContextItem["kind"], { limit: number; used: number }>,
-      truncatedKinds: [...truncatedKinds],
+      truncatedKinds: TASK_CONTEXT_KINDS.filter((kind) => truncatedKinds.has(kind)),
     },
   };
 }
