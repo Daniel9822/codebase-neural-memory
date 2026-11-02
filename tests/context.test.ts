@@ -71,7 +71,7 @@ describe("task-oriented context builder", () => {
   it("orders equal-score path anchors by locale-independent code units", () => {
     setup();
     for (const name of ["ä.ts", "a.ts", "Z.ts"]) {
-      writeFileSync(join(location.rootPath, name), "export const value = true;\\n");
+      writeFileSync(join(location.rootPath, name), "export const value = true;");
     }
     indexWithDatabase(db!, location);
 
