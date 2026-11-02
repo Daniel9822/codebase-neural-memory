@@ -90,7 +90,10 @@ function boundedItems(
   for (const item of candidates) {
     const key = itemIdentity(item);
     const previous = unique.get(key);
-    if (!previous || item.score > previous.score) unique.set(key, item);
+    if (!previous || item.score > previous.score ||
+        (item.score === previous.score && compareCodeUnits(JSON.stringify(item), JSON.stringify(previous)) < 0)) {
+      unique.set(key, item);
+    }
   }
   const ranked = [...unique.values()].sort((a, b) =>
     b.score - a.score || compareCodeUnits(a.source, b.source) ||
