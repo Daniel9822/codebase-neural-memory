@@ -449,13 +449,12 @@ The following capabilities remain open: signature-regex search, public-contract 
 - [x] Memory freshness inspection has a default 100-record budget, a hard maximum of 500, explicit total/truncation metadata in the CLI report, and targeted-ID evaluation for task context; validate the new tests and command contract in CI. (PR #122 merged as `8790bf71aad57c74bbb120ba1c2b8feb707803dc`; CI 41460410372 passed).
 
 
-## CNM-04 — Cross-process post-read freshness and SQLite contention
+## CNM-04 — Cross-process post-read freshness and SQLite contention — PASS for defined scope
 
-- [x] Strict post-read validation refuses a result when an independent Node process advances the persisted index revision during the operation.
+- [x] Strict post-read validation refuses a result when an independent Node process advances the persisted index revision during the operation (`tests/mcp-freshness.test.ts`).
 - [x] The refusal reports the preflight and post-read revisions and does not expose the operation result as verified current.
 - [x] An independent writer contending with a held `BEGIN IMMEDIATE` receives `SQLITE_BUSY` within its configured timeout; the failed write leaves the revision unchanged.
 - [x] After the lock is released, a new independent writer succeeds and advances exactly one revision.
-- [ ] Review and test additional operation/transaction boundaries before claiming exhaustive concurrency coverage.
-- [ ] Final PR-head CI must pass typecheck, full tests, build, smoke, and the Linux/Windows/macOS benchmark matrix.
+- [x] PR #126 final PR-head CI run [41475613803](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41475613803) passed typecheck, full tests, build, smoke on Ubuntu/Windows and benchmark jobs on Ubuntu/Windows/macOS; merged as `24974f82b8df690f1d1d2530b9a1451391d066a0`.
 
-**Concurrency claim boundary:** deterministic process-level tests cover representative writer/read and writer/writer interleavings. They do not prove every possible OS scheduler interleaving, power-loss scenario, or behavior on network filesystems.
+**Concurrency claim boundary:** deterministic process-level tests cover representative writer/read and writer/writer interleavings. This is not exhaustive proof of every scheduler ordering, power-loss scenario, or network-filesystem behavior.
