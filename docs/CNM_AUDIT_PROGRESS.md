@@ -190,3 +190,15 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [ ] Add/verify any further transaction-boundary interleavings identified by review; these deterministic tests cover representative process boundaries, not every theoretically possible scheduler interleaving.
 - [ ] Run final PR-head typecheck, complete tests, build, smoke, and Linux/Windows/macOS benchmark matrix before marking CNM-04 complete.
 - **Scope limitation:** SQLite locking is tested using independent processes on the CI runner's local filesystem. This does not establish correctness for unsupported network filesystems, arbitrary power-loss timing, or every possible OS scheduler ordering.
+
+
+### CNM-05 follow-up — TypeScript compiler-host directory APIs (2026-11-02)
+
+- [x] Audited the custom host in `src/core/import-diagnostics.ts`: PR #128 overrides `fileExists`, `readFile`, and `getSourceFile`, but inherits `directoryExists`, `getDirectories`, `readDirectory`, and `realpath` from `ts.createCompilerHost`. Module resolution can use these inherited path-based operations to discover candidates before the verified file reader is reached.
+- [x] Confirmed that the safe-read boundary is not equivalent to a complete filesystem-resolution boundary: `readTypeScriptInputSafely` permits an external canonical parent for package-manager targets and TypeScript libraries, but it does not yet constrain which external directory paths the resolver may probe.
+- [ ] Define and test an explicit directory-resolution policy that preserves supported npm/pnpm layouts while preventing arbitrary external directory probing. Do not simply reject every external path: package-manager symlinks can resolve to physical store paths outside the project root.
+- [ ] Add deterministic regressions for directory replacement between candidate discovery and file open, including package-manager symlink layouts on supported platforms.
+- [ ] Retain the separate indexer limitation: `opendirSync(path)` does not bind the opened directory handle to the preceding `lstat` identity. Node's portable path-based API does not expose a descriptor-relative directory enumeration primitive that closes this race; existing identity checks and second enumeration are mitigations, not a proof of race freedom.
+- [ ] Revisit whether a small native/platform-specific helper is justified for descriptor-bound traversal; if not, document the supported threat boundary and residual race explicitly rather than claiming complete TOCTOU elimination.
+
+**Audit conclusion:** PR #128 closes the direct TypeScript file-content read bypass for the covered compiler-host methods. It does not yet close directory discovery/resolution as a whole, nor the indexer's directory-handle identity race. CNM-05 remains open.
