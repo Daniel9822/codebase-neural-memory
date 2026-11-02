@@ -1319,7 +1319,9 @@ export function indexWithDatabase(
     // package/TypeScript configuration. Rebuild only when one of those inputs changed.
     const sourceIndexChanged = summary.added > 0 || summary.updated > 0 || summary.deleted > 0;
     const configFiles = db.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
-    const currentRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles);
+    const currentSemanticInputs = collectSemanticResolutionInputs(db, configFiles);
+    const currentSemanticManifests = inspectSemanticPackageManifests(location.rootPath, currentSemanticInputs);
+    const currentRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles, currentSemanticManifests);
     // Extended configs may resolve outside the project tree; until their full
     // transitive dependency graph is fingerprinted, conservatively rebuild.
     const relationsNeedRebuild = sourceIndexChanged || hasExtendedTsConfig(location.rootPath) ||
@@ -1332,7 +1334,9 @@ export function indexWithDatabase(
       db.prepare("UPDATE relations SET index_revision = ?").run(revisionRow.index_revision);
       summary.relations = (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
     }
-    const verifiedRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles);
+    const verifiedSemanticInputs = collectSemanticResolutionInputs(db, configScopeFiles);
+    const verifiedSemanticManifests = inspectSemanticPackageManifests(location.rootPath, verifiedSemanticInputs);
+    const verifiedRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles, verifiedSemanticManifests);
     if (verifiedRelationsConfigHash !== initialRelationsConfigHash) {
       throw new Error("Index update aborted: relation configuration changed during indexing; no index changes were committed. Retry the update.");
     }
