@@ -158,7 +158,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }));
 
   server.registerTool("index_update", {
-    description: "Incrementally reconcile the local source index, optionally restricted to project-relative paths or include globs and bounded by file/traversal budgets. Selective updates do not perform deletion reconciliation; they never delete indexed files outside the selected scope. A truncated scope is reported and is not a complete snapshot.",
+    description: "Incrementally reconcile the local source index, optionally restricted to project-relative paths or include globs and bounded by file/traversal budgets. maxFiles selects candidates deterministically and reports truncation. If maxProcessed is exceeded, the update aborts without writes rather than committing an enumeration-order-dependent partial selection. Selective updates never perform deletion reconciliation.",
     inputSchema: z.object({
       paths: z.array(z.string().min(1).max(500)).min(1).max(100).optional(),
       include: z.array(z.string().min(1).max(500)).min(1).max(100).optional(),
