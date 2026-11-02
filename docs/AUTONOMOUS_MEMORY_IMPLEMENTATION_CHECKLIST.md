@@ -116,7 +116,7 @@ This is a scoped source audit, not a completion claim for Workstream B or the me
 - [x] Define the portable fallback: fail closed on detected unsafe substitutions; document that path-based directory enumeration cannot prove resistance to every swap-and-restore race.
 - [x] Add deterministic file/directory replacement regressions across safe reads, indexer discovery, and TypeScript package-root enumeration.
 - [x] Test traversal, absolute paths, hard links, dangling symlinks, final-component symlinks, and file/directory replacement.
-- [x] Confirm rejected inputs do not return outside-root file content; supported package-manager and TypeScript library inputs remain constrained to approved roots.
+- [x] Confirm rejected inputs do not return outside-root file content; supported package-manager and TypeScript library inputs remain constrained to approved roots. PR #133 merged as `5b024794bf96ff102cdbbd298b2f2c1464ccbeb7`; CI 41542394157 passed all five jobs.
 
 **Acceptance:** project-local content reads are descriptor-verified and fail closed on detected substitution; unsupported descriptor-bound directory guarantees are explicitly documented. This is not a claim that every path-based directory race is eliminated.
 ## A5. CNM-06 — Deterministic candidate selection under limits
