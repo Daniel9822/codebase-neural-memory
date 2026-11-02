@@ -83,6 +83,55 @@ function readConfigTextSafely(candidatePath: string, projectRoot: string): strin
     return undefined;
   }
 }
+
+/**
+ * Read a TypeScript host input through a descriptor-verified reader. Project
+ * files outside node_modules must remain beneath the canonical project root;
+ * package-manager links and external TypeScript library files are allowed, but
+ * their final file component is still opened and identity-checked safely.
+ */
+function readTypeScriptInputSafely(candidatePath: string, projectRoot: string): string | undefined {
+  try {
+    const root = realpathSync(projectRoot);
+    const absolute = resolve(candidatePath);
+    const relativePath = relative(root, absolute).split(sep).join("/");
+    const isInsideRoot = relativePath !== ".." && !relativePath.startsWith("../") && !isAbsolute(relativePath);
+    const isPackageManagerPath = relativePath.split("/").includes("node_modules");
+    if (isInsideRoot && !isPackageManagerPath) {
+      return readFileWithinRoot(root, absolute, {
+        canonicalRoot: root,
+        rejectFinalSymlink: true,
+      }).content.toString("utf8");
+    }
+
+    // TypeScript resolves pnpm/npm package links to their physical targets.
+    // Anchor the verified read at the real parent so normal package symlinks
+    // remain usable without following a replaceable final-file symlink.
+    const canonicalParent = realpathSync(dirname(absolute));
+    const canonicalCandidate = join(canonicalParent, basename(absolute));
+    return readFileWithinRoot(canonicalParent, canonicalCandidate, {
+      canonicalRoot: canonicalParent,
+      rejectFinalSymlink: true,
+    }).content.toString("utf8");
+  } catch {
+    return undefined;
+  }
+}
+
+function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: string): ts.CompilerHost {
+  const host = ts.createCompilerHost(options);
+  host.fileExists = (path) => readTypeScriptInputSafely(path, projectRoot) !== undefined;
+  host.readFile = (path) => readTypeScriptInputSafely(path, projectRoot);
+  host.getSourceFile = (fileName, languageVersionOrOptions, onError) => {
+    const text = readTypeScriptInputSafely(fileName, projectRoot);
+    if (text === undefined) {
+      onError?.("File could not be safely read.");
+      return undefined;
+    }
+    return ts.createSourceFile(fileName, text, languageVersionOrOptions, true);
+  };
+  return host;
+}
 function nodeAtPosition(sourceFile: ts.SourceFile, position: number): ts.Node {
   let best: ts.Node = sourceFile;
   const visit = (node: ts.Node): void => {
@@ -168,7 +217,8 @@ export function analyzeImportDiagnostics(
   }
   const absolutePaths = indexedPaths.map((path) => resolve(root, path));
   const indexedSet = new Set(absolutePaths);
-  const program = ts.createProgram({ rootNames: absolutePaths, options });
+  const host = createSafeTypeScriptHost(options, root);
+  const program = ts.createProgram({ rootNames: absolutePaths, options, host });
   const output: ImportDiagnostic[] = [];
   // Restrict diagnostics to indexed source files instead of collecting errors
   // from the entire dependency graph (notably node_modules).
@@ -180,7 +230,7 @@ export function analyzeImportDiagnostics(
       const position = sourceFile.getLineAndCharacterOfPosition(diagnostic.start);
       const context = moduleContext(nodeAtPosition(sourceFile, diagnostic.start));
       if (!context || !isBareExternalSpecifier(context.specifier, localPackages, options)) continue;
-      const resolvedModule = ts.resolveModuleName(context.specifier, sourceFile.fileName, options, ts.sys).resolvedModule;
+      const resolvedModule = ts.resolveModuleName(context.specifier, sourceFile.fileName, options, host).resolvedModule;
       if (resolvedModule) {
         const resolvedPath = resolve(resolvedModule.resolvedFileName);
         const relativeResolved = relative(root, resolvedPath).split(sep).join("/");
@@ -303,9 +353,10 @@ export function inspectSemanticPackageManifests(
     return result;
   };
 
-  const host = ts.createCompilerHost(options);
+  const host = createSafeTypeScriptHost(options, root);
   const defaultFileExists = host.fileExists.bind(host);
   const defaultReadFile = host.readFile.bind(host);
+  const defaultGetSourceFile = host.getSourceFile.bind(host);
   host.fileExists = (path) => isNodeModulesPackageManifest(path)
     ? readManifest(path).content !== null
     : defaultFileExists(path);
@@ -315,6 +366,14 @@ export function inspectSemanticPackageManifests(
       return manifest.content?.toString("utf8");
     }
     return defaultReadFile(path);
+  };
+  host.getSourceFile = (fileName, languageVersionOrOptions, onError) => {
+    if (isNodeModulesPackageManifest(fileName)) {
+      const manifest = readManifest(fileName);
+      if (!manifest.content) return undefined;
+      return ts.createSourceFile(fileName, manifest.content.toString("utf8"), languageVersionOrOptions, true);
+    }
+    return defaultGetSourceFile(fileName, languageVersionOrOptions, onError);
   };
 
   const uniqueInputs = new Map<string, SemanticResolutionInput>();
