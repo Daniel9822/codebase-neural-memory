@@ -399,7 +399,7 @@ describe("indexWithDatabase", () => {
     expect(database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all()).toEqual(beforeFiles);
     expect(database!.prepare("SELECT f.path, s.name, s.signature FROM symbols s JOIN files f ON f.id = s.file_id ORDER BY f.path, s.name").all()).toEqual(beforeSymbols);
     expect(database!.prepare("SELECT file_path, name, signature FROM symbols_fts ORDER BY file_path, name").all()).toEqual(beforeFts);
-    expect(database!.prepare("SELECT source_file_id, target_file_id, kind, symbol_name FROM relations ORDER BY kind, symbol_name").all()).toEqual(beforeRelations);
+    expect(database!.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance FROM relations ORDER BY kind, source_id, target_id").all()).toEqual(beforeRelations);
   });
 
   it("removes stale symbols, FTS entries, and graph relations when a file is deleted", () => {
