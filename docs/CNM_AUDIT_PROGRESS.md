@@ -156,7 +156,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 
 ### CNM-01 follow-up — TypeScript semantic dependency manifest freshness (2026-11-02)
 
-- [ ] Track the `package.json` files actually consulted while TypeScript constructs the semantic program, including resolver-observed missing candidates; do not scan all of `node_modules`.
+- [ ] Track the `package.json` files actually consulted when TypeScript resolves imports from indexed source files, including resolver-observed missing candidates; do not scan all of `node_modules`.
 - [ ] Include deterministic path + content/missing-state fingerprints in the persisted relation-configuration fingerprint so dependency metadata drift invalidates freshness and triggers relation/diagnostic rebuilding.
 - [ ] Read consulted manifests through the verified safe reader; reject final-component symlinks, classify malformed or unreadable manifests as `incomplete`, and fail closed on the manifest inspection budget.
 - [ ] Add regressions proving a used dependency manifest change marks freshness stale, an unused package manifest change does not, and unsafe/malformed consulted manifests block index updates.
