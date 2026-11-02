@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, opendirSync, readFileSync, statSync, type Dirent } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -122,6 +122,7 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
 
 export function discoverFiles(root: string, extraExcludes: string[] = [], options: IndexOptions = {}): DiscoveryResult {
   validateIndexOptions(options);
+  const canonicalRoot = realpathSync(root);
   const selectedPaths = normalizeScopePaths(options.paths);
   const includePatterns = normalizeIncludePatterns(options.include);
   const includeMatcher = includePatterns.length ? ignore().add(includePatterns) : undefined;
@@ -204,21 +205,53 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
         presentPaths.add(relativePath);
         scanned += 1;
         try {
-          const stat = statSync(absolutePath);
-          if (stat.size > MAX_FILE_BYTES) { skipped += 1; skippedFiles.push(relativePath + ": exceeds " + MAX_FILE_BYTES + " bytes"); continue; }
-          const content = readFileSync(absolutePath);
-          if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
-          const source = content.toString("utf8");
-          output.push({
-            relativePath,
-            size: stat.size,
-            mtime: stat.mtime,
-            hash: createHash("sha256").update(content).digest("hex"),
-            source,
-          });
+          const canonicalPath = realpathSync(absolutePath);
+          const canonicalRelative = relative(canonicalRoot, canonicalPath).replaceAll("\\", "/");
+          if (canonicalRelative === ".." || canonicalRelative.startsWith("../") || isAbsolute(canonicalRelative)) {
+            throw new Error("Source path resolves outside the project root.");
+          }
+          const descriptor = openSync(canonicalPath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+          try {
+            const stat = fstatSync(descriptor);
+            if (!stat.isFile()) throw new Error("Source path must reference a regular file.");
+            if (stat.size > MAX_FILE_BYTES) {
+              skipped += 1;
+              skippedFiles.push(relativePath + ": exceeds " + MAX_FILE_BYTES + " bytes");
+              continue;
+            }
+
+            const verifiedPath = realpathSync(canonicalPath);
+            const verifiedRelative = relative(canonicalRoot, verifiedPath).replaceAll("\\", "/");
+            if (verifiedRelative === ".." || verifiedRelative.startsWith("../") || isAbsolute(verifiedRelative)) {
+              throw new Error("Opened source path resolves outside the project root.");
+            }
+            const pathStat = statSync(verifiedPath);
+            if (stat.dev !== pathStat.dev || stat.ino !== pathStat.ino) {
+              throw new Error("Source file changed during safe open; retry indexing.");
+            }
+
+            const content = readFileSync(descriptor);
+            const afterRead = fstatSync(descriptor);
+            if (afterRead.dev !== stat.dev || afterRead.ino !== stat.ino ||
+                afterRead.size !== stat.size || afterRead.mtimeMs !== stat.mtimeMs) {
+              throw new Error("Source file changed while being read; retry indexing.");
+            }
+            if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
+            const source = content.toString("utf8");
+            output.push({
+              relativePath,
+              size: stat.size,
+              mtime: stat.mtime,
+              hash: createHash("sha256").update(content).digest("hex"),
+              source,
+            });
+          } finally {
+            closeSync(descriptor);
+          }
         } catch (error) {
           failed += 1;
           errors.push(relativePath + ": " + (error instanceof Error ? error.message : String(error)));
+          protectedDirectories.add(relativePath);
         }
       }
     } catch (error) {
