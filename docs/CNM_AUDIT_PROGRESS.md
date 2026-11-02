@@ -216,3 +216,12 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [ ] Retain the indexer directory-handle identity limitation: Node's portable `opendirSync(path)` interface does not expose a documented descriptor-relative open primitive. Existing repeated identity checks and dual enumeration remain detection/mitigation, not proof of race freedom.
 
 **Scope note:** this change closes the inherited compiler-host directory API gap for candidate admission and rejects paths outside the project, approved package-manager targets, and the TypeScript library root. It does not claim that TypeScript's internal recursive directory enumeration is descriptor-bound or race-free.
+
+
+### CNM-05 follow-up — PR #130 merged and verified (2026-11-02)
+
+- [x] PR #130 merged to `main` as merge commit `8b2604e119193064bda57d62a36383be624293b4`.
+- [x] Final PR-head CI run `41519140633` passed all five jobs: Ubuntu and Windows typecheck/tests/build/smoke, plus Ubuntu/Windows/macOS benchmarks.
+- [x] Confirmed the initial typecheck failure was corrected before merge; the final run passed on both operating systems.
+- [ ] Follow-up review found that a path nested beneath an approved external package root still needs every intermediate component checked for symlinks. An approved package root must not implicitly trust nested symlink redirects; tracked in the next implementation PR.
+- **Status:** PR #130 closes the compiler-host directory API inheritance gap for the covered candidate checks, but CNM-05 remains open for nested path validation, recursive enumeration boundaries, deterministic race injection, and the indexer directory-handle identity limitation.
