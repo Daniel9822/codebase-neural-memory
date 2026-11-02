@@ -118,6 +118,7 @@ Phase 0 is complete only after results are recorded, including exact environment
 - [x] Transitive dependency lookup returns depth and dependency chains, protects against cycles/duplicates, and reports result/processing truncation (`tests/retrieval.test.ts`).
 - [x] Every adjacent edge in a transitive dependency chain carries its own relation, provenance, confidence, and index revision (`chainEvidence`; `tests/retrieval.test.ts`).
 - [x] Symbol retrieval explains ranking signals (exact name, name-term coverage, signature-term coverage, export status, and FTS5 BM25); FTS fallback is restricted to FTS5-specific availability/query errors.
+- [x] MCP symbol filters (kind, project-relative path prefix, and export status) are applied before the bounded candidate limit; regression coverage places the only matching symbol beyond the unfiltered 1,000-row window.
 - [x] SQL LIKE fallback escapes literal percent, underscore, and backslash characters so user terms cannot expand wildcard matches (`tests/retrieval.test.ts`).
 - [x] File detail retrieval reuses indexed file metadata, symbols, resolved/unresolved imports, symbol relations, and provenance without creating inferred entities.
 - [x] File detail retrieval bounds each collection, validates limits, and reports total counts and per-collection truncation through core, CLI, and MCP (`tests/retrieval.test.ts`).
