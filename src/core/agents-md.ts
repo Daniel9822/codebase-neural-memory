@@ -1,23 +1,73 @@
 import { createHash } from "node:crypto";
-import { writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { closeSync, constants, fstatSync, ftruncateSync, fsyncSync, lstatSync, openSync, realpathSync, statSync, writeFileSync } from "node:fs";
+import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ProjectLocation } from "./project.js";
-import { readFileWithinRoot } from "./safe-file.js";
+import { readFileWithinRoot, type SafeFileRead } from "./safe-file.js";
 
 export type AgentTool = "opencode" | "claude" | "cursor" | "generic";
 
 const START = "<!-- cnm:agent-instructions:start -->";
 const END = "<!-- cnm:agent-instructions:end -->";
 
-function readAgentFile(rootPath: string, path: string): string | null {
+function readAgentFile(rootPath: string, path: string): SafeFileRead | null {
   try {
-    return readFileWithinRoot(rootPath, path, { rejectFinalSymlink: true }).content.toString("utf8");
+    return readFileWithinRoot(rootPath, path, { rejectFinalSymlink: true });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     if (error instanceof Error && error.message === "Symlink file paths are not allowed.") {
       throw new Error("AGENTS.md must be a regular file; CNM will not follow symlinks or overwrite directories.");
     }
     throw error;
+  }
+}
+
+function writeAgentFileSafely(rootPath: string, path: string, content: string, expected: SafeFileRead | null): void {
+  const canonicalRoot = realpathSync(rootPath);
+  const absolutePath = resolve(path);
+  const lexicalRelative = relative(canonicalRoot, absolutePath);
+  if (lexicalRelative === ".." || lexicalRelative.startsWith(".." + sep) || isAbsolute(lexicalRelative)) {
+    throw new Error("AGENTS.md path must stay inside the project root.");
+  }
+
+  const flags = constants.O_WRONLY | (constants.O_NOFOLLOW ?? 0) |
+    (expected ? 0 : constants.O_CREAT | constants.O_EXCL);
+  const descriptor = openSync(absolutePath, flags, 0o666);
+  try {
+    const opened = fstatSync(descriptor);
+    if (!opened.isFile()) throw new Error("AGENTS.md must be a regular file; CNM will not follow symlinks or overwrite directories.");
+    if (opened.nlink > 1) throw new Error("AGENTS.md has multiple hard links; refusing a potentially unsafe write.");
+    if (expected && (opened.dev !== expected.stat.dev || opened.ino !== expected.stat.ino ||
+        opened.size !== expected.stat.size || opened.mtimeMs !== expected.stat.mtimeMs)) {
+      throw new Error("AGENTS.md changed during update; retry the operation.");
+    }
+
+    const verifiedPath = realpathSync(absolutePath);
+    const verifiedRelative = relative(canonicalRoot, verifiedPath);
+    if (verifiedRelative === ".." || verifiedRelative.startsWith(".." + sep) || isAbsolute(verifiedRelative)) {
+      throw new Error("AGENTS.md path resolves outside the project root.");
+    }
+    const pathStat = statSync(verifiedPath);
+    if (opened.dev !== pathStat.dev || opened.ino !== pathStat.ino) {
+      throw new Error("AGENTS.md changed during safe open; retry the operation.");
+    }
+
+    if (expected) ftruncateSync(descriptor, 0);
+    writeFileSync(descriptor, content, "utf8");
+    fsyncSync(descriptor);
+
+    const finalPath = realpathSync(absolutePath);
+    const finalRelative = relative(canonicalRoot, finalPath);
+    if (finalRelative === ".." || finalRelative.startsWith(".." + sep) || isAbsolute(finalRelative) ||
+        lstatSync(absolutePath).isSymbolicLink()) {
+      throw new Error("AGENTS.md path changed during write; verify the file before retrying.");
+    }
+    const finalStat = statSync(finalPath);
+    const finalDescriptorStat = fstatSync(descriptor);
+    if (finalStat.dev !== finalDescriptorStat.dev || finalStat.ino !== finalDescriptorStat.ino) {
+      throw new Error("AGENTS.md path changed during write; verify the file before retrying.");
+    }
+  } finally {
+    closeSync(descriptor);
   }
 }
 
@@ -111,7 +161,7 @@ export function ensureAgentInstructions(location: ProjectLocation, tool: AgentTo
   const generated = managedBlock(tool);
   const existingFile = readAgentFile(location.rootPath, path);
   const exists = existingFile !== null;
-  const existing = existingFile ?? "";
+  const existing = existingFile?.content.toString("utf8") ?? "";
   const start = existing.indexOf(START);
   const end = existing.indexOf(END);
   let next: string;
@@ -131,7 +181,7 @@ export function ensureAgentInstructions(location: ProjectLocation, tool: AgentTo
     next = existing.replace(/\s*$/, "") + "\n\n" + generated + "\n";
     status = "updated";
   }
-  writeFileSync(path, next, "utf8");
+  writeAgentFileSafely(location.rootPath, path, next, existingFile);
   return { path, status, content: next };
 }
 
@@ -139,9 +189,10 @@ export function checkAgentInstructions(location: ProjectLocation, tool: AgentToo
   const path = join(location.rootPath, "AGENTS.md");
   const existing = readAgentFile(location.rootPath, path);
   if (existing === null) return { path, status: "missing", content: "" };
-  const start = existing.indexOf(START);
-  const end = existing.indexOf(END);
-  if (start < 0 || end < start) return { path, status: "outdated", content: existing };
-  const actual = existing.slice(start, end + END.length);
-  return { path, status: actual === managedBlock(tool) ? "current" : "outdated", content: existing };
+  const existingContent = existing.content.toString("utf8");
+  const start = existingContent.indexOf(START);
+  const end = existingContent.indexOf(END);
+  if (start < 0 || end < start) return { path, status: "outdated", content: existingContent };
+  const actual = existingContent.slice(start, end + END.length);
+  return { path, status: actual === managedBlock(tool) ? "current" : "outdated", content: existingContent };
 }
