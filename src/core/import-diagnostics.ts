@@ -155,7 +155,7 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
     const nodeModulesIndex = segments.lastIndexOf("node_modules");
     const packageSegments = segments.slice(nodeModulesIndex + 1);
     return packageSegments.length === 1 ||
-      (packageSegments.length === 2 && packageSegments[0].startsWith("@"));
+      (packageSegments.length === 2 && packageSegments[0]?.startsWith("@") === true);
   };
 
   const isSafeDirectory = (candidate: string): boolean => {
