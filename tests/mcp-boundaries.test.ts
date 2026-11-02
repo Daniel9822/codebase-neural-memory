@@ -189,7 +189,7 @@ describe("MCP bounded output and project isolation", () => {
 
   it("bounds index_update diagnostic details while preserving exact totals", async () => {
     const { location, root } = createProject("index-update-output-budget");
-    writeFileSync(join(root, "entry.ts"), "export const entry = true;\\n");
+    writeFileSync(join(root, "entry.ts"), "export const entry = true;\n");
     indexWithDatabase(databases[0]!, location);
     for (let index = 0; index < 205; index += 1) {
       symlinkSync(join(root, "entry.ts"), join(root, `linked-${String(index).padStart(3, "0")}.ts`));
