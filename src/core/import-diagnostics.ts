@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { builtinModules } from "node:module";
-import { lstatSync, realpathSync } from "node:fs";
+import { lstatSync, realpathSync, readdirSync } from "node:fs";
+import type { Dirent, Stats } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readFileWithinRoot } from "./safe-file.js";
 import ts from "typescript";
@@ -23,6 +24,22 @@ export interface ImportDiagnostic {
 
 const IMPORT_DIAGNOSTIC_CODES = new Set([2307, 2305, 2614, 2724, 1192]);
 const BUILTINS = new Set(builtinModules.flatMap((name) => [name, name.replace(/^node:/, "")]));
+
+type TypeScriptMatchFiles = (
+  path: string,
+  extensions: readonly string[] | undefined,
+  excludes: readonly string[] | undefined,
+  includes: readonly string[] | undefined,
+  useCaseSensitiveFileNames: boolean,
+  currentDirectory: string,
+  depth: number | undefined,
+  getFileSystemEntries: (path: string) => { files: string[]; directories: string[] },
+  realpath: (path: string) => string,
+) => string[];
+
+const matchTypeScriptFiles = (ts as unknown as { matchFiles: TypeScriptMatchFiles }).matchFiles;
+
+
 
 function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buffer {
   const root = realpathSync(projectRoot);
@@ -118,6 +135,18 @@ function readTypeScriptInputSafely(candidatePath: string, projectRoot: string): 
   }
 }
 
+export interface TypeScriptHostFileSystem {
+  lstatSync(path: string): Stats;
+  realpathSync(path: string): string;
+  readdirSync(path: string, options: { withFileTypes: true }): Dirent[];
+}
+
+const defaultTypeScriptHostFileSystem: TypeScriptHostFileSystem = {
+  lstatSync,
+  realpathSync,
+  readdirSync: (path, options) => readdirSync(path, options),
+};
+
 function isWithinPath(candidate: string, parent: string): boolean {
   const relativePath = relative(parent, candidate);
   return relativePath === "" || (relativePath !== ".." && !relativePath.startsWith(".." + sep) && !isAbsolute(relativePath));
@@ -128,16 +157,18 @@ function isWithinPath(candidate: string, parent: string): boolean {
  * Physical package-manager targets are admitted only after a lexical path
  * beneath this project's node_modules has resolved to that directory.
  */
-function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: string): ts.CompilerHost {
-  const root = realpathSync(projectRoot);
+export function createSafeTypeScriptHost(
+  options: ts.CompilerOptions,
+  projectRoot: string,
+  fileSystem: TypeScriptHostFileSystem = defaultTypeScriptHostFileSystem,
+): ts.CompilerHost {
+  const root = fileSystem.realpathSync(projectRoot);
   const host = ts.createCompilerHost(options);
   const trustedExternalDirectories = new Set<string>();
-  const defaultGetDirectories = (host.getDirectories ?? ts.sys.getDirectories).bind(host);
-  const defaultReadDirectory = (host.readDirectory ?? ts.sys.readDirectory).bind(host);
 
   // TypeScript's own standard library is a fixed, installation-derived root.
   try {
-    trustedExternalDirectories.add(realpathSync(dirname(ts.getDefaultLibFilePath(options))));
+    trustedExternalDirectories.add(fileSystem.realpathSync(dirname(ts.getDefaultLibFilePath(options))));
   } catch {
     // If the compiler library cannot be canonicalized, its inputs fail closed.
   }
@@ -166,11 +197,11 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
         let current = root;
         for (const segment of relativeDirectory.split(sep).filter(Boolean)) {
           current = join(current, segment);
-          const identity = lstatSync(current);
+          const identity = fileSystem.lstatSync(current);
           if (identity.isSymbolicLink()) {
             if (!isPackageManagerRootSymlink(current)) return false;
-            const canonical = realpathSync(current);
-            if (lstatSync(canonical).isDirectory()) trustedExternalDirectories.add(canonical);
+            const canonical = fileSystem.realpathSync(current);
+            if (fileSystem.lstatSync(canonical).isDirectory()) trustedExternalDirectories.add(canonical);
           } else if (!identity.isDirectory()) {
             return false;
           }
@@ -183,7 +214,7 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
         let current = trusted;
         for (const segment of relativeDirectory.split(sep).filter(Boolean)) {
           current = join(current, segment);
-          const identity = lstatSync(current);
+          const identity = fileSystem.lstatSync(current);
           // Package-manager links are trusted only at their registered root.
           // A second symlink below that root could redirect resolution again.
           if (identity.isSymbolicLink() || !identity.isDirectory()) return false;
@@ -200,7 +231,7 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
     try {
       const absolute = resolve(candidate);
       if (!isSafeDirectory(dirname(absolute))) return false;
-      const identity = lstatSync(absolute);
+      const identity = fileSystem.lstatSync(absolute);
       return identity.isFile() && !identity.isSymbolicLink();
     } catch {
       return false;
@@ -208,23 +239,14 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
   };
 
   host.directoryExists = (directoryName) => isSafeDirectory(directoryName);
-  host.getDirectories = (path) => {
-    if (!isSafeDirectory(path)) return [];
-    return defaultGetDirectories(path).filter((entry) => isSafeDirectory(join(path, entry)));
-  };
-  host.readDirectory = (path, extensions, excludes, includes, depth) => {
-    if (!isSafeDirectory(path)) return [];
-    return defaultReadDirectory(path, extensions, excludes, includes, depth)
-      .filter((entry) => isSafeFileCandidate(entry));
-  };
-  host.realpath = (path) => {
+  const safeRealpath = (path: string): string => {
     const absolute = resolve(path);
     if (!isSafeDirectory(dirname(absolute)) && !isSafeDirectory(absolute)) {
       throw new Error("TypeScript path resolution crossed an untrusted directory.");
     }
-    const canonical = realpathSync(absolute);
-    if (isPackageManagerRootSymlink(absolute) && lstatSync(absolute).isSymbolicLink() &&
-        lstatSync(canonical).isDirectory()) {
+    const canonical = fileSystem.realpathSync(absolute);
+    if (isPackageManagerRootSymlink(absolute) && fileSystem.lstatSync(absolute).isSymbolicLink() &&
+        fileSystem.lstatSync(canonical).isDirectory()) {
       trustedExternalDirectories.add(canonical);
     }
     if (!isWithinPath(canonical, root) &&
@@ -232,6 +254,55 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
       throw new Error("TypeScript path resolution escaped approved roots.");
     }
     return canonical;
+  };
+  host.realpath = safeRealpath;
+  const getSafeFileSystemEntries = (directory: string): { files: string[]; directories: string[] } => {
+    if (!isSafeDirectory(directory)) {
+      throw new Error("TypeScript directory enumeration crossed an untrusted directory.");
+    }
+    const beforePath = fileSystem.lstatSync(directory);
+    const beforeCanonical = fileSystem.realpathSync(directory);
+    const beforeTarget = fileSystem.lstatSync(beforeCanonical);
+    if (!beforeTarget.isDirectory()) {
+      throw new Error("TypeScript directory target is not a directory.");
+    }
+    const entries = fileSystem.readdirSync(directory, { withFileTypes: true });
+    const afterPath = fileSystem.lstatSync(directory);
+    const afterCanonical = fileSystem.realpathSync(directory);
+    const afterTarget = fileSystem.lstatSync(afterCanonical);
+    if (beforeCanonical !== afterCanonical ||
+        beforePath.dev !== afterPath.dev || beforePath.ino !== afterPath.ino ||
+        beforeTarget.dev !== afterTarget.dev || beforeTarget.ino !== afterTarget.ino) {
+      throw new Error("TypeScript directory changed during safe enumeration.");
+    }
+    const files: string[] = [];
+    const directories: string[] = [];
+    for (const entry of entries) {
+      const candidate = join(directory, entry.name);
+      const identity = fileSystem.lstatSync(candidate);
+      if (identity.isFile()) {
+        files.push(entry.name);
+      } else if (identity.isDirectory() ||
+          (identity.isSymbolicLink() && isSafeDirectory(candidate))) {
+        directories.push(entry.name);
+      }
+    }
+    return { files, directories };
+  };
+  host.getDirectories = (path) => isSafeDirectory(path) ? getSafeFileSystemEntries(path).directories : [];
+  host.readDirectory = (path, extensions, excludes, includes, depth) => {
+    if (!isSafeDirectory(path)) return [];
+    return matchTypeScriptFiles(
+      path,
+      extensions,
+      excludes,
+      includes,
+      ts.sys.useCaseSensitiveFileNames,
+      ts.sys.getCurrentDirectory(),
+      depth,
+      getSafeFileSystemEntries,
+      safeRealpath,
+    ).filter((entry) => isSafeFileCandidate(entry));
   };
   host.fileExists = (path) => isSafeFileCandidate(path) &&
     readTypeScriptInputSafely(path, root) !== undefined;
@@ -313,6 +384,7 @@ export function analyzeImportDiagnostics(
   rootPath: string,
   indexedPaths: string[],
   localPackages: ReadonlySet<string> = new Set(),
+  hostFileSystem: TypeScriptHostFileSystem = defaultTypeScriptHostFileSystem,
 ): ImportDiagnostic[] {
   if (indexedPaths.length === 0) return [];
   const root = resolve(rootPath);
@@ -337,7 +409,7 @@ export function analyzeImportDiagnostics(
   }
   const absolutePaths = indexedPaths.map((path) => resolve(root, path));
   const indexedSet = new Set(absolutePaths);
-  const host = createSafeTypeScriptHost(options, root);
+  const host = createSafeTypeScriptHost(options, root, hostFileSystem);
   const program = ts.createProgram({ rootNames: absolutePaths, options, host });
   const output: ImportDiagnostic[] = [];
   // Restrict diagnostics to indexed source files instead of collecting errors

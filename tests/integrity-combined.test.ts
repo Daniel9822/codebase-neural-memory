@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { lstatSync, mkdtempSync, mkdirSync, readdirSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { getIndexFreshness, indexProject, indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
-import { analyzeImportDiagnostics } from "../src/core/import-diagnostics.js";
+import ts from "typescript";
+import { analyzeImportDiagnostics, createSafeTypeScriptHost } from "../src/core/import-diagnostics.js";
 
 let temporaryDirectory = "";
 let database: MemoryDatabase | undefined;
@@ -273,6 +274,43 @@ describe("integrated CNM integrity regressions", () => {
 
     const diagnostics = analyzeImportDiagnostics(location.rootPath, ["main.ts"]);
     expect(diagnostics.some((diagnostic) => diagnostic.moduleSpecifier === "linked-fixture")).toBe(true);
+  });
+
+  it("fails closed when a package directory is replaced during TypeScript recursive enumeration", () => {
+    createProject();
+    const externalPackage = join(temporaryDirectory, "external-package");
+    const outsidePackage = join(temporaryDirectory, "outside-package");
+    const packageDirectory = join(location.rootPath, "node_modules", "raced-fixture");
+    const savedLink = join(temporaryDirectory, "saved-package-link");
+    mkdirSync(externalPackage, { recursive: true });
+    mkdirSync(outsidePackage, { recursive: true });
+    mkdirSync(join(location.rootPath, "node_modules"), { recursive: true });
+    writeFileSync(join(externalPackage, "index.d.ts"), "export declare const safeValue: string;");
+    writeFileSync(join(outsidePackage, "index.d.ts"), "export declare const outsideValue: string;");
+    symlinkSync(externalPackage, packageDirectory, "dir");
+
+    let replaced = false;
+    const host = createSafeTypeScriptHost(
+      { moduleResolution: ts.ModuleResolutionKind.NodeNext },
+      location.rootPath,
+      {
+        lstatSync,
+        realpathSync,
+        readdirSync(path, options) {
+          const entries = readdirSync(path, options);
+          if (!replaced && resolve(path) === resolve(packageDirectory)) {
+            renameSync(packageDirectory, savedLink);
+            symlinkSync(outsidePackage, packageDirectory, "dir");
+            replaced = true;
+          }
+          return entries;
+        },
+      },
+    );
+
+    expect(() => host.readDirectory?.(packageDirectory, [".d.ts"], undefined, ["**/*"], undefined))
+      .toThrow(/changed during safe enumeration/i);
+    expect(replaced).toBe(true);
   });
 
   it("does not let TypeScript import diagnostics consume a symlinked dependency declaration", () => {
