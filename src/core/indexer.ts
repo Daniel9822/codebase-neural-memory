@@ -552,10 +552,25 @@ function resolveExtendedConfigPath(configPath: string, specifier: string): strin
       : [join(packageRoot, "tsconfig.json")];
     try {
       if (!subpath && existsSync(packageJson)) {
-        const manifest = JSON.parse(readConfigBytesSafely(packageJson).toString("utf8")) as { tsconfig?: unknown };
-        if (typeof manifest.tsconfig === "string") candidates.unshift(join(packageRoot, manifest.tsconfig));
+        const manifestValue: unknown = JSON.parse(readConfigBytesSafely(packageJson).toString("utf8"));
+        if (!manifestValue || typeof manifestValue !== "object" || Array.isArray(manifestValue)) {
+          // Keep the manifest path in the candidate list so freshness inspection
+          // can report the malformed package metadata instead of silently
+          // falling back to a different config.
+          candidates.unshift(packageJson);
+        } else {
+          const manifest = manifestValue as { tsconfig?: unknown };
+          if (typeof manifest.tsconfig === "string" && manifest.tsconfig.trim()) {
+            candidates.unshift(join(packageRoot, manifest.tsconfig));
+          } else if ("tsconfig" in manifest && typeof manifest.tsconfig !== "string") {
+            candidates.unshift(packageJson);
+          }
+        }
       }
-    } catch { /* Invalid package metadata is represented by the package config candidates. */ }
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+      if (code !== "ENOENT" && code !== "ENOTDIR") candidates.unshift(packageJson);
+    }
     const resolved = candidates.find(isExtendedConfigCandidate);
     if (resolved) return resolved;
     const parent = dirname(directory);
