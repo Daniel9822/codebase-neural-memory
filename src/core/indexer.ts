@@ -1105,7 +1105,9 @@ export function indexWithDatabase(
     ? [...new Set([...indexedConfigPaths, ...discovered.map((file) => file.relativePath)])]
         .sort(compareCodeUnits).map((path) => ({ path }))
     : discovered.map((file) => ({ path: file.relativePath }));
-  const initialRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles);
+  const initialRelationsConfigHash = options.requireCompleteSnapshot
+    ? computeRelationsConfigHash(location.rootPath, configScopeFiles)
+    : null;
   if (options.requireCompleteSnapshot) {
     const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles);
     if (configErrors.length > 0) {
@@ -1229,11 +1231,15 @@ export function indexWithDatabase(
       db.prepare("UPDATE relations SET index_revision = ?").run(revisionRow.index_revision);
       summary.relations = (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
     }
-    const verifiedRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles);
-    if (verifiedRelationsConfigHash !== initialRelationsConfigHash) {
-      throw new Error("Index update aborted: relation configuration changed during indexing; no index changes were committed. Retry the update.");
+    let relationsConfigHashToPersist = currentRelationsConfigHash;
+    if (initialRelationsConfigHash !== null) {
+      const verifiedRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configFiles);
+      if (verifiedRelationsConfigHash !== initialRelationsConfigHash) {
+        throw new Error("Index update aborted: relation configuration changed during indexing; no index changes were committed. Retry the update.");
+      }
+      relationsConfigHashToPersist = verifiedRelationsConfigHash;
     }
-    db.prepare("UPDATE projects SET relations_config_hash = ? WHERE id = ?").run(verifiedRelationsConfigHash, location.id);
+    db.prepare("UPDATE projects SET relations_config_hash = ? WHERE id = ?").run(relationsConfigHashToPersist, location.id);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
     if (options.requireCompleteSnapshot) {
       const finalDiscovery = discoverFiles(location.rootPath, extraExcludes, options);
