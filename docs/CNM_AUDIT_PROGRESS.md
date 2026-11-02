@@ -98,3 +98,11 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Add a regression where the root config extends a final-component symlink to an outside config; no alias import relation may be created and freshness must be `incomplete`.
 - [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on the inherited-config hardening PR.
 - [ ] Package-manifest `tsconfig` metadata (malformed, non-string, symlink, and unreadable cases) still needs explicit diagnostics and regression coverage.
+
+
+### CNM-01 follow-up — package metadata for inherited TypeScript configs (2026-11-02)
+
+- [x] Stop silently swallowing malformed/unreadable package metadata when resolving package-name `extends` references; preserve the manifest as a candidate for freshness diagnostics.
+- [x] Treat non-object manifests and non-string `tsconfig` values as invalid metadata rather than silently selecting a fallback config.
+- [x] Add a regression for malformed `node_modules/<package>/package.json` used by a TypeScript `extends` specifier; expected freshness is `incomplete`.
+- [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on the follow-up PR.
