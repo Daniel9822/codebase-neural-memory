@@ -33,3 +33,11 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Cap each diagnostic detail collection at 200 sorted entries, preserving exact counters and adding `totals`, `limits.detailItems`, and `detailsTruncated` metadata.
 - [x] Add an MCP regression with 205 skipped symlink paths to prove exact totals, deterministic details, and explicit truncation.
 - [ ] Verify CI and merge the change before closing the broader MCP output-contract audit.
+
+
+### CNM-06 follow-up — CLI project map output budget (2026-11-02)
+
+- [x] Confirmed the legacy `cnm map` command used `getProjectMap`, decoding every unresolved-import candidate array and accepting an unbounded file limit.
+- [x] Switch the CLI to the shared bounded `getProjectMapReport` contract: 1–200 files, 200 nested rows per file, 200 candidates per import, and 2,000 candidate paths globally.
+- [x] Surface exact file/candidate truncation and TypeScript import diagnostics in CLI output; candidate evidence remains fully persisted in SQLite.
+- [ ] Verify CI and merge; then continue auditing remaining CLI and MCP retrieval entry points.
