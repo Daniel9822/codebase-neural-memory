@@ -163,7 +163,9 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
           truncated = true;
           abortRequired = true;
           stopped = true;
-          protectedDirectories.add(directoryPath);
+          // Traversal stops globally, so every unvisited indexed path is
+          // unobserved. Protect the entire root scope in freshness reports.
+          protectedDirectories.add("");
           break;
         }
         entries.push(entry);

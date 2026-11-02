@@ -113,6 +113,9 @@ describe("indexWithDatabase", () => {
     writeFileSync(join(location.rootPath, "a.ts"), "export const a = true;");
     writeFileSync(join(location.rootPath, "b.ts"), "export const b = true;");
 
+    const discovery = discoverFiles(location.rootPath, [], { maxProcessed: 1 });
+    expect(discovery.abortRequired).toBe(true);
+    expect(discovery.protectedDirectories.has("")).toBe(true);
     expect(() => indexWithDatabase(database!, location, false, [], { maxProcessed: 1 }))
       .toThrow(/deterministic discovery budget was exceeded/i);
     expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([]);
