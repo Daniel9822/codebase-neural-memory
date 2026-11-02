@@ -44,9 +44,10 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
   try {
     const source = readFileWithinRoot(location.rootPath, absolutePath);
     return createHash("sha256").update(source.content).digest("hex");
-  } catch (error) {
-    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
-    throw error;
+  } catch {
+    // Missing, replaced, or unsafe source references are not verifiable.
+    // The caller converts null into a review-required freshness state.
+    return null;
   }
 }
 
