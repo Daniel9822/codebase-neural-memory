@@ -726,7 +726,13 @@ function collectSemanticResolutionInputs(
   // preflight, so new/changed imports are covered before any database writes.
   for (const file of discovered) {
     if (!includedPaths.has(file.relativePath)) continue;
-    byFile.set(file.relativePath, new Set(parseTypeScriptFile(file.relativePath, file.source).imports));
+    try {
+      byFile.set(file.relativePath, new Set(parseTypeScriptFile(file.relativePath, file.source).imports));
+    } catch {
+      // Malformed files are handled by the normal per-file indexing path.
+      // Preserve their last committed import set during preflight so a
+      // diagnostic source cannot abort an otherwise valid partial update.
+    }
   }
   return [...byFile.entries()].flatMap(([containingFile, specifiers]) =>
     [...specifiers].map((specifier) => ({ containingFile, specifier })))
