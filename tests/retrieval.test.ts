@@ -230,10 +230,10 @@ describe("getSourceExcerpt", () => {
     createProject();
     const sourcePath = join(location.rootPath, "source.ts");
     const outsidePath = join(temporaryDirectory, "outside.ts");
-    writeFileSync(sourcePath, "export const value = true;\\n");
+    writeFileSync(sourcePath, "export const value = true;\n");
     indexWithDatabase(database!, location);
 
-    writeFileSync(outsidePath, "export const secret = 'outside';\\n");
+    writeFileSync(outsidePath, "export const secret = 'outside';\n");
     rmSync(sourcePath);
     symlinkSync(outsidePath, sourcePath);
 
