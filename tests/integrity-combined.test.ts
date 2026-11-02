@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { getIndexFreshness, indexProject, indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
+import { analyzeImportDiagnostics } from "../src/core/import-diagnostics.js";
 
 let temporaryDirectory = "";
 let database: MemoryDatabase | undefined;
@@ -239,6 +240,21 @@ describe("integrated CNM integrity regressions", () => {
     expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
     expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
       .toBe(beforeRevision);
+  });
+
+  it("does not let TypeScript import diagnostics consume a symlinked project source or dependency file", () => {
+    createProject();
+    const packageDirectory = join(location.rootPath, "node_modules", "unsafe-fixture");
+    const outsideSource = join(temporaryDirectory, "outside.ts");
+    const packageEntry = join(packageDirectory, "index.d.ts");
+    mkdirSync(packageDirectory, { recursive: true });
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { value } from "unsafe-fixture";\nexport const result = value;');
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ types: "./index.d.ts" }));
+    writeFileSync(outsideSource, "export declare const value: string;");
+    symlinkSync(outsideSource, packageEntry, "file");
+
+    const diagnostics = analyzeImportDiagnostics(location.rootPath, ["main.ts"]);
+    expect(diagnostics.some((diagnostic) => diagnostic.moduleSpecifier === "unsafe-fixture")).toBe(true);
   });
 
   it("continues to support an explicitly external TypeScript extends target", () => {
