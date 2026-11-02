@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
-import { constants, closeSync, fstatSync, openSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
+import { readFileWithinRoot } from "./safe-file.js";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
 import type { SearchHit } from "../shared/types.js";
@@ -856,45 +856,30 @@ export function getSourceExcerpt(
   }
   if (!indexedFile) throw new Error(`File not found in memory index: ${normalized}. Run cnm index.`);
 
-  let canonicalRoot: string;
-  let canonicalPath: string;
-  try {
-    canonicalRoot = realpathSync(location.rootPath);
-    canonicalPath = realpathSync(absolutePath);
-  } catch {
-    throw new Error(`Source file is missing or cannot be resolved: ${normalized}.`);
-  }
-  const canonicalRelative = relative(canonicalRoot, canonicalPath);
-  if (canonicalRelative === ".." || canonicalRelative.startsWith(".." + sep) || isAbsolute(canonicalRelative)) {
-    throw new Error("Source excerpt path resolves outside the project root.");
-  }
-  // Open once and read through the descriptor so a later path substitution
-  // cannot redirect the read to a different object. O_NOFOLLOW protects the
-  // final path component where the platform supports it; post-open canonical
-  // containment and identity checks provide the fail-closed fallback elsewhere.
-  const noFollow = constants.O_NOFOLLOW ?? 0;
-  const descriptor = openSync(canonicalPath, constants.O_RDONLY | noFollow);
   let source: string;
   try {
-    const openedStat = fstatSync(descriptor);
-    if (!openedStat.isFile()) throw new Error("Source excerpt path must reference a regular file.");
-    if (openedStat.size > MAX_INDEXED_SOURCE_BYTES) {
-      throw new Error(`Source file exceeds the ${MAX_INDEXED_SOURCE_BYTES}-byte read limit.`);
+    const safeRead = readFileWithinRoot(location.rootPath, absolutePath, {
+      maxBytes: MAX_INDEXED_SOURCE_BYTES,
+      rejectFinalSymlink: true,
+    });
+    source = safeRead.content.toString("utf8");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") {
+      throw new Error(`Source file is missing or cannot be resolved: ${normalized}.`);
     }
-
-    const verifiedPath = realpathSync(canonicalPath);
-    const verifiedRelative = relative(canonicalRoot, verifiedPath);
-    if (verifiedRelative === ".." || verifiedRelative.startsWith(".." + sep) || isAbsolute(verifiedRelative)) {
+    if (error instanceof Error && error.message === "File path resolves outside the project root.") {
       throw new Error("Source excerpt path resolves outside the project root.");
     }
-    const pathStat = statSync(verifiedPath);
-    if (openedStat.dev !== pathStat.dev || openedStat.ino !== pathStat.ino) {
-      throw new Error("Source file changed during safe open; retry the read.");
+    if (error instanceof Error && error.message === "Symlink file paths are not allowed.") {
+      throw new Error("Source excerpt path is a symlink or resolves outside the project root.");
     }
-
-    source = readFileSync(descriptor, "utf8");
-  } finally {
-    closeSync(descriptor);
+    if (error instanceof Error && error.message === "Path must reference a regular file.") {
+      throw new Error("Source excerpt path must reference a regular file.");
+    }
+    if (error instanceof Error && error.message.startsWith("File exceeds ")) {
+      throw new Error(`Source file exceeds the ${MAX_INDEXED_SOURCE_BYTES}-byte read limit.`);
+    }
+    throw error;
   }
   const contentHash = createHash("sha256").update(source).digest("hex");
   const sourceLines = source.split(/\r?\n/);
