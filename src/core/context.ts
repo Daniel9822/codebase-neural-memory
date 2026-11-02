@@ -287,7 +287,24 @@ export function buildTaskContext(
   try {
     const testPathRows = testDb.prepare(`
       SELECT path FROM files
-      WHERE lower(path) LIKE '%test%' OR lower(path) LIKE '%spec%'
+      WHERE (
+        lower(path) IN ('test', 'tests')
+        OR lower(path) LIKE 'test/%' OR lower(path) LIKE 'tests/%'
+        OR lower(path) LIKE '%/test/%' OR lower(path) LIKE '%/tests/%'
+        OR lower(path) LIKE 'test.%' OR lower(path) LIKE 'tests.%'
+        OR lower(path) LIKE 'test-%' OR lower(path) LIKE 'tests-%'
+        OR lower(path) LIKE '%/test' OR lower(path) LIKE '%/tests'
+        OR lower(path) LIKE '%/test.%' OR lower(path) LIKE '%/tests.%'
+        OR lower(path) LIKE '%/test-%' OR lower(path) LIKE '%/tests-%'
+        OR lower(path) LIKE '%.test.js' OR lower(path) LIKE '%.test.jsx'
+        OR lower(path) LIKE '%.test.ts' OR lower(path) LIKE '%.test.tsx'
+        OR lower(path) LIKE '%.test.cjs' OR lower(path) LIKE '%.test.cts'
+        OR lower(path) LIKE '%.test.mjs' OR lower(path) LIKE '%.test.mts'
+        OR lower(path) LIKE '%.spec.js' OR lower(path) LIKE '%.spec.jsx'
+        OR lower(path) LIKE '%.spec.ts' OR lower(path) LIKE '%.spec.tsx'
+        OR lower(path) LIKE '%.spec.cjs' OR lower(path) LIKE '%.spec.cts'
+        OR lower(path) LIKE '%.spec.mjs' OR lower(path) LIKE '%.spec.mts'
+      )
       ORDER BY path LIMIT 501
     `).all() as Array<{ path: string }>;
     testPathDiscoveryTruncated = testPathRows.length > 500;
