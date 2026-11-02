@@ -450,7 +450,7 @@ The following capabilities remain open: signature-regex search, public-contract 
 - [x] TypeScript semantic import diagnostics identify supported missing-package and missing-export cases during indexing; `project_map` exposes them, and `file_details` exposes bounded per-file diagnostics with totals/truncation. Compiler/build validation remains required because this is not a complete compiler run.
 - [ ] Full typecheck, tests, build, smoke, and cross-platform CI pass before merge.
 
-## CNM-06 — Deterministic bounded discovery and retrieval — PASS pending final PR verification
+## CNM-06 — Deterministic bounded discovery and retrieval (implementation complete; final PR verification pending)
 
 - [x] `maxFiles` candidate selection is deterministic across directory-entry creation/enumeration orders (`tests/indexer.test.ts`; PR #84).
 - [x] When `maxProcessed` cannot cover the complete deterministic candidate set, indexing aborts before database writes instead of committing an order-dependent partial selection (`tests/indexer.test.ts`; PR #84).
