@@ -1,5 +1,5 @@
 import { builtinModules } from "node:module";
-import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readFileWithinRoot } from "./safe-file.js";
 import ts from "typescript";
@@ -143,16 +143,14 @@ export function analyzeImportDiagnostics(
     skipLibCheck: true,
     noEmit: true,
   };
-  if (existsSync(configPath)) {
-    // TypeScript requires a stable slash-normalized filename for diagnostics
-    // on Windows; otherwise malformed JSON can trigger an internal assertion.
-    const typescriptConfigPath = configPath.replaceAll("\\", "/");
-    const config = ts.readConfigFile(typescriptConfigPath, (path) => readConfigTextSafely(path, root));
-    if (!config.error) {
-      const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: (path) => readConfigTextSafely(path, root), readDirectory: () => [] };
-      const parsed = ts.parseJsonConfigFileContent(config.config, configHost, root, undefined, typescriptConfigPath);
-      options = { ...options, ...parsed.options, allowJs: parsed.options.allowJs ?? true, checkJs: false, skipLibCheck: true, noEmit: true };
-    }
+  // TypeScript requires a stable slash-normalized filename for diagnostics
+  // on Windows; otherwise malformed JSON can trigger an internal assertion.
+  const typescriptConfigPath = configPath.replaceAll("\\", "/");
+  const config = ts.readConfigFile(typescriptConfigPath, (path) => readConfigTextSafely(path, root));
+  if (!config.error) {
+    const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: (path) => readConfigTextSafely(path, root), readDirectory: () => [] };
+    const parsed = ts.parseJsonConfigFileContent(config.config, configHost, root, undefined, typescriptConfigPath);
+    options = { ...options, ...parsed.options, allowJs: parsed.options.allowJs ?? true, checkJs: false, skipLibCheck: true, noEmit: true };
   }
   const absolutePaths = indexedPaths.map((path) => resolve(root, path));
   const indexedSet = new Set(absolutePaths);
