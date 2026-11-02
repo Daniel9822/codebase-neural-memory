@@ -209,7 +209,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       includeSource: z.object({ maxLines: z.number().int().min(1).max(100).optional() }).optional(),
     }),
   }, async ({ query, limit, kind, filePath, exported, includeSource }) => readResponse(location, options, () => {
-    const normalizedPath = filePath?.replaceAll("\\\\", "/").replace(/^\\.\\//, "");
+    const normalizedPath = filePath?.replaceAll("\\", "/").replace(/^\.\//, "");
     const results = searchSymbols(location, query, 1000, {
       ...(kind === undefined ? {} : { kind }),
       ...(normalizedPath === undefined ? {} : { filePathPrefix: normalizedPath }),
