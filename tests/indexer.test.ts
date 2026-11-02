@@ -117,7 +117,7 @@ describe("indexWithDatabase", () => {
     expect(discovery.abortRequired).toBe(true);
     expect(discovery.protectedDirectories.has("")).toBe(true);
     expect(() => indexWithDatabase(database!, location, false, [], { maxProcessed: 1 }))
-      .toThrow(/deterministic discovery budget was exceeded/i);
+      .toThrow(/discovery could not safely complete/i);
     expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([]);
   });
 
