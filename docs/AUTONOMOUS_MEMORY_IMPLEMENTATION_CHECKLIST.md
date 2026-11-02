@@ -27,6 +27,20 @@ Observed from the current `main` documentation and package metadata on 2026-11-0
 
 These are documentation-level observations, not yet a complete source-level audit. All audit and implementation checkboxes below start unchecked until the corresponding evidence is gathered.
 
+## Source audit update — 2026-11-02 after PR #120
+
+Verified against merged `main` source files `src/core/memories.ts`, `src/core/context.ts`, and `src/adapters/mcp/server.ts`, plus `tests/memories.test.ts` and `tests/context.test.ts`:
+
+- **Verified behavior:** memory records have a UUID, category, title/content, one of `proposed|confirmed|obsolete|rejected`, optional source path/hash and commit SHA, author/updater, and created/updated timestamps.
+- **Verified behavior:** `remember` writes directly as `confirmed`; `proposeMemory` writes as `proposed`; `updateMemory` overwrites selected fields in place; `transitionMemory` validates lifecycle transitions. Source freshness reports changed/missing/unsafe references without automatically changing memory status.
+- **Verified behavior:** `memory_propose` explicitly requires a human confirmation before promotion; `memory_transition` accepts an explicit confirmed status and documents user authorization. The workflow asks agents to propose knowledge proactively but leaves it pending.
+- **Confirmed capability gap:** no version table/event history or stable knowledge-identity/current-version split was found in the audited memory CRUD surface; edits overwrite the same record and update timestamp. Corrections, supersession history, and dependent-knowledge invalidation are not implemented in this surface.
+- **Confirmed capability gap:** no autonomous `memory_capture` API or passive conversation observation exists in the audited MCP adapter. Normal durable capture therefore still depends on explicit tool use, and proposed knowledge still needs per-item approval.
+- **Architecture constraint:** keep capture local and deterministic; do not claim CNM can observe conversations that an agent integration does not send it. Introduce confidence/epistemic state separately from lifecycle, so inferred or planned knowledge can be stored without being presented as verified fact.
+- **Next implementation order:** (1) finalize a backward-compatible knowledge contract and migration design, (2) add version/event storage while preserving existing IDs and statuses, (3) implement idempotent `memory_capture` that can persist low-confidence items without promotion to verified/confirmed, (4) implement versioned update/correction and safe reconciliation, (5) expose bounded MCP operations and update generated instructions.
+
+This is a scoped source audit, not a completion claim for Workstream B or the memory system.
+
 ## Definition of done — applies to every implementation task
 
 - [ ] Reproduce or otherwise demonstrate the target behavior with a focused test before/alongside the fix.
@@ -386,3 +400,5 @@ These are documentation-level observations, not yet a complete source-level audi
 | 2026-11-02 | CNM-03 full-index snapshot guard | PR #79; CI 41405788148; merge `7b1f4b8b9edb4d1a8c73db1cac4ad38c9bbdaaf9` | CLI-facing full indexing now refuses incomplete discovery; all destructive paths still need final audit. |
 | 2026-11-02 | CNM-01 relation configuration freshness | PR #82; CI 41406437168; merge `2dc4c51c3dfad03a41ec6af6798bff4702dbb92e` | Config-only drift marks index stale; successful rebuild clears the flag. |
 | 2026-11-02 | CNM-06 deterministic bounded discovery | PR #84 and PR #87; CI 41407210746 and 41407851656; merge `14b9d59ad397cd4357759da8b48ba7b91f4dac37` and root-scope follow-up | `maxFiles` selection is deterministic; over-budget discovery aborts without writes and protects unvisited paths. Broader retrieval-limit audit remains open. |
+| 2026-11-02 | CNM-01/CNM-05 config metadata diagnostics | PR #120; merge `5c73896dc1e3833b58c333240bb756db5e9d3be9`; CI 41448646334 passed | Malformed package manifests and non-string/blank `tsconfig` metadata are surfaced through freshness diagnostics; symlink/unreadable manifest race cases remain open. |
+| 2026-11-02 | Autonomous memory source audit | `src/core/memories.ts`, `src/core/context.ts`, `src/adapters/mcp/server.ts`, `tests/memories.test.ts`, `tests/context.test.ts` on `main` | Confirmed existing lifecycle-only CRUD and per-item confirmation gap; no version/event history or autonomous capture API in audited surface. Contract and schema design are next.
