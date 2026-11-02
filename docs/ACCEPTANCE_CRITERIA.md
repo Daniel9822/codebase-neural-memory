@@ -434,6 +434,6 @@ The following capabilities remain open: signature-regex search, public-contract 
 
 - [x] `maxFiles` candidate selection is deterministic across different directory-entry creation/enumeration orders (`tests/indexer.test.ts`; PR #84).
 - [x] When `maxProcessed` cannot cover the complete deterministic candidate set, indexing aborts before database writes instead of committing a filesystem-order-dependent partial selection (`tests/indexer.test.ts`; PR #84).
-- [x] A directory exceeding the deterministic sorting safety cap is treated as incomplete and aborts discovery before selecting a partial set (`tests/indexer.test.ts`, 100,001-entry injected directory fixture). The separate `maxProcessed` regression verifies abort-before-write behavior.
-- [x] Full-scope freshness reports incomplete discovery when deterministic enumeration cannot be completed; `tests/indexer.test.ts` injects 100,001 entries and verifies `incomplete`, zero deletions, empty changes, and unchanged index revision.
+- [ ] PR #122 adds a 100,001-entry sorting-cap regression; it verifies incomplete discovery and no partial candidate set. The separate `maxProcessed` regression already verifies abort-before-write behavior. Mark complete after final CI and merge.
+- [ ] PR #122 adds direct full-scope freshness coverage for the 100,001-entry sorting cap, verifying `incomplete`, zero deletions, empty changes, and unchanged index revision. Mark complete after final CI and merge.
 - [ ] Memory freshness inspection has a default 100-record budget, a hard maximum of 500, explicit total/truncation metadata in the CLI report, and targeted-ID evaluation for task context; validate the new tests and command contract in CI.
