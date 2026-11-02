@@ -271,7 +271,7 @@ export function buildTaskContext(
       detail: {
         indexRevision: detail.indexRevision, contentHash: detail.contentHash,
         symbols: detail.symbols.slice(0, 10).map((entry) => ({ name: entry.name, kind: entry.kind, startLine: entry.startLine, endLine: entry.endLine })),
-        imports: detail.imports.slice(0, 10), unresolvedImports: detail.unresolvedImports.slice(0, 5),
+        imports: detail.imports.slice(0, 10), unresolvedImports: boundedUnresolvedImports(detail.unresolvedImports),
         relations: detail.relations.slice(0, 10),
       },
     });
