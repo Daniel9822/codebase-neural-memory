@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { opendirSync, readFileSync, statSync, type Dirent } from "node:fs";
+import { existsSync, opendirSync, readFileSync, statSync, type Dirent } from "node:fs";
 import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -394,6 +394,72 @@ function hasExtendedTsConfig(rootPath: string): boolean {
     "extends" in config.config);
 }
 
+function resolveExtendedConfigPath(configPath: string, specifier: string): string {
+  const absoluteSpecifier = isAbsolute(specifier);
+  const relativeSpecifier = specifier.startsWith(".") || absoluteSpecifier;
+  if (relativeSpecifier) {
+    const base = absoluteSpecifier ? resolve(specifier) : resolve(dirname(configPath), specifier);
+    const candidates = /\\.json$/i.test(base) ? [base] : [base, base + ".json", join(base, "tsconfig.json")];
+    return candidates.find((candidate) => {
+      try { return existsSync(candidate) && statSync(candidate).isFile(); } catch { return false; }
+    }) ?? candidates[0]!;
+  }
+
+  const parts = specifier.split("/");
+  const packageName = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]!;
+  const subpath = parts.slice(specifier.startsWith("@") ? 2 : 1).join("/");
+  let directory = dirname(configPath);
+  while (true) {
+    const packageRoot = join(directory, "node_modules", packageName);
+    const packageJson = join(packageRoot, "package.json");
+    const candidates = subpath
+      ? (/\\.json$/i.test(subpath)
+          ? [join(packageRoot, subpath)]
+          : [join(packageRoot, subpath), join(packageRoot, subpath + ".json"), join(packageRoot, subpath, "tsconfig.json")])
+      : [join(packageRoot, "tsconfig.json")];
+    try {
+      if (!subpath && existsSync(packageJson)) {
+        const manifest = JSON.parse(readFileSync(packageJson, "utf8")) as { tsconfig?: unknown };
+        if (typeof manifest.tsconfig === "string") candidates.unshift(join(packageRoot, manifest.tsconfig));
+      }
+    } catch { /* Invalid package metadata is represented by the package config candidates. */ }
+    const resolved = candidates.find((candidate) => {
+      try { return existsSync(candidate) && statSync(candidate).isFile(); } catch { return false; }
+    });
+    if (resolved) return resolved;
+    const parent = dirname(directory);
+    if (parent === directory) return candidates[0]!;
+    directory = parent;
+  }
+}
+
+function collectExtendedConfigPaths(rootPath: string): string[] {
+  const rootConfig = resolve(rootPath, "tsconfig.json");
+  const visited = new Set<string>();
+  const visit = (configPath: string): void => {
+    const normalized = resolve(configPath);
+    if (visited.has(normalized)) return;
+    visited.add(normalized);
+    let config: unknown;
+    try {
+      const read = ts.readConfigFile(normalized, ts.sys.readFile);
+      config = read.config;
+    } catch {
+      return;
+    }
+    if (!config || typeof config !== "object" || !("extends" in config)) return;
+    const value = (config as { extends?: unknown }).extends;
+    const specifiers = Array.isArray(value) ? value : [value];
+    for (const specifier of specifiers) {
+      if (typeof specifier === "string" && specifier.trim()) {
+        visit(resolveExtendedConfigPath(normalized, specifier));
+      }
+    }
+  };
+  visit(rootConfig);
+  return [...visited].sort((a, b) => a.localeCompare(b));
+}
+
 function computeRelationsConfigHash(rootPath: string, files: Array<{ path: string }>): string {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
@@ -404,17 +470,22 @@ function computeRelationsConfigHash(rootPath: string, files: Array<{ path: strin
     }
   }
   const configPaths = [
-    "tsconfig.json",
     ...[...packageDirectories].map((directory) =>
-      directory ? posix.join(directory, "package.json") : "package.json"),
+      directory ? resolve(rootPath, ...directory.split("/"), "package.json") : resolve(rootPath, "package.json")),
+    ...collectExtendedConfigPaths(rootPath),
   ].sort((a, b) => a.localeCompare(b));
   const hash = createHash("sha256");
-  for (const configPath of configPaths) {
-    hash.update(configPath).update("\\0");
+  for (const absoluteConfigPath of configPaths) {
+    const relativeConfigPath = relative(rootPath, absoluteConfigPath).replaceAll("\\", "/");
+    const configIdentity = relativeConfigPath === ".." || relativeConfigPath.startsWith("../") || isAbsolute(relativeConfigPath)
+      ? absoluteConfigPath
+      : relativeConfigPath;
+    hash.update(configIdentity).update("\\0");
     try {
-      hash.update(readFileSync(join(rootPath, ...configPath.split("/"))));
-    } catch {
-      hash.update("<missing>");
+      hash.update(readFileSync(absoluteConfigPath));
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unknown";
+      hash.update(code === "ENOENT" ? "<missing>" : `<unreadable:${code}>`);
     }
     hash.update("\0");
   }
@@ -578,6 +649,7 @@ export interface IndexFreshness {
   addedFiles: number;
   changedFiles: number;
   deletedFiles: number;
+  relationsConfigChanged: boolean;
   fileChanges: Array<{ path: string; status: "added" | "changed" | "deleted"; oldHash: string | null; newHash: string | null }>;
   fileChangesTotal: number;
   fileChangesTruncated: boolean;
@@ -639,21 +711,22 @@ function gitFreshness(project: IndexedGitMetadata, current: ReturnType<typeof ge
 export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
   const db = openDatabase(location);
   try {
-    const project = db.prepare("SELECT last_indexed_at, index_revision, index_excludes_json, indexed_commit, indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths FROM projects WHERE id = ?").get(location.id) as ({
-      last_indexed_at: string | null; index_revision: number; index_excludes_json: string;
+    const project = db.prepare("SELECT last_indexed_at, index_revision, index_excludes_json, relations_config_hash, indexed_commit, indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths FROM projects WHERE id = ?").get(location.id) as ({
+      last_indexed_at: string | null; index_revision: number; index_excludes_json: string; relations_config_hash: string | null;
     } & IndexedGitMetadata) | undefined;
     if (!project) throw new Error("This repository has not been initialized. Run `cnm init` first.");
     const currentGit = getGitSnapshot(location.rootPath);
     const git = gitFreshness(project, currentGit);
     if (!project.last_indexed_at) {
       return { status: "not-indexed", indexRevision: project.index_revision, checkedFiles: 0, addedFiles: 0,
-        changedFiles: 0, deletedFiles: 0, fileChanges: [], fileChangesTotal: 0, fileChangesTruncated: false,
+        changedFiles: 0, deletedFiles: 0, relationsConfigChanged: false, fileChanges: [], fileChangesTotal: 0, fileChangesTruncated: false,
         skippedFiles: [], errors: [], limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS }, totals: { skippedFiles: 0, errors: 0 }, truncated: { skippedFiles: false, errors: false }, git };
     }
     const excludes = JSON.parse(project.index_excludes_json) as string[];
     const discovery = discoverFiles(location.rootPath, excludes);
     const indexed = db.prepare("SELECT path, content_hash FROM files ORDER BY path").all() as Array<{ path: string; content_hash: string }>;
     const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
+    const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed) !== project.relations_config_hash;
     let addedFiles = 0;
     let changedFiles = 0;
     let deletedFiles = 0;
@@ -680,12 +753,12 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
     fileChanges.sort((a, b) => a.path.localeCompare(b.path) || a.status.localeCompare(b.status));
     const gitMetadataUnavailable = git.status === "unavailable" && project.indexed_worktree_status_hash !== null;
     const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0 || gitMetadataUnavailable;
-    const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0 || git.status === "changed" || git.status === "unrecorded";
+    const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0 || relationsConfigChanged || git.status === "changed" || git.status === "unrecorded";
     return {
       status: incomplete ? "incomplete" : stale ? "stale" : "current",
       indexRevision: project.index_revision,
       checkedFiles: discovery.scanned,
-      addedFiles, changedFiles, deletedFiles,
+      addedFiles, changedFiles, deletedFiles, relationsConfigChanged,
       fileChanges: fileChanges.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
       fileChangesTotal: fileChanges.length,
       fileChangesTruncated: fileChanges.length > MAX_FRESHNESS_DETAIL_ITEMS,
