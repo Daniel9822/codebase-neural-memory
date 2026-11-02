@@ -68,6 +68,22 @@ describe("task-oriented context builder", () => {
     expect(result.budget.usedCharacters).toBeLessThanOrEqual(12000);
   });
 
+  it("reports when the bounded test-path discovery window may hide matching tests", () => {
+    setup();
+    for (let index = 0; index < 510; index += 1) {
+      writeFileSync(join(location.rootPath, "tests", `unrelated-${String(index).padStart(4, "0")}.test.ts`), "export const unrelated = true;");
+    }
+    writeFileSync(join(location.rootPath, "tests", "zzzz-rareanchor.test.ts"), "export const rare = true;");
+    indexWithDatabase(db!, location);
+
+    const result = buildTaskContext(location, "rareanchor");
+
+    expect(result.items.some((item) => item.kind === "test" && item.source === "tests/zzzz-rareanchor.test.ts")).toBe(false);
+    expect(result.warnings).toContain("Test-path discovery was truncated at 500 indexed candidates; matching tests may be missing.");
+    expect(result.budget.truncatedKinds).toContain("test");
+    expect(result.budget.truncated).toBe(true);
+  });
+
   it("orders equal-score path anchors by locale-independent code units", () => {
     setup();
     for (const name of ["ä.ts", "a.ts", "Z.ts"]) {
