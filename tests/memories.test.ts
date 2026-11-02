@@ -3,7 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { indexWithDatabase } from "../src/core/indexer.js";
-import { deleteMemory, inspectMemoryFreshness, proposeMemory, remember, recallMemories, recallMemoriesReport, transitionMemory, updateMemory } from "../src/core/memories.js";
+import { deleteMemory, getMemoryFreshnessReport, inspectMemoryFreshness, proposeMemory, remember, recallMemories, recallMemoriesReport, transitionMemory, updateMemory } from "../src/core/memories.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 
@@ -140,6 +140,25 @@ describe("explicit memory lifecycle", () => {
     rmSync(join(location.rootPath, "src.ts"));
     expect(inspectMemoryFreshness(location)).toMatchObject([{ id, status: "missing", requiresReview: true }]);
     expect(recallMemories(location)[0]).toMatchObject({ id, status: "confirmed" });
+  });
+
+  it("bounds memory freshness work and supports targeted freshness for selected context memories", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "older.ts"), "export function older() { return true; }");
+    writeFileSync(join(location.rootPath, "newer.ts"), "export function newer() { return true; }");
+    const olderId = remember(location, "Older source decision", "Review the older source.", "decision", "older.ts");
+    remember(location, "Newer source decision", "Review the newer source.", "decision", "newer.ts");
+
+    expect(inspectMemoryFreshness(location, 1)).toHaveLength(1);
+    expect(inspectMemoryFreshness(location, 1, [olderId])).toMatchObject([
+      { id: olderId, status: "current", requiresReview: false },
+    ]);
+    const report = getMemoryFreshnessReport(location, 1);
+    expect(report).toMatchObject({ total: 2, limit: 1, truncated: true });
+    expect(report.records).toHaveLength(1);
+    expect(() => inspectMemoryFreshness(location, 1, Array.from({ length: 51 }, (_, index) => String(index))))
+      .toThrow(/at most 50/i);
+    expect(() => inspectMemoryFreshness(location, 501)).toThrow(/no greater than 500/i);
   });
 
   it("requires review for legacy source references and flags symlink escapes safely", () => {
