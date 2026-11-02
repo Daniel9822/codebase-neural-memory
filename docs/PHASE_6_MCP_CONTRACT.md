@@ -30,7 +30,7 @@ All fields below are taken from the Zod schemas and handler calls in `server.ts`
 | Tool | Input schema | Adapter default / hard maximum | Core operation |
 |---|---|---|---|
 | `project_overview` | No arguments | — | `getProjectOverview(location)` |
-| `index_freshness` | No arguments | 200 per-file change records (path, status, old/new SHA-256); 200 skipped-file details and 200 error details; totals and truncation flags | `getIndexFreshness(location)` |
+| `index_freshness` | No arguments | 200 per-file change records (path, status, old/new SHA-256); 200 skipped-file details and 200 error details; totals, truncation flags, and `relationsConfigChanged` | `getIndexFreshness(location)` |
 | `index_update` | `paths`: optional array of 1–100 project-relative file/directory paths (1–500 chars each); `include`: optional array of 1–100 include glob patterns (1–500 chars each); `maxFiles`: optional integer, 1–10,000; `maxProcessed`: optional integer, 1–100,000 | Incremental reconciliation using persisted exclusions; selective scope is the intersection of paths and include patterns; file/traversal budgets stop discovery and return `truncated`; selective updates do not perform deletion reconciliation and never delete records outside the selected scope | `updateProjectIndex(location, options)` |
 | `project_map` | `limit`: optional integer, 1–200 | 80 files; 200 imports, unresolved imports, and TypeScript import diagnostics per file; 200 candidate paths per unresolved import; totals and truncation flags | `getProjectMapReport(location, limit)` |
 | `symbol_lookup` | `query`: non-empty string; `limit`: optional integer, 1–50; `kind`: optional string; `filePath`: optional project-relative path prefix; `exported`: optional boolean; `includeSource`: optional object with `maxLines` 1–100 | `limit`: 20; source snippets default to 60 lines and 8,000 characters | `searchSymbols`; optional bounded `getSourceExcerpt` per result |
@@ -67,12 +67,12 @@ The adapter's Zod limits are intentionally sometimes narrower than the correspon
 
 ## Freshness policy for every indexed read
 
-Every indexed read checks source/index freshness before executing. When the index is not current, the handler preserves the original JSON payload as its first text block and appends a separate, explicit warning containing the freshness state, changed/added/deleted counts, affected paths (up to 20), and the corrective action. This applies to project overview/map, symbol lookup, dependency graph, file details, source excerpts, impact, task context, and memory reads. index_freshness remains the diagnostic source and reports up to 200 exact file changes with old/new SHA-256 hashes.
+Every indexed read checks source/index freshness before executing and revalidates the snapshot after the operation. Strict mode refuses a changed source snapshot or index revision; non-strict mode appends a post-read consistency warning. When the index is not current, the handler preserves the original JSON payload as its first text block and appends a separate, explicit warning containing the freshness state, changed/added/deleted counts, affected paths (up to 20), and the corrective action. This applies to project overview/map, symbol lookup, dependency graph, file details, source excerpts, impact, task context, and memory reads. index_freshness remains the diagnostic source and reports up to 200 exact file changes with old/new SHA-256 hashes.
 
 Two opt-in server policies are available through environment variables:
 
 - CNM_MCP_AUTO_UPDATE=1: before an indexed read, perform one incremental reconciliation if the index is stale. Automatic refresh is skipped when discovery is incomplete or more than 50 source files changed; the response explains why and requires an explicit index_update. The default is off.
-- CNM_MCP_STRICT_FRESHNESS=1: refuse indexed reads unless the freshness state is current, returning status: refused and an actionable hint. The default is off.
+- CNM_MCP_STRICT_FRESHNESS=1: refuse indexed reads unless the freshness state is current, returning status: refused and an actionable hint. The adapter revalidates after the operation too; a changed source snapshot or index revision is refused in strict mode. The default is off.
 
 When both are enabled, auto-update runs first and strict mode evaluates the resulting state. The refresh is synchronous; the 50-file safety threshold bounds automatic change volume, not wall-clock time. A filesystem race after the freshness check remains possible, so source-bearing responses retain their own hash/status (source_excerpt, includeSource, and inlineSnippets). No policy writes repository source files.
 
