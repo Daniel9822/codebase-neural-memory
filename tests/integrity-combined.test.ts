@@ -39,8 +39,8 @@ describe("integrated CNM integrity regressions", () => {
     const outsideDirectory = join(temporaryDirectory, "outside-scope");
 
     mkdirSync(nestedDirectory, { recursive: true });
-    writeFileSync(join(location.rootPath, "a-source.ts"), "export const original = true;\n");
-    writeFileSync(join(nestedDirectory, "nested.ts"), "export const retained = true;\n");
+    writeFileSync(join(location.rootPath, "a-source.ts"), "export function original() { return true; }\n");
+    writeFileSync(join(nestedDirectory, "nested.ts"), "export function retained() { return true; }\n");
     writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
       compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
     }));
@@ -48,13 +48,13 @@ describe("integrated CNM integrity regressions", () => {
     const initial = indexWithDatabase(database!, location);
     expect(initial.added).toBe(2);
 
-    writeFileSync(join(location.rootPath, "a-source.ts"), "export const changed = true;\n");
+    writeFileSync(join(location.rootPath, "a-source.ts"), "export function changed() { return true; }\n");
     writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
       compilerOptions: { baseUrl: ".", paths: { "@/*": ["different/*"] } },
     }));
     renameSync(nestedDirectory, savedDirectory);
     mkdirSync(outsideDirectory, { recursive: true });
-    writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;\n");
+    writeFileSync(join(outsideDirectory, "outside.ts"), "export function outside() { return true; }\n");
     symlinkSync(outsideDirectory, nestedDirectory, "dir");
 
     expect(() => updateProjectIndex(location)).toThrow(/discovery is incomplete/i);
