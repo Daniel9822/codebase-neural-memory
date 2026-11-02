@@ -81,7 +81,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] PR #122 removes path-following existence checks, uses `lstat` plus the verified reader, fingerprints package manifests consulted by bare-package `extends`, and adds missing/malformed/symlink regressions; CI 41460410372 passed and PR #122 is merged.
 - [x] Add directory identity checks before opening and after `opendirSync`, during enumeration, before entry processing, and after source reads; deterministic replacement injection proves fail-closed behavior. Node's path-based API still cannot bind these checks to the opened directory descriptor; retain that limitation.
 - [x] Confirmed `readFileWithinRoot` validates the opened file against the resolved path before reading and again after reading; no source change is claimed by this audit-only finding.
-- [x] PR #122 adds combined configuration/symlink/source-drift tests and pre/post fingerprint rollback coverage. External `node_modules` manifests used by semantic module resolution remain outside the fingerprint and require a separate audit.
+- [x] PR #122 adds combined configuration/symlink/source-drift tests and pre/post fingerprint rollback coverage. External `node_modules` manifests used by semantic module resolution are addressed by the dedicated CNM-01 follow-up below; closure remains pending its CI evidence.
 
 
 
@@ -152,3 +152,12 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Re-run the complete GitHub Actions matrix on the latest PR head after the follow-up fixes: the local-extends fixture now excludes its symlink directory to isolate config diagnostics; the semantic-diagnostics reader has been consolidated, and local config reads are revalidated after the descriptor-bound read. Runs 41456135085 and 41456423882 exercised earlier PR heads and are not final validation. Verify typecheck, full tests, build, smoke, and benchmarks. (PR #122; CI 41460410372 passed; merged to `main`).
 - [ ] Continue the cross-process/MCP-handler race audit and remaining destructive reconciliation call-site review; this PR does not close CNM-01–CNM-06 globally.
 - [ ] Complete the CNM-05 audit of TypeScript program/dependency reads in `src/core/import-diagnostics.ts`: config bytes use the verified reader, but `ts.createProgram` and `ts.resolveModuleName` still rely on TypeScript's default filesystem host for dependency resolution; define and test the intended symlink/external-package boundary.
+
+
+### CNM-01 follow-up — TypeScript semantic dependency manifest freshness (2026-11-02)
+
+- [ ] Track the `package.json` files actually consulted while TypeScript constructs the semantic program, including resolver-observed missing candidates; do not scan all of `node_modules`.
+- [ ] Include deterministic path + content/missing-state fingerprints in the persisted relation-configuration fingerprint so dependency metadata drift invalidates freshness and triggers relation/diagnostic rebuilding.
+- [ ] Read consulted manifests through the verified safe reader; reject final-component symlinks, classify malformed or unreadable manifests as `incomplete`, and fail closed on the manifest inspection budget.
+- [ ] Add regressions proving a used dependency manifest change marks freshness stale, an unused package manifest change does not, and unsafe/malformed consulted manifests block index updates.
+- [ ] Verify full typecheck, tests, build, smoke, and Ubuntu/Windows/macOS benchmark CI on the final PR head before marking CNM-01 complete.
