@@ -47,10 +47,24 @@ function readConfigTextSafely(candidatePath: string, projectRoot: string): strin
     }
     const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
     if (!external && !packageManagerPath) {
-      return readFileWithinRoot(root, absoluteCandidate, {
+      const read = readFileWithinRoot(root, absoluteCandidate, {
         canonicalRoot: root,
         rejectFinalSymlink: true,
-      }).content.toString("utf8");
+      });
+      const relativeParentAfterRead = relative(root, dirname(absoluteCandidate));
+      let currentAfterRead = root;
+      for (const segment of relativeParentAfterRead.split(sep).filter(Boolean)) {
+        currentAfterRead = join(currentAfterRead, segment);
+        const identity = lstatSync(currentAfterRead);
+        const currentRelative = relative(root, currentAfterRead).split(sep).join("/");
+        if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
+          throw new Error("Configuration path traverses a symbolic-link directory.");
+        }
+        if (!identity.isDirectory() && !identity.isSymbolicLink()) {
+          throw new Error("Configuration parent is not a directory.");
+        }
+      }
+      return read.content.toString("utf8");
     }
     // Explicit external "extends" targets and package-manager links under
     // node_modules remain supported; final-component symlinks still fail closed.
