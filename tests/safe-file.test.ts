@@ -17,10 +17,10 @@ describe("safe project file reads", () => {
     temporaryDirectory = mkdtempSync(join(tmpdir(), "cnm-safe-read-test-"));
     const root = join(temporaryDirectory, "repository");
     mkdirSync(root, { recursive: true });
-    writeFileSync(join(root, "source.ts"), "export const safe = true;\\n");
+    writeFileSync(join(root, "source.ts"), "export const safe = true;\n");
 
     const result = readFileWithinRoot(root, join(root, "source.ts"));
-    expect(result.content.toString("utf8")).toBe("export const safe = true;\\n");
+    expect(result.content.toString("utf8")).toBe("export const safe = true;\n");
     expect(result.stat.isFile()).toBe(true);
   });
 
@@ -29,7 +29,7 @@ describe("safe project file reads", () => {
     const root = join(temporaryDirectory, "repository");
     const outside = join(temporaryDirectory, "outside.ts");
     mkdirSync(root, { recursive: true });
-    writeFileSync(outside, "export const outside = true;\\n");
+    writeFileSync(outside, "export const outside = true;\n");
     symlinkSync(outside, join(root, "source.ts"));
 
     expect(() => readFileWithinRoot(root, join(root, "source.ts"))).toThrow(/outside the project root/i);
