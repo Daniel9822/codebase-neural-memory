@@ -245,10 +245,14 @@ export interface ProjectMapReport {
   truncated: boolean;
   perFileLimit: number;
   candidateLimit: number;
+  totalCandidateLimit: number;
+  candidatesReturned: number;
+  candidatesTruncated: boolean;
 }
 
 const MAX_PROJECT_MAP_PER_FILE = 200;
 const MAX_PROJECT_MAP_CANDIDATES = 200;
+const MAX_PROJECT_MAP_TOTAL_CANDIDATES = 10_000;
 
 /** MCP-facing project map with bounded top-level and nested collections. */
 export function getProjectMapReport(location: ProjectLocation, limit = 80): ProjectMapReport {
