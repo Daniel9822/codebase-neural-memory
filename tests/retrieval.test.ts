@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
@@ -224,6 +224,20 @@ describe("getSourceExcerpt", () => {
     const stale = getSourceExcerpt(location, "source.ts", 1, 2, 500);
     expect(stale.indexStatus).toBe("stale");
     expect(stale.contentHash).not.toBe(stale.indexedContentHash);
+  });
+
+  it("rejects an indexed file replaced by a symlink outside the project", () => {
+    createProject();
+    const sourcePath = join(location.rootPath, "source.ts");
+    const outsidePath = join(temporaryDirectory, "outside.ts");
+    writeFileSync(sourcePath, "export const value = true;\n");
+    indexWithDatabase(database!, location);
+
+    writeFileSync(outsidePath, "export const secret = 'outside';\n");
+    rmSync(sourcePath);
+    symlinkSync(outsidePath, sourcePath);
+
+    expect(() => getSourceExcerpt(location, "source.ts", 1, 1)).toThrow(/outside the project root/i);
   });
 
   it("rejects unindexed, traversal, invalid, and oversized source ranges", () => {
