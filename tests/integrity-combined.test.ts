@@ -82,7 +82,7 @@ describe("integrated CNM integrity regressions", () => {
     writeFileSync(join(packageDirectory, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true } }));
     writeFileSync(outsideManifest, JSON.stringify({ tsconfig: "tsconfig.json" }));
     symlinkSync(outsideManifest, join(packageDirectory, "package.json"), "file");
-    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;\\n");
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
 
     indexWithDatabase(database!, location);
 
