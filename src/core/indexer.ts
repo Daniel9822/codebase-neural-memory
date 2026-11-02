@@ -123,6 +123,7 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
 export function discoverFiles(root: string, extraExcludes: string[] = [], options: IndexOptions = {}): DiscoveryResult {
   validateIndexOptions(options);
   const canonicalRoot = realpathSync(root);
+  root = canonicalRoot;
   const selectedPaths = normalizeScopePaths(options.paths);
   const includePatterns = normalizeIncludePatterns(options.include);
   const includeMatcher = includePatterns.length ? ignore().add(includePatterns) : undefined;
