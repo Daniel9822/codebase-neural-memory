@@ -67,4 +67,13 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Found custom CLI/core index exclusions were the remaining repeated input list without a count/length ceiling; added a maximum of 100 non-empty patterns, each at most 500 characters, with regression coverage.
 - [x] Added a 200-character non-empty symbol-name ceiling to core `explainSymbol` and `getSymbolRelations`; regression tests cover empty and oversized names.
 - [x] Clarified CLI help for search, dependencies, memories, and repeated exclusion patterns so user-visible limits match core contracts.
-- [ ] Verify CI and merge this follow-up; the broader CNM-01–CNM-06 filesystem/freshness close-out and autonomous-memory implementation remain open.
+- [x] Verify PR #114 merged as `89fe1f69028ca1d9483fafeaf02d8b9ca6f5bfde`; CI and merge are complete. The broader CNM-01–CNM-06 filesystem/freshness close-out and autonomous-memory implementation remain open.
+
+
+### CNM-01 follow-up — invalid relation configuration diagnostics (2026-11-02)
+
+- [x] Add freshness inspection for root/transitive TypeScript configs and package manifests used by relation resolution.
+- [x] Report malformed TypeScript JSON, unsafe/unreadable config files, and malformed package manifests through bounded freshness errors; classify these states as `incomplete` instead of silently reporting `current`.
+- [x] Add regression coverage for malformed `tsconfig.json` and a final-component symlink config.
+- [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on PR #116; merge evidence pending.
+- [ ] Directory enumeration still opens recursively by path after Dirent classification; directory replacement race hardening remains open under CNM-05.
