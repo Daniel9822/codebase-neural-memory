@@ -210,7 +210,7 @@ export interface MemorySourceFreshness {
   commitRequiresReview: boolean;
 }
 
-/** Inspect source and Git provenance without changing memory content or lifecycle status. */
+/** Inspect bounded source/Git provenance; optional IDs target selected task-context memories. */
 export function inspectMemoryFreshness(
   location: ProjectLocation, limit = 100, memoryIds?: string[],
 ): MemorySourceFreshness[] {
