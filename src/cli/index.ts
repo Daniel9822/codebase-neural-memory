@@ -5,7 +5,7 @@ import { basename } from "node:path";
 import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
 import { getIndexFreshness, indexProject } from "../core/indexer.js";
-import { explainSymbol, getComponentMap, findDependencies, findImpact, findSymbolImpact, getFileDetails, getProjectMap, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
+import { explainSymbol, getComponentMap, findDependencies, findImpact, findSymbolImpact, getFileDetails, getProjectMapReport, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
 import { deleteMemory, inspectMemoryFreshness, proposeMemory, recallMemories, remember, transitionMemory, updateMemory, type MemoryStatus } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
@@ -124,17 +124,29 @@ program.command("status")
   });
 
 program.command("map")
-  .description("Print indexed files and their resolved imports.")
-  .option("--limit <number>", "Maximum number of files", parsePositiveInteger, 80)
+  .description("Print a bounded report of indexed files, imports, unresolved candidates, and import diagnostics.")
+  .option("--limit <number>", "Maximum number of files (1-200)", parsePositiveInteger, 80)
   .action((options: { limit: number }) => {
-    const rows = getProjectMap(ensureInitialized(), options.limit);
-    for (const row of rows) {
+    const report = getProjectMapReport(ensureInitialized(), options.limit);
+    for (const row of report.files) {
       console.log(`\n${row.path}`);
       for (const dependency of row.imports) console.log(`  └─ imports ${dependency}`);
+      if (row.truncated.imports) console.log(`  └─ imports truncated (${row.totals.imports} total; ${report.perFileLimit} returned)`);
       for (const item of row.unresolvedImports) {
-        const detail = item.status === "ambiguous" ? ` (candidates: ${item.candidates.join(", ")})` : "";
-        console.log(`  └─ ${item.status} import ${item.specifier}${detail}`);
+        const detail = item.candidates.length > 0 ? ` (candidates: ${item.candidates.join(", ")}${item.candidatesTruncated ? ", …" : ""})` : "";
+        const omitted = item.candidatesTruncated ? ` [${item.candidatesTotal} total; bounded output]` : "";
+        console.log(`  └─ ${item.status} import ${item.specifier}${detail}${omitted}`);
       }
+      if (row.truncated.unresolvedImports) console.log(`  └─ unresolved imports truncated (${row.totals.unresolvedImports} total)`);
+      for (const diagnostic of row.importDiagnostics) {
+        console.log(`  └─ TS${diagnostic.code} ${diagnostic.kind} at ${diagnostic.line}:${diagnostic.column}: ${diagnostic.message}`);
+      }
+      if (row.truncated.importDiagnostics) console.log(`  └─ import diagnostics truncated (${row.totals.importDiagnostics} total)`);
+    }
+    if (report.truncated || report.candidatePathsTruncated) {
+      console.log("\nProject map output was truncated:");
+      console.log(`  files: ${report.files.length}/${report.totalFiles} (limit ${report.limit})`);
+      console.log(`  candidate paths: ${report.candidatePathsReturned}/${report.candidatePathsTotal} (global budget ${report.candidateBudget})`);
     }
   });
 

@@ -386,6 +386,11 @@ This work turns CNM into an agent-ready project capability rather than relying o
 
 
 
+### CNM-06 follow-up — bounded CLI project map
+
+- [x] Route `cnm map` through `getProjectMapReport` rather than the unbounded legacy projection.
+- [x] Enforce the same 1–200 file limit and per-file/global candidate budgets used by MCP, with explicit truncation output.
+- [ ] Verify CI and merge; continue the cross-surface output audit.
 ### CNM-06 follow-up — file_details candidate output budget (2026-11-02)
 
 - [x] Identified unbounded nested `candidates_json` decoding in `file_details`, despite its per-collection result limit.
