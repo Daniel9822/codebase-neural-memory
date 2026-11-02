@@ -629,7 +629,7 @@ export function getFileDetails(
       SELECT target.path, r.provenance, r.confidence, r.index_revision AS indexRevision
       FROM relations r JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
       WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
-      ORDER BY target.path LIMIT ?
+      ORDER BY target.path, target.id, r.provenance, r.confidence, r.index_revision LIMIT ?
     `).all(file.id, limit) as FileDetails["imports"];
     const unresolvedRows = db.prepare(`
       SELECT id, module_specifier AS specifier, status,
@@ -670,7 +670,7 @@ export function getFileDetails(
       SELECT module_specifier AS specifier, kind, diagnostic_code AS code, message, line,
         column_number AS "column", imported_name AS importedName
       FROM import_diagnostics WHERE source_file_id = ?
-      ORDER BY line, column_number, diagnostic_code LIMIT ?
+      ORDER BY line, column_number, diagnostic_code, module_specifier, kind, message LIMIT ?
     `).all(file.id, limit) as FileDetails["importDiagnostics"];
     const relations = db.prepare(`
       SELECT CASE WHEN source.file_id = ? THEN 'outgoing' ELSE 'incoming' END AS direction,
