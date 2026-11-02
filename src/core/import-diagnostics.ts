@@ -146,6 +146,18 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
     isWithinPath(absolute, root) &&
     relative(root, absolute).split(sep).includes("node_modules");
 
+  // Trust only a package entry directly below node_modules (or one package
+  // entry below a real @scope directory). A nested symlink inside an already
+  // approved package must never become a second trusted external root.
+  const isPackageManagerRootSymlink = (absolute: string): boolean => {
+    if (!isPackageManagerPath(absolute)) return false;
+    const segments = relative(root, absolute).split(sep).filter(Boolean);
+    const nodeModulesIndex = segments.lastIndexOf("node_modules");
+    const packageSegments = segments.slice(nodeModulesIndex + 1);
+    return packageSegments.length === 1 ||
+      (packageSegments.length === 2 && packageSegments[0].startsWith("@"));
+  };
+
   const isSafeDirectory = (candidate: string): boolean => {
     try {
       const absolute = resolve(candidate);
@@ -156,7 +168,7 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
           current = join(current, segment);
           const identity = lstatSync(current);
           if (identity.isSymbolicLink()) {
-            if (!isPackageManagerPath(current)) return false;
+            if (!isPackageManagerRootSymlink(current)) return false;
             const canonical = realpathSync(current);
             if (lstatSync(canonical).isDirectory()) trustedExternalDirectories.add(canonical);
           } else if (!identity.isDirectory()) {
@@ -211,7 +223,7 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
       throw new Error("TypeScript path resolution crossed an untrusted directory.");
     }
     const canonical = realpathSync(absolute);
-    if (isPackageManagerPath(absolute) && lstatSync(absolute).isSymbolicLink() &&
+    if (isPackageManagerRootSymlink(absolute) && lstatSync(absolute).isSymbolicLink() &&
         lstatSync(canonical).isDirectory()) {
       trustedExternalDirectories.add(canonical);
     }
