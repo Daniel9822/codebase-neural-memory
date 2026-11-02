@@ -638,6 +638,9 @@ export function getFileDetails(
     `).all(file.id, limit) as Array<{
       id: number; specifier: string; status: string; candidatesTotal: number;
     }>;
+    const candidatePathsTotal = (db.prepare(
+      "SELECT COALESCE(SUM(json_array_length(candidates_json)), 0) AS total FROM unresolved_imports WHERE source_file_id = ?",
+    ).get(file.id) as { total: number }).total;
     const candidateRows = unresolvedRows.length === 0 ? [] : db.prepare(`
       SELECT unresolved.id AS unresolvedId, candidate.value AS candidatePath
       FROM unresolved_imports AS unresolved
@@ -665,7 +668,6 @@ export function getFileDetails(
         candidatesTruncated: candidates.length < row.candidatesTotal,
       };
     });
-    const candidatePathsTotal = unresolvedRows.reduce((total, row) => total + row.candidatesTotal, 0);
     const importDiagnostics = db.prepare(`
       SELECT module_specifier AS specifier, kind, diagnostic_code AS code, message, line,
         column_number AS "column", imported_name AS importedName
