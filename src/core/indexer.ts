@@ -20,14 +20,21 @@ function assertDirectoryIdentity(
   if (pathStat.isSymbolicLink() || !pathStat.isDirectory()) {
     throw new Error("Directory path was replaced or is not a real directory; retry indexing.");
   }
+  if (expected) {
+    // Once the canonical in-root directory identity is established, cheap
+    // lstat identity checks detect replacement without resolving every entry.
+    if (pathStat.dev !== expected.dev || pathStat.ino !== expected.ino) {
+      throw new Error("Directory identity changed during discovery; retry indexing.");
+    }
+    return pathStat;
+  }
   const canonicalPath = realpathSync(directory);
   const canonicalRelative = relative(canonicalRoot, canonicalPath).replaceAll("\\", "/");
   if (canonicalRelative === ".." || canonicalRelative.startsWith("../") || isAbsolute(canonicalRelative)) {
     throw new Error("Directory path resolves outside the project root.");
   }
   const canonicalStat = statSync(canonicalPath);
-  if (pathStat.dev !== canonicalStat.dev || pathStat.ino !== canonicalStat.ino ||
-      (expected && (pathStat.dev !== expected.dev || pathStat.ino !== expected.ino))) {
+  if (pathStat.dev !== canonicalStat.dev || pathStat.ino !== canonicalStat.ino) {
     throw new Error("Directory identity changed during discovery; retry indexing.");
   }
   return pathStat;
