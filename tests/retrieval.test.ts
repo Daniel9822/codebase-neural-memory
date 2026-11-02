@@ -109,14 +109,14 @@ describe("symbol retrieval contracts", () => {
     createProject();
     for (let index = 0; index < 21; index += 1) {
       writeFileSync(join(location.rootPath, `lookup-${String(index).padStart(2, "0")}.ts`),
-        "export function lookupTarget() { return true; }");
+        "export function lookupItem() { return true; }");
     }
     writeFileSync(join(location.rootPath, "target.ts"), "export function target() { return true; }");
     writeFileSync(join(location.rootPath, "caller-a.ts"), 'import { target } from "./target"; export function callerA() { return target(); }');
     writeFileSync(join(location.rootPath, "caller-b.ts"), 'import { target } from "./target"; export function callerB() { return target(); }');
     indexWithDatabase(database!, location);
 
-    const exact = explainSymbol(location, "lookupTarget");
+    const exact = explainSymbol(location, "lookupItem");
     expect(exact).toHaveLength(20);
     expect(exact.every((item) => item.resultsTruncated)).toBe(true);
     expect(explainSymbol(location, "target").every((item) => !item.resultsTruncated)).toBe(true);
