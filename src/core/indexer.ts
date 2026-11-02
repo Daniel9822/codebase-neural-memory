@@ -577,7 +577,7 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
 function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>): string[] {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
-    let directory = posix.dirname(file.path.replaceAll("\\\\", "/"));
+    let directory = posix.dirname(file.path.replaceAll("\\", "/"));
     while (directory !== "." && directory !== "") {
       packageDirectories.add(directory);
       directory = posix.dirname(directory);
@@ -587,7 +587,7 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
   const reportReadFailure = (path: string, error: unknown): void => {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
     if (code === "ENOENT" && path === resolve(rootPath, "tsconfig.json")) return;
-    diagnostics.push(relative(rootPath, path).replaceAll("\\\\", "/") + ": configuration could not be safely read (" + code + ").");
+    diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": configuration could not be safely read (" + code + ").");
   };
 
   for (const directory of [...packageDirectories].sort(compareCodeUnits)) {
@@ -597,11 +597,11 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
     try {
       const parsed: unknown = JSON.parse(readConfigBytesSafely(path).toString("utf8"));
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-        diagnostics.push(relative(rootPath, path).replaceAll("\\\\", "/") + ": package configuration must contain a JSON object.");
+        diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": package configuration must contain a JSON object.");
       }
     } catch (error) {
       if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
-        diagnostics.push(relative(rootPath, path).replaceAll("\\\\", "/") + ": package configuration is invalid or unreadable.");
+        diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": package configuration is invalid or unreadable.");
       }
     }
   }
@@ -617,10 +617,10 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
     }
     const parsed = ts.parseConfigFileTextToJson(path, text);
     if (parsed.error) {
-      diagnostics.push(relative(rootPath, path).replaceAll("\\\\", "/") +
+      diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") +
         ": invalid TypeScript configuration (" + ts.flattenDiagnosticMessageText(parsed.error.messageText, " ") + ").");
     } else if (!parsed.config || typeof parsed.config !== "object" || Array.isArray(parsed.config)) {
-      diagnostics.push(relative(rootPath, path).replaceAll("\\\\", "/") + ": TypeScript configuration must contain a JSON object.");
+      diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": TypeScript configuration must contain a JSON object.");
     }
   }
   return [...new Set(diagnostics)].sort(compareCodeUnits);
