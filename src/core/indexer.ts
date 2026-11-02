@@ -691,10 +691,18 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
       reportReadFailure(path, error);
       continue;
     }
-    const parsed = ts.parseConfigFileTextToJson(path.replaceAll("\\", "/"), text);
+    const normalizedPath = path.replaceAll("\\", "/");
+    const parsed = ts.parseConfigFileTextToJson(normalizedPath, text);
     if (parsed.error) {
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") +
         ": invalid TypeScript configuration (" + ts.flattenDiagnosticMessageText(parsed.error.messageText, " ") + ").");
+    } else if (basename(path) === "package.json") {
+      const manifest = parsed.config as { tsconfig?: unknown } | null;
+      if (manifest && typeof manifest === "object" && "tsconfig" in manifest &&
+          (typeof manifest.tsconfig !== "string" || !manifest.tsconfig.trim())) {
+        diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") +
+          ": invalid TypeScript extends package metadata (tsconfig must be a non-empty string).");
+      }
     } else if (!parsed.config || typeof parsed.config !== "object" || Array.isArray(parsed.config)) {
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": TypeScript configuration must contain a JSON object.");
     }
