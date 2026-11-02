@@ -180,7 +180,8 @@ export function buildTaskContext(
   const symbolMatches = explicitAnchorMode
     ? anchorSymbols.flatMap((name) => searchSymbols(location, name, symbolLimit + 1).filter((symbol) => symbol.name === name))
     : searchSymbols(location, normalizedTask, symbolLimit + 1);
-  const symbolCandidatesTruncated = symbolMatches.length > symbolLimit;
+  const symbolCandidatesTruncated = symbolMatches.length > symbolLimit ||
+    symbolMatches.some((symbol) => symbol.candidateWindowTruncated);
   const symbols = symbolMatches.slice(0, symbolLimit);
   const fileCandidatesTruncated = new Set(symbolMatches.map((symbol) => symbol.filePath)).size > fileLimit;
   for (const symbol of symbols) {
