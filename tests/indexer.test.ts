@@ -402,6 +402,42 @@ describe("indexWithDatabase", () => {
     // follow the same final-component symlink through TypeScript's default host.
     expect(database!.prepare("SELECT module_specifier, kind FROM import_diagnostics").all())
       .toEqual([{ module_specifier: "@/helper", kind: "missing-package" }]);
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("tsconfig.json"))).toBe(true);
+  });
+
+  it("marks malformed TypeScript relation configuration as incomplete", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "tsconfig.json"), '{"compilerOptions": {');
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("tsconfig.json") && error.includes("invalid TypeScript configuration"))).toBe(true);
+  });
+
+  it("marks missing extended TypeScript configuration as incomplete", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./tsconfig.missing.json" }));
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("tsconfig.missing.json") && error.includes("ENOENT"))).toBe(true);
+  });
+
+  it("marks malformed package manifests used by relation resolution as incomplete", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "package.json"), '{"name": ');
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("package.json") && error.includes("invalid or unreadable"))).toBe(true);
   });
 
   it("rebuilds graph relations when TypeScript/package configuration changes without source edits", () => {

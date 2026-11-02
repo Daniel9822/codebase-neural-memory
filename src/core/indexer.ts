@@ -364,10 +364,13 @@ interface PathAliasConfig {
 
 function loadPathAliasConfig(root: string): PathAliasConfig | undefined {
   const configPath = join(root, "tsconfig.json");
-  const read = ts.readConfigFile(configPath, readConfigTextSafely);
+  // TypeScript compares diagnostic source paths byte-for-byte on Windows;
+  // keep its internal config identity in canonical slash form.
+  const typescriptConfigPath = configPath.replaceAll("\\", "/");
+  const read = ts.readConfigFile(typescriptConfigPath, readConfigTextSafely);
   if (read.error) return undefined;
   const configDirectory = dirname(configPath);
-  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, configDirectory, undefined, configPath);
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, configDirectory, undefined, typescriptConfigPath);
   const paths = parsed.options.paths;
   if (!paths) return undefined;
   return {
@@ -572,6 +575,58 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
   };
   visit(rootConfig);
   return [...visited].sort((a, b) => compareCodeUnits(a, b));
+}
+
+function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>): string[] {
+  const packageDirectories = new Set<string>([""]);
+  for (const file of files) {
+    let directory = posix.dirname(file.path.replaceAll("\\", "/"));
+    while (directory !== "." && directory !== "") {
+      packageDirectories.add(directory);
+      directory = posix.dirname(directory);
+    }
+  }
+  const diagnostics: string[] = [];
+  const reportReadFailure = (path: string, error: unknown): void => {
+    const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
+    if (code === "ENOENT" && path === resolve(rootPath, "tsconfig.json")) return;
+    diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": configuration could not be safely read (" + code + ").");
+  };
+
+  for (const directory of [...packageDirectories].sort(compareCodeUnits)) {
+    const path = directory
+      ? resolve(rootPath, ...directory.split("/"), "package.json")
+      : resolve(rootPath, "package.json");
+    try {
+      const parsed: unknown = JSON.parse(readConfigBytesSafely(path).toString("utf8"));
+      if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+        diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": package configuration must contain a JSON object.");
+      }
+    } catch (error) {
+      if (!(error && typeof error === "object" && "code" in error && error.code === "ENOENT")) {
+        diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": package configuration is invalid or unreadable.");
+      }
+    }
+  }
+
+  const rootConfig = resolve(rootPath, "tsconfig.json");
+  for (const path of collectExtendedConfigPaths(rootPath)) {
+    let text: string;
+    try {
+      text = readConfigBytesSafely(path).toString("utf8");
+    } catch (error) {
+      reportReadFailure(path, error);
+      continue;
+    }
+    const parsed = ts.parseConfigFileTextToJson(path.replaceAll("\\", "/"), text);
+    if (parsed.error) {
+      diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") +
+        ": invalid TypeScript configuration (" + ts.flattenDiagnosticMessageText(parsed.error.messageText, " ") + ").");
+    } else if (!parsed.config || typeof parsed.config !== "object" || Array.isArray(parsed.config)) {
+      diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": TypeScript configuration must contain a JSON object.");
+    }
+  }
+  return [...new Set(diagnostics)].sort(compareCodeUnits);
 }
 
 function computeRelationsConfigHash(rootPath: string, files: Array<{ path: string }>): string {
@@ -841,6 +896,7 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
     const indexed = db.prepare("SELECT path, content_hash FROM files ORDER BY path").all() as Array<{ path: string; content_hash: string }>;
     const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
     const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed) !== project.relations_config_hash;
+    const relationsConfigErrors = inspectRelationsConfig(location.rootPath, indexed);
     let addedFiles = 0;
     let changedFiles = 0;
     let deletedFiles = 0;
@@ -866,8 +922,10 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
     }
     fileChanges.sort((a, b) => compareCodeUnits(a.path, b.path) || compareCodeUnits(a.status, b.status));
     const gitMetadataUnavailable = git.status === "unavailable" && project.indexed_worktree_status_hash !== null;
-    const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.truncated || discovery.abortRequired || discovery.protectedDirectories.size > 0 || gitMetadataUnavailable;
+    const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.truncated || discovery.abortRequired ||
+      discovery.protectedDirectories.size > 0 || gitMetadataUnavailable || relationsConfigErrors.length > 0;
     const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0 || relationsConfigChanged || git.status === "changed" || git.status === "unrecorded";
+    const freshnessErrors = [...discovery.errors, ...relationsConfigErrors].sort(compareCodeUnits);
     return {
       status: incomplete ? "incomplete" : stale ? "stale" : "current",
       indexRevision: project.index_revision,
@@ -877,12 +935,12 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
       fileChangesTotal: fileChanges.length,
       fileChangesTruncated: fileChanges.length > MAX_FRESHNESS_DETAIL_ITEMS,
       skippedFiles: discovery.skippedFiles.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
-      errors: discovery.errors.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
+      errors: freshnessErrors.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
       limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS },
-      totals: { skippedFiles: discovery.skippedFiles.length, errors: discovery.errors.length },
+      totals: { skippedFiles: discovery.skippedFiles.length, errors: freshnessErrors.length },
       truncated: {
         skippedFiles: discovery.skippedFiles.length > MAX_FRESHNESS_DETAIL_ITEMS,
-        errors: discovery.errors.length > MAX_FRESHNESS_DETAIL_ITEMS,
+        errors: freshnessErrors.length > MAX_FRESHNESS_DETAIL_ITEMS,
       },
       git,
     };

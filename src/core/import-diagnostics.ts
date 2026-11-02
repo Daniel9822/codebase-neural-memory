@@ -114,10 +114,13 @@ export function analyzeImportDiagnostics(
     noEmit: true,
   };
   if (existsSync(configPath)) {
-    const config = ts.readConfigFile(configPath, readConfigTextSafely);
+    // TypeScript requires a stable slash-normalized filename for diagnostics
+    // on Windows; otherwise malformed JSON can trigger an internal assertion.
+    const typescriptConfigPath = configPath.replaceAll("\\", "/");
+    const config = ts.readConfigFile(typescriptConfigPath, readConfigTextSafely);
     if (!config.error) {
       const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: readConfigTextSafely };
-      const parsed = ts.parseJsonConfigFileContent(config.config, configHost, root, undefined, configPath);
+      const parsed = ts.parseJsonConfigFileContent(config.config, configHost, root, undefined, typescriptConfigPath);
       options = { ...options, ...parsed.options, allowJs: parsed.options.allowJs ?? true, checkJs: false, skipLibCheck: true, noEmit: true };
     }
   }

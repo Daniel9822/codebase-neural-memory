@@ -79,3 +79,13 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [ ] Close directory-open race coverage: discovery classifies entries with `Dirent`, then recursively calls `opendirSync(directory)` by path. A directory can be replaced between classification and open; source-file opens are separately root/identity checked, but directory enumeration itself has no verified directory-handle identity contract. Add deterministic replacement injection and fail-closed behavior where supported.
 - [x] Confirmed `readFileWithinRoot` validates the opened file against the resolved path before reading and again after reading; no source change is claimed by this audit-only finding.
 - [ ] Implement focused diagnostics and race regressions before marking CNM-01/CNM-05 complete.
+
+
+
+### CNM-01 follow-up — invalid relation configuration diagnostics (2026-11-02)
+
+- [x] Add freshness inspection for root and transitive TypeScript configs plus package manifests used by relation resolution.
+- [x] Report malformed TypeScript JSON, missing extended configs, malformed package manifests, and unsafe/unreadable config files through bounded freshness errors; classify these states as `incomplete` instead of silently reporting `current`.
+- [x] Add regression coverage for malformed `tsconfig.json`, a missing extended config, malformed `package.json`, and a final-component symlink config.
+- [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on PR #116; merge evidence pending.
+- [ ] Directory enumeration still opens recursively by path after Dirent classification; directory replacement race hardening remains open under CNM-05.
