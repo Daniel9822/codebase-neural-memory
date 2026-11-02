@@ -230,6 +230,15 @@ describe("integrated CNM integrity regressions", () => {
     expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
     expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
       .toBe(beforeRevision);
+
+    rmSync(packageManifest);
+    writeFileSync(packageManifest, "{ invalid package metadata");
+    const malformedFreshness = getIndexFreshness(location);
+    expect(malformedFreshness.status).toBe("incomplete");
+    expect(malformedFreshness.errors.some((error) => error.includes("invalid JSON"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
   });
 
   it("continues to support an explicitly external TypeScript extends target", () => {
