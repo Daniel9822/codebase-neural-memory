@@ -406,7 +406,7 @@ export function lookupTaskContextDetails(
     throw new Error("maxCharacters must be between 100 and 50000.");
   }
   const knownSources = new Set(context.items.map((item) => item.source.split(":")[0]));
-  const uniquePaths = [...new Set(sourcePaths.map((path) => path.replaceAll("\\", "/").replace(/^\.\//, "")))];
+  const uniquePaths = [...new Set(sourcePaths.map((path) => path.replaceAll("\\", "/").replace(/^\.\//, "")))].sort(compareCodeUnits);
   const results: TaskContextItem[] = [];
   let used = 0;
   for (const path of uniquePaths) {
