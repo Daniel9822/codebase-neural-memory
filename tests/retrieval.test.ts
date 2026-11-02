@@ -354,6 +354,7 @@ describe("getSymbolRelations", () => {
     expect(() => getSymbolRelations(location, "Worker", 0)).toThrow("Relation limit must be a positive safe integer no greater than 500.");
     expect(getSymbolRelations(location, "Base")).toEqual([
       {
+        resultsTruncated: false,
         direction: "incoming", relation: "EXTENDS", symbolName: "Base", symbolKind: "class",
         symbolFilePath: "base.ts", symbolStartLine: 1, symbolEndLine: 1,
         relatedSymbolName: "Worker", relatedSymbolKind: "class", relatedFilePath: "worker.ts",
