@@ -1,6 +1,6 @@
 import { builtinModules } from "node:module";
-import { existsSync, realpathSync } from "node:fs";
-import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { existsSync, lstatSync, realpathSync } from "node:fs";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { readFileWithinRoot } from "./safe-file.js";
 import ts from "typescript";
 
@@ -23,11 +23,29 @@ export interface ImportDiagnostic {
 const IMPORT_DIAGNOSTIC_CODES = new Set([2307, 2305, 2614, 2724, 1192]);
 const BUILTINS = new Set(builtinModules.flatMap((name) => [name, name.replace(/^node:/, "")]));
 
-function readConfigTextSafely(candidatePath: string): string | undefined {
+function readConfigTextSafely(candidatePath: string, projectRoot: string): string | undefined {
   try {
-    // Keep TypeScript config loading on the same verified-descriptor path as
-    // relation indexing. Explicit external "extends" targets remain supported,
-    // but final-component symlinks and path substitutions fail closed.
+    const root = resolve(projectRoot);
+    const absoluteCandidate = resolve(candidatePath);
+    const relativeCandidate = relative(root, absoluteCandidate).split(sep).join("/");
+    const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") || isAbsolute(relativeCandidate);
+    if (!external) {
+      const relativeParent = relative(root, dirname(absoluteCandidate));
+      let current = root;
+      for (const segment of relativeParent.split(sep).filter(Boolean)) {
+        current = join(current, segment);
+        const identity = lstatSync(current);
+        const currentRelative = relative(root, current).split(sep).join("/");
+        if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
+          throw new Error("Configuration path traverses a symbolic-link directory.");
+        }
+        if (!identity.isDirectory() && !identity.isSymbolicLink()) {
+          throw new Error("Configuration parent is not a directory.");
+        }
+      }
+    }
+    // Explicit external "extends" targets and package-manager links under
+    // node_modules remain supported; final-component symlinks still fail closed.
     const canonicalParent = realpathSync(dirname(candidatePath));
     const canonicalCandidate = join(canonicalParent, basename(candidatePath));
     return readFileWithinRoot(canonicalParent, canonicalCandidate, {
@@ -117,9 +135,9 @@ export function analyzeImportDiagnostics(
     // TypeScript requires a stable slash-normalized filename for diagnostics
     // on Windows; otherwise malformed JSON can trigger an internal assertion.
     const typescriptConfigPath = configPath.replaceAll("\\", "/");
-    const config = ts.readConfigFile(typescriptConfigPath, readConfigTextSafely);
+    const config = ts.readConfigFile(typescriptConfigPath, (path) => readConfigTextSafely(path, root));
     if (!config.error) {
-      const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: readConfigTextSafely, readDirectory: () => [] };
+      const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: (path) => readConfigTextSafely(path, root), readDirectory: () => [] };
       const parsed = ts.parseJsonConfigFileContent(config.config, configHost, root, undefined, typescriptConfigPath);
       options = { ...options, ...parsed.options, allowJs: parsed.options.allowJs ?? true, checkJs: false, skipLibCheck: true, noEmit: true };
     }
