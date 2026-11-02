@@ -90,6 +90,7 @@ export function calculateXtotal(): number { return 2; }
     expect(searchSymbols(location, "!!!...///")).toEqual([]);
     expect(() => searchSymbols(location, "value", 0)).toThrow("Search limit must be a positive safe integer");
     expect(() => searchSymbols(location, "value", Number.MAX_SAFE_INTEGER + 1)).toThrow("Search limit must be a positive safe integer");
+    expect(() => searchSymbols(location, "x".repeat(1_001))).toThrow("Search query must be a string no longer than 1000 characters.");
   });
 });
 
