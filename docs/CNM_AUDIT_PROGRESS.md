@@ -91,7 +91,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Report malformed TypeScript JSON, missing extended configs, malformed package manifests, and unsafe/unreadable config files through bounded freshness errors; classify these states as `incomplete` instead of silently reporting `current`.
 - [x] Add regression coverage for malformed `tsconfig.json`, a missing extended config, malformed `package.json`, and a final-component symlink config.
 - [x] Verify PR #116 CI runs 41438435498 and 41438442638 passed; PR #116 is merged into `main`.
-- [ ] Directory identity checks are merged in PR #117. Residual limitation: Node's path-based opendirSync does not bind checks to the opened descriptor.
+- [x] Directory identity checks are merged in PR #117. Residual limitation: Node's path-based opendirSync does not bind checks to the opened descriptor.
 
 
 ### CNM-01 / CNM-05 follow-up — inherited TypeScript config safe reads (2026-11-02)
@@ -100,7 +100,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Replace `existsSync` / `statSync` candidate selection for `extends` paths with `lstat` plus verified safe reads. Missing candidates still allow standard `.json` and `tsconfig.json` fallbacks; unsafe/unreadable candidates remain diagnosable.
 - [x] Add a regression where the root config extends a final-component symlink to an outside config; no alias import relation may be created and freshness must be `incomplete`.
 - [x] Verify inherited-config hardening in merged PR #118; cross-platform CI passed.
-- [x] PR #119 follow-up covers malformed and non-string `tsconfig` metadata in package manifests; symlink/unreadable manifest cases remain part of the broader security audit.
+- [x] PR #120 follow-up covers malformed and non-string `tsconfig` metadata in package manifests; symlink/unreadable manifest cases remain part of the broader security audit.
 - [x] Directory replacement race hardening is merged in PR #117; CI run 41439352404 passed across the required test/build/smoke and benchmark matrix.
 
 
