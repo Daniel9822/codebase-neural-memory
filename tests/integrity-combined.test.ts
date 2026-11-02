@@ -269,7 +269,7 @@ describe("integrated CNM integrity regressions", () => {
     writeFileSync(join(outsideDirectory, "index.d.ts"), "export declare const escapedValue: string;");
     symlinkSync(externalPackage, packageDirectory, "dir");
     symlinkSync(outsideDirectory, join(externalPackage, "linked"), "dir");
-    writeFileSync(join(location.rootPath, "main.ts"), 'import { escapedValue } from "linked-fixture";\\nexport const result = escapedValue;');
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { escapedValue } from "linked-fixture";\nexport const result = escapedValue;');
 
     const diagnostics = analyzeImportDiagnostics(location.rootPath, ["main.ts"]);
     expect(diagnostics.some((diagnostic) => diagnostic.moduleSpecifier === "linked-fixture")).toBe(true);
