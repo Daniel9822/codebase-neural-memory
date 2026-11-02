@@ -205,3 +205,137 @@ export function analyzeImportDiagnostics(
     compareCodeUnits(a.filePath, b.filePath) || a.line - b.line || a.column - b.column || a.code - b.code,
   );
 }
+
+
+export interface SemanticPackageManifestSnapshot {
+  hash: string;
+  errors: string[];
+  manifestCount: number;
+}
+
+const MAX_SEMANTIC_PACKAGE_MANIFESTS = 10_000;
+
+function isNodeModulesPackageManifest(path: string): boolean {
+  const normalized = resolve(path).replaceAll("\\\\", "/");
+  const segments = normalized.split("/");
+  return segments.at(-1) === "package.json" && segments.includes("node_modules");
+}
+
+/**
+ * Fingerprint the package.json files actually consulted by TypeScript's
+ * semantic module resolver. This deliberately tracks resolver observations,
+ * not every package installed in node_modules.
+ */
+export function inspectSemanticPackageManifests(
+  rootPath: string,
+  indexedPaths: string[],
+): SemanticPackageManifestSnapshot {
+  const root = resolve(rootPath);
+  const rootConfigPath = join(root, "tsconfig.json").replaceAll("\\\\", "/");
+  let options: ts.CompilerOptions = {
+    module: ts.ModuleKind.NodeNext,
+    moduleResolution: ts.ModuleResolutionKind.NodeNext,
+    target: ts.ScriptTarget.ES2022,
+    allowJs: true,
+    checkJs: false,
+    skipLibCheck: true,
+    noEmit: true,
+  };
+  const config = ts.readConfigFile(rootConfigPath, (path) => readConfigTextSafely(path, root));
+  if (!config.error) {
+    const configHost: ts.ParseConfigHost = {
+      ...ts.sys,
+      readFile: (path) => readConfigTextSafely(path, root),
+      readDirectory: () => [],
+    };
+    const parsed = ts.parseJsonConfigFileContent(config.config, configHost, root, undefined, rootConfigPath);
+    options = {
+      ...options,
+      ...parsed.options,
+      allowJs: parsed.options.allowJs ?? true,
+      checkJs: false,
+      skipLibCheck: true,
+      noEmit: true,
+    };
+  }
+
+  type ManifestRead = { content: Buffer | null; failure: string | null };
+  const consulted = new Map<string, ManifestRead>();
+  const errors: string[] = [];
+  const readManifest = (candidate: string): ManifestRead => {
+    const absolute = resolve(candidate);
+    const key = absolute.replaceAll("\\\\", "/");
+    const previous = consulted.get(key);
+    if (previous) return previous;
+    if (consulted.size >= MAX_SEMANTIC_PACKAGE_MANIFESTS) {
+      const failure = "semantic package-manifest inspection exceeded its safety limit";
+      errors.push(failure);
+      return { content: null, failure };
+    }
+    let result: ManifestRead;
+    try {
+      result = { content: readConfigBytesSafely(absolute, root), failure: null };
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
+      result = { content: null, failure: code };
+      if (code !== "ENOENT" && code !== "ENOTDIR") {
+        const relativePath = relative(root, absolute).replaceAll("\\\\", "/");
+        const displayPath = relativePath === ".." || relativePath.startsWith("../") || isAbsolute(relativePath)
+          ? absolute
+          : relativePath;
+        errors.push(displayPath + ": TypeScript package manifest could not be safely read (" + code + ").");
+      }
+    }
+    consulted.set(key, result);
+    return result;
+  };
+
+  const host = ts.createCompilerHost(options);
+  const defaultFileExists = host.fileExists.bind(host);
+  const defaultReadFile = host.readFile.bind(host);
+  host.fileExists = (path) => isNodeModulesPackageManifest(path)
+    ? readManifest(path).content !== null
+    : defaultFileExists(path);
+  host.readFile = (path) => {
+    if (isNodeModulesPackageManifest(path)) {
+      const manifest = readManifest(path);
+      return manifest.content?.toString("utf8");
+    }
+    return defaultReadFile(path);
+  };
+
+  const rootNames = indexedPaths.map((path) => resolve(root, path));
+  // Creating the program exercises the same TypeScript module-resolution
+  // path used by semantic diagnostics and records package metadata reads.
+  const program = ts.createProgram({ rootNames, options, host });
+  for (const sourceFile of program.getSourceFiles()) {
+    for (const diagnostic of program.getSemanticDiagnostics(sourceFile)) {
+      if (diagnostic.code === 2307) continue;
+    }
+  }
+
+  const hash = createHash("sha256");
+  for (const [path, manifest] of [...consulted].sort(([a], [b]) => compareCodeUnits(a, b))) {
+    hash.update(path).update("\\0");
+    if (manifest.content) {
+      hash.update("present\\0").update(manifest.content);
+      try {
+        const parsed: unknown = JSON.parse(manifest.content.toString("utf8"));
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          errors.push(path + ": TypeScript package manifest must contain a JSON object.");
+        }
+      } catch {
+        errors.push(path + ": TypeScript package manifest contains invalid JSON.");
+      }
+    } else {
+      hash.update(manifest.failure === "ENOENT" || manifest.failure === "ENOTDIR"
+        ? "<missing>" : "<unreadable:" + (manifest.failure ?? "unknown") + ">");
+    }
+    hash.update("\\0");
+  }
+  return {
+    hash: hash.digest("hex"),
+    errors: [...new Set(errors)].sort(compareCodeUnits),
+    manifestCount: consulted.size,
+  };
+}
