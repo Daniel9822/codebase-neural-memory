@@ -194,7 +194,7 @@ describe("integrated CNM integrity regressions", () => {
     writeFileSync(join(packageDirectory, "index-a.d.ts"), "export declare const onlyA: string;");
     writeFileSync(join(packageDirectory, "index-b.d.ts"), "export declare const onlyB: string;");
     writeFileSync(join(unusedPackageDirectory, "package.json"), JSON.stringify({ name: "unused-fixture", version: "1.0.0" }));
-    writeFileSync(join(location.rootPath, "main.ts"), 'import { onlyA } from "semantic-fixture";\\nexport const value = onlyA;');
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { onlyA } from "semantic-fixture";\nexport const value = onlyA;');
 
     indexWithDatabase(database!, location);
     expect(getIndexFreshness(location).status).toBe("current");
