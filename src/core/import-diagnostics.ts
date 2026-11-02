@@ -119,7 +119,7 @@ export function analyzeImportDiagnostics(
     const typescriptConfigPath = configPath.replaceAll("\\", "/");
     const config = ts.readConfigFile(typescriptConfigPath, readConfigTextSafely);
     if (!config.error) {
-      const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: readConfigTextSafely };
+      const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: readConfigTextSafely, readDirectory: () => [] };
       const parsed = ts.parseJsonConfigFileContent(config.config, configHost, root, undefined, typescriptConfigPath);
       options = { ...options, ...parsed.options, allowJs: parsed.options.allowJs ?? true, checkJs: false, skipLibCheck: true, noEmit: true };
     }
