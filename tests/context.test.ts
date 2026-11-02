@@ -143,7 +143,7 @@ describe("task-oriented context builder", () => {
 
     const selected = (result: ReturnType<typeof buildTaskContext>) =>
       result.items.filter((item) => item.kind === "dependency").map((item) => item.source);
-    expect(selected(forward)).toEqual(["y-dependency.ts"]);
+    expect(selected(forward)).toEqual(["src/y-dependency.ts"]);
     expect(selected(reversed)).toEqual(selected(forward));
     expect(forward.budget.truncatedKinds).toContain("dependency");
     expect(reversed.budget.truncatedKinds).toContain("dependency");
