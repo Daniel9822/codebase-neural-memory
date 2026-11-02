@@ -96,9 +96,15 @@ function isWithinIndexScope(path: string, paths: string[], includeMatcher?: Retu
   return pathMatch && (includeMatcher === undefined || includeMatcher.ignores(path));
 }
 
-function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: string[] = []): IgnoreScope {
+function loadIgnoreRules(
+  directory: string,
+  isRoot = false,
+  extraExcludes: string[] = [],
+  canonicalRoot = realpathSync(directory),
+): IgnoreScope {
   const rules = ignore();
   let mandatoryRules: ReturnType<typeof ignore> | undefined;
+  let error: string | undefined;
   if (isRoot) {
     mandatoryRules = ignore().add(DEFAULT_EXCLUDES).add([".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx"]);
     if (extraExcludes.some((pattern) => pattern.trimStart().startsWith("!"))) {
@@ -107,11 +113,17 @@ function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: strin
     rules.add(extraExcludes);
   }
   try {
-    rules.add(readFileSync(join(directory, ".gitignore"), "utf8"));
-  } catch {
-    // A missing .gitignore is normal.
+    const ignoreFile = readFileWithinRoot(canonicalRoot, join(directory, ".gitignore"), { canonicalRoot });
+    rules.add(ignoreFile.content.toString("utf8"));
+  } catch (cause) {
+    const code = cause && typeof cause === "object" && "code" in cause ? String(cause.code) : "";
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      const directoryPath = relative(canonicalRoot, directory).replaceAll("\\", "/") || ".";
+      error = directoryPath + "/.gitignore: " + (cause instanceof Error ? cause.message : String(cause));
+    }
   }
-  return mandatoryRules === undefined ? { directory, rules } : { directory, rules, mandatoryRules };
+  const scope: IgnoreScope = mandatoryRules === undefined ? { directory, rules } : { directory, rules, mandatoryRules };
+  return error ? { ...scope, error } : scope;
 }
 
 function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
@@ -141,11 +153,29 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
   let abortRequired = false;
   let truncated = false;
   let stopped = false;
-  const rootScope = loadIgnoreRules(root, true, extraExcludes);
+  const rootScope = loadIgnoreRules(root, true, extraExcludes, canonicalRoot);
+  if (rootScope.error) {
+    failed += 1;
+    errors.push(rootScope.error);
+    protectedDirectories.add("");
+    truncated = true;
+    abortRequired = true;
+    stopped = true;
+  }
   const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
     if (stopped) return;
     const directoryPath = relative(root, directory).replaceAll("\\", "/");
-    const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
+    let scopes = parentScopes;
+    if (directory !== root) {
+      const localScope = loadIgnoreRules(directory, false, [], canonicalRoot);
+      if (localScope.error) {
+        failed += 1;
+        errors.push(localScope.error);
+        protectedDirectories.add(directoryPath);
+        return;
+      }
+      scopes = [...parentScopes, localScope];
+    }
     let handle: ReturnType<typeof opendirSync>;
     try {
       handle = opendirSync(directory);
