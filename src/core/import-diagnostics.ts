@@ -274,17 +274,31 @@ export function inspectSemanticPackageManifests(
     }
     let result: ManifestRead;
     try {
-      result = { content: readConfigBytesSafely(absolute, root), failure: null };
+      const text = readConfigTextSafely(absolute, root);
+      if (text !== undefined) {
+        result = { content: Buffer.from(text, "utf8"), failure: null };
+      } else {
+        // The shared safe reader intentionally hides filesystem details. Use
+        // lstat only to distinguish an ordinary missing resolver candidate
+        // from a present-but-unsafe manifest; never follow a final symlink.
+        try {
+          lstatSync(absolute);
+          result = { content: null, failure: "unsafe-or-unreadable" };
+        } catch (error) {
+          const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
+          result = { content: null, failure: code };
+        }
+      }
     } catch (error) {
       const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
       result = { content: null, failure: code };
-      if (code !== "ENOENT" && code !== "ENOTDIR") {
-        const relativePath = relative(root, absolute).replaceAll("\\\\", "/");
-        const displayPath = relativePath === ".." || relativePath.startsWith("../") || isAbsolute(relativePath)
-          ? absolute
-          : relativePath;
-        errors.push(displayPath + ": TypeScript package manifest could not be safely read (" + code + ").");
-      }
+    }
+    if (result.failure && result.failure !== "ENOENT" && result.failure !== "ENOTDIR") {
+      const relativePath = relative(root, absolute).replaceAll("\\\\", "/");
+      const displayPath = relativePath === ".." || relativePath.startsWith("../") || isAbsolute(relativePath)
+        ? absolute
+        : relativePath;
+      errors.push(displayPath + ": TypeScript package manifest could not be safely read (" + result.failure + ").");
     }
     consulted.set(key, result);
     return result;
@@ -308,11 +322,9 @@ export function inspectSemanticPackageManifests(
   // Creating the program exercises the same TypeScript module-resolution
   // path used by semantic diagnostics and records package metadata reads.
   const program = ts.createProgram({ rootNames, options, host });
-  for (const sourceFile of program.getSourceFiles()) {
-    for (const diagnostic of program.getSemanticDiagnostics(sourceFile)) {
-      if (diagnostic.code === 2307) continue;
-    }
-  }
+  // Materialize the program's source graph. Module resolution consults package
+  // manifests while TypeScript constructs this graph; semantic diagnostics are
+  // deliberately not run here because they are handled by the normal pass.
 
   const hash = createHash("sha256");
   for (const [path, manifest] of [...consulted].sort(([a], [b]) => compareCodeUnits(a, b))) {
