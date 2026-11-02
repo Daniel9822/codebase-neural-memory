@@ -47,7 +47,7 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
     throw new Error("Memory source path must stay inside the project root");
   }
   try {
-    const source = readFileWithinRoot(location.rootPath, absolutePath, { rejectFinalSymlink: true });
+    const source = readFileWithinRoot(location.rootPath, absolutePath, { rejectFinalSymlink: true, rejectHardLinks: true });
     return createHash("sha256").update(source.content).digest("hex");
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
@@ -57,6 +57,7 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
     if (error instanceof Error && (
       error.message === "Path must reference a regular file." ||
       error.message === "Symlink file paths are not allowed." ||
+      error.message === "Hard-linked file paths are not allowed." ||
       error.message.includes("ELOOP") ||
       error.message.includes("changed during safe open") ||
       error.message.includes("changed while being read")

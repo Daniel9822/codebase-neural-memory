@@ -11,7 +11,7 @@ const END = "<!-- cnm:agent-instructions:end -->";
 
 function readAgentFile(rootPath: string, path: string): SafeFileRead | null {
   try {
-    return readFileWithinRoot(rootPath, path, { rejectFinalSymlink: true });
+    return readFileWithinRoot(rootPath, path, { rejectFinalSymlink: true, rejectHardLinks: true });
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
     if (error instanceof Error && error.message === "Symlink file paths are not allowed.") {

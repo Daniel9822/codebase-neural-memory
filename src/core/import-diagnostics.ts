@@ -67,6 +67,7 @@ function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buff
     const read = readFileWithinRoot(root, absoluteCandidate, {
       canonicalRoot: root,
       rejectFinalSymlink: true,
+      rejectHardLinks: true,
     });
     const relativeParentAfterRead = relative(root, dirname(absoluteCandidate));
     let currentAfterRead = root;
@@ -118,6 +119,7 @@ function readTypeScriptInputSafely(candidatePath: string, projectRoot: string): 
       return readFileWithinRoot(root, absolute, {
         canonicalRoot: root,
         rejectFinalSymlink: true,
+        rejectHardLinks: true,
       }).content.toString("utf8");
     }
 

@@ -109,17 +109,16 @@ This is a scoped source audit, not a completion claim for Workstream B or the me
 
 ## A4. CNM-05 — Secure file open/read against symlink races
 
-- [ ] Inventory every filesystem read/open for project-controlled paths, including excerpts, indexing, config, and source inspection.
-- [ ] Identify time-of-check/time-of-use gaps between path validation and opening/reading.
-- [ ] Audit and harden all project-controlled filesystem reads. `source_excerpt` now uses a verified file descriptor, `O_NOFOLLOW` where available, and post-open containment/identity checks (PR #76); other read sites still require audit.
-- [ ] Verify every opened object remains inside the project boundary and matches expected file identity/metadata; source excerpts are covered by PR #76, but all other call sites remain open.
-- [ ] Define a safe fallback where the platform cannot provide equivalent guarantees.
-- [ ] Add tests that replace a validated file or parent directory with a symlink between validation and open/read.
-- [ ] Test traversal, absolute paths, hard links where relevant, dangling links, and file replacement.
-- [ ] Confirm no sensitive/outside-root content is returned in any response or error.
+- [x] Inventory project-controlled file reads/opens across source excerpts, indexer/configuration, TypeScript compiler inputs, memory source fingerprints, and managed agent instructions (`safe-file.ts`, `indexer.ts`, `import-diagnostics.ts`, `memories.ts`, `retrieval.ts`, `agents-md.ts`).
+- [x] Identify TOCTOU gaps between path validation, open, read, and directory enumeration; distinguish content-read guarantees from path-based directory metadata checks.
+- [x] Harden project-local reads with descriptor verification, `O_NOFOLLOW` where available, root containment and before/after identity checks; reject hard-linked local source/config/managed-instruction inputs where requested. Package-manager stores and TypeScript library roots remain explicitly scoped.
+- [x] Verify opened file identity against the resolved path and revalidate after reading; managed `AGENTS.md` writes also reject symlink/hardlink targets and use exclusive creation.
+- [x] Define the portable fallback: fail closed on detected unsafe substitutions; document that path-based directory enumeration cannot prove resistance to every swap-and-restore race.
+- [x] Add deterministic file/directory replacement regressions across safe reads, indexer discovery, and TypeScript package-root enumeration.
+- [x] Test traversal, absolute paths, hard links, dangling symlinks, final-component symlinks, and file/directory replacement.
+- [x] Confirm rejected inputs do not return outside-root file content; supported package-manager and TypeScript library inputs remain constrained to approved roots.
 
-**Acceptance:** raced substitution cannot cause an outside-project read; unsupported guarantees fail closed or are explicitly documented.
-
+**Acceptance:** project-local content reads are descriptor-verified and fail closed on detected substitution; unsupported descriptor-bound directory guarantees are explicitly documented. This is not a claim that every path-based directory race is eliminated.
 ## A5. CNM-06 — Deterministic candidate selection under limits
 
 - [ ] Inventory every place where candidate collections are ranked, truncated, or bounded.

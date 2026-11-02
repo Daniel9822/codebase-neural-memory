@@ -365,6 +365,16 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 - **Coverage:** core current/stale hash comparison, project-relative path and range validation, MCP tool discovery/schema/call, real stdio invocation, and existing read-only/no-mutation checks.
 
 
+## CNM-05 — Safe project file reads and managed-instruction writes — PASS for defined scope
+
+- [x] Project-local file content is opened through a verified descriptor, checked against canonical-root containment and expected file identity, and revalidated after reading (`src/core/safe-file.ts`).
+- [x] Final-component symlinks are rejected for project-local source/config reads; hard-linked project files can be rejected at the call sites where local-source provenance matters. Package-manager stores retain compatibility under approved canonical roots.
+- [x] TypeScript compiler-host source reads, module resolution, semantic manifests, and recursive directory discovery use the safe host. Nested symlink directories below approved package roots are rejected before recursion.
+- [x] Deterministic regressions cover file symlinks, dangling links, traversal/absolute paths, hard links, nested package symlinks, and persistent directory replacement during TypeScript enumeration.
+- [x] Managed `AGENTS.md` reads/writes reject unsafe symlink/hardlink targets, verify file identity, and use exclusive creation for new files.
+- [x] PR #131 merge `bc590d4dec32f4c30b8e68175320baffd6a05e12` CI 41540709649 passed; PR #132 merge `de71a13c905e8a0d8ae5c075208bd343b2cc6459` CI 41541563914 passed.
+
+**Accepted residual:** Node's portable path-based directory APIs do not bind all identity checks to an opened directory descriptor. Persistent substitutions are detected; a swap-and-restore completed entirely between checks is not proven impossible. The implementation does not claim descriptor-bound traversal or universal TOCTOU elimination.
 ## CNM-02 — destructive reconciliation and symlink preservation
 
 - [x] File-index deletion is centralized in `indexWithDatabase`; cleanup of symbols, FTS, imports, calls, and heritage is centralized in `clearFileIndex`.

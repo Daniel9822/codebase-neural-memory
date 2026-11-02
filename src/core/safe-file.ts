@@ -11,6 +11,7 @@ export interface SafeFileReadOptions {
   maxBytes?: number;
   canonicalRoot?: string;
   rejectFinalSymlink?: boolean;
+  rejectHardLinks?: boolean;
 }
 
 function assertWithinRoot(root: string, target: string): void {
@@ -33,6 +34,9 @@ export function readFileWithinRoot(rootPath: string, candidatePath: string, opti
   try {
     const openedStat = fstatSync(descriptor);
     if (!openedStat.isFile()) throw new Error("Path must reference a regular file.");
+    if (options.rejectHardLinks && openedStat.nlink > 1) {
+      throw new Error("Hard-linked file paths are not allowed.");
+    }
     if (options.maxBytes !== undefined && openedStat.size > options.maxBytes) {
       throw new Error(`File exceeds the ${options.maxBytes}-byte read limit.`);
     }
