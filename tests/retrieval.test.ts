@@ -57,6 +57,17 @@ describe("symbol retrieval contracts", () => {
     });
   });
 
+  it("orders equally ranked symbols by locale-independent code-unit path order", () => {
+    createProject();
+    for (const path of ["ä.ts", "a.ts", "Z.ts"]) {
+      writeFileSync(join(location.rootPath, path), "export function findThing() { return true; }");
+    }
+    indexWithDatabase(database!, location);
+
+    const hits = searchSymbols(location, "findThing", 10);
+    expect(hits.map((hit) => hit.filePath)).toEqual(["Z.ts", "a.ts", "ä.ts"]);
+  });
+
   it("escapes SQL LIKE wildcards in literal symbol-name queries", () => {
     createProject();
     writeFileSync(join(location.rootPath, "names.ts"), `
