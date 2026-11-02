@@ -972,6 +972,7 @@ export function getSourceExcerpt(
     const safeRead = readFileWithinRoot(location.rootPath, absolutePath, {
       maxBytes: MAX_INDEXED_SOURCE_BYTES,
       rejectFinalSymlink: true,
+      rejectHardLinks: true,
     });
     source = safeRead.content.toString("utf8");
   } catch (error) {
@@ -981,7 +982,8 @@ export function getSourceExcerpt(
     if (error instanceof Error && error.message === "File path resolves outside the project root.") {
       throw new Error("Source excerpt path resolves outside the project root.");
     }
-    if (error instanceof Error && error.message === "Symlink file paths are not allowed.") {
+    if (error instanceof Error && (error.message === "Symlink file paths are not allowed." ||
+        error.message === "Hard-linked file paths are not allowed.")) {
       throw new Error("Source excerpt path is a symlink or resolves outside the project root.");
     }
     if (error instanceof Error && error.message === "Path must reference a regular file.") {
