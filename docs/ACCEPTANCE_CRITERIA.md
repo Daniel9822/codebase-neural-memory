@@ -430,7 +430,7 @@ The following capabilities remain open: signature-regex search, public-contract 
 
 ## CNM-06 — Deterministic bounded discovery
 
-- [x] `maxFiles` candidate selection is deterministic across different directory-entry creation/enumeration orders (`tests/indexer.test.ts`).
-- [x] When `maxProcessed` cannot cover the complete deterministic candidate set, indexing aborts before database writes instead of committing a filesystem-order-dependent partial selection.
-- [x] A directory exceeding the deterministic sorting safety cap is treated as incomplete; no partial index mutation is committed.
-- [x] Full-scope freshness reports incomplete discovery when deterministic enumeration cannot be completed.
+- [ ] `maxFiles` candidate selection is deterministic across different directory-entry creation/enumeration orders (`tests/indexer.test.ts`).
+- [ ] When `maxProcessed` cannot cover the complete deterministic candidate set, indexing aborts before database writes instead of committing a filesystem-order-dependent partial selection.
+- [ ] A directory exceeding the deterministic sorting safety cap is treated as incomplete; no partial index mutation is committed.
+- [ ] Full-scope freshness reports incomplete discovery when deterministic enumeration cannot be completed.
