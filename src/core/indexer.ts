@@ -551,6 +551,7 @@ function resolveExtendedConfigPath(configPath: string, specifier: string): strin
 }
 
 function collectExtendedConfigPaths(rootPath: string): string[] {
+  const rootConfig = resolve(rootPath, "tsconfig.json");
   const visited = new Set<string>();
   const visit = (configPath: string): void => {
     const normalized = resolve(configPath);
