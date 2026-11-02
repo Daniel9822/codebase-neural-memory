@@ -6,7 +6,7 @@ import ignore from "ignore";
 import type { ProjectLocation } from "./project.js";
 import { getGitSnapshot, sameGitSnapshot } from "./git.js";
 import { isSupportedSourceFile, parseTypeScriptFile } from "./typescript-parser.js";
-import { analyzeImportDiagnostics } from "./import-diagnostics.js";
+import { analyzeImportDiagnostics, inspectSemanticPackageManifests } from "./import-diagnostics.js";
 import type { IndexSummary } from "../shared/types.js";
 import { readFileWithinRoot } from "./safe-file.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
@@ -761,6 +761,8 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": TypeScript configuration must contain a JSON object.");
     }
   }
+  const semanticManifests = inspectSemanticPackageManifests(rootPath, files.map((file) => file.path));
+  diagnostics.push(...semanticManifests.errors);
   return [...new Set(diagnostics)].sort(compareCodeUnits);
 }
 
@@ -793,6 +795,8 @@ function computeRelationsConfigHash(rootPath: string, files: Array<{ path: strin
     }
     hash.update("\0");
   }
+  const semanticManifests = inspectSemanticPackageManifests(rootPath, files.map((file) => file.path));
+  hash.update("typescript-semantic-package-manifests\\0").update(semanticManifests.hash).update("\\0");
   return hash.digest("hex");
 }
 
