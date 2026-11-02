@@ -341,6 +341,43 @@ describe("indexWithDatabase", () => {
     expect(after).toEqual([{ path: "src/nested.ts" }]);
   });
 
+  it("fails closed when a directory is swapped during open and restored before identity recheck", () => {
+    createProject();
+    const sourceDirectory = join(location.rootPath, "src");
+    const movedDirectory = join(temporaryDirectory, "saved-src");
+    const outsideDirectory = join(temporaryDirectory, "outside-src");
+    mkdirSync(sourceDirectory, { recursive: true });
+    writeFileSync(join(sourceDirectory, "inside.ts"), "export const inside = true;");
+    mkdirSync(outsideDirectory, { recursive: true });
+    writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;");
+    indexProject(location);
+
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    const beforeFiles = database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all();
+    let replaced = false;
+    const freshness = getIndexFreshness(location, (rootPath, excludes) =>
+      discoverFiles(rootPath, excludes, {}, (directory) => {
+        if (!replaced && directory === sourceDirectory) {
+          replaced = true;
+          renameSync(sourceDirectory, movedDirectory);
+          symlinkSync(outsideDirectory, sourceDirectory, "dir");
+          const handle = opendirSync(directory);
+          rmSync(sourceDirectory);
+          renameSync(movedDirectory, sourceDirectory);
+          return handle;
+        }
+        return opendirSync(directory);
+      }));
+
+    expect(replaced).toBe(true);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.deletedFiles).toBe(0);
+    expect(freshness.fileChanges).toEqual([]);
+    expect(database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all()).toEqual(beforeFiles);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+  });
+
   it("fails closed when a directory is replaced between classification and open", () => {
     createProject();
     const sourceDirectory = join(location.rootPath, "src");
