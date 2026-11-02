@@ -74,6 +74,6 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 
 - [x] Add freshness inspection for root/transitive TypeScript configs and package manifests used by relation resolution.
 - [x] Report malformed TypeScript JSON, unsafe/unreadable config files, and malformed package manifests through bounded freshness errors; classify these states as `incomplete` instead of silently reporting `current`.
-- [x] Add regression coverage for malformed `tsconfig.json` and a final-component symlink config.
+- [x] Add regression coverage for malformed `tsconfig.json`, a missing extended config, malformed `package.json`, and a final-component symlink config.
 - [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on PR #116; merge evidence pending.
 - [ ] Directory enumeration still opens recursively by path after Dirent classification; directory replacement race hardening remains open under CNM-05.
