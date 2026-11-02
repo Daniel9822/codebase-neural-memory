@@ -187,6 +187,21 @@ describe("MCP bounded output and project isolation", () => {
       item.candidatesTotal === 1_000 && item.candidatesTruncated)).toBe(true);
   });
 
+  it("reports symbol_lookup truncation after its caller-visible result limit", async () => {
+    const { location, root } = createProject("symbol-lookup-truncation");
+    for (let index = 0; index < 205; index += 1) {
+      writeFileSync(join(root, `candidate-${String(index).padStart(3, "0")}.ts`),
+        "export function findThing() { return true; }");
+    }
+    indexWithDatabase(databases[0]!, location);
+    const client = await connect(location);
+
+    const results = await client.call("symbol_lookup", { query: "findThing", limit: 1 });
+    expect(results).toHaveLength(1);
+    expect(results[0].resultsTruncated).toBe(true);
+    expect(results[0].candidateWindowTruncated).toBe(false);
+  });
+
   it("bounds file_details unresolved-import candidate materialization globally", async () => {
     const { location, root } = createProject("file-details-candidate-budget");
     const imports = Array.from({ length: 11 }, (_, index) => `import "./missing-${String(index).padStart(2, "0")}";`);
