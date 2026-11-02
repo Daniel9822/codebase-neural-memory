@@ -40,7 +40,7 @@ function containsStaleSource(value: unknown): boolean {
 }
 
 /** Run a read behind one consistent freshness policy without changing legacy JSON payloads. */
-function readResponse<T>(
+export function readResponse<T>(
   location: ProjectLocation,
   options: McpServerOptions,
   operation: () => T,
@@ -96,9 +96,44 @@ function readResponse<T>(
     };
   }
   const result = operation();
+  let postFreshness: ReturnType<typeof getIndexFreshness> | undefined;
+  let postFreshnessFailure: string | undefined;
+  try {
+    postFreshness = getIndexFreshness(location);
+  } catch (error) {
+    postFreshnessFailure = error instanceof Error ? error.message : String(error);
+  }
+  const revisionChanged = postFreshness !== undefined && postFreshness.indexRevision !== freshness.indexRevision;
+  const postReadInconsistent = postFreshnessFailure !== undefined ||
+    postFreshness === undefined || postFreshness.status !== "current" || revisionChanged;
+  if (options.strictFreshness && postReadInconsistent) {
+    return {
+      isError: true,
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          status: "refused",
+          staleness: postFreshness ?? null,
+          readSnapshot: {
+            preflightRevision: freshness.indexRevision,
+            postReadRevision: postFreshness?.indexRevision ?? null,
+            revisionChanged,
+            failureReason: postFreshnessFailure ?? null,
+          },
+          hint: "The source/index snapshot changed or could not be revalidated during the read. Retry after restoring a current, stable index.",
+        }, null, 2),
+      }],
+    };
+  }
   const content: TextBlock[] = [{ type: "text", text: JSON.stringify(result, null, 2) }];
   if (freshness.status !== "current") content.push({ type: "text", text: freshnessWarning(freshness) });
   else if (containsStaleSource(result)) content.push({ type: "text", text: "CNM SOURCE WARNING: at least one inline excerpt hash differs from the indexed hash (indexStatus: stale). The excerpt is actual working-tree text, but indexed metadata may describe older bytes; refresh the index and repeat the read." });
+  if (postFreshnessFailure) content.push({ type: "text", text: `CNM POST-READ FRESHNESS WARNING: the post-read snapshot could not be checked (${postFreshnessFailure}); do not treat this result as verified current.` });
+  else if (postFreshness && (postFreshness.status !== "current" || revisionChanged) && freshness.status === "current") {
+    content.push({ type: "text", text: `CNM POST-READ FRESHNESS WARNING: snapshot consistency changed during the operation (status: ${postFreshness.status}; revision changed: ${revisionChanged}). Repeat the read after refreshing the index.` });
+  } else if (revisionChanged) {
+    content.push({ type: "text", text: "CNM POST-READ FRESHNESS WARNING: the index revision changed during the operation. The response may span multiple snapshots; repeat the read." });
+  }
   if (autoUpdateSkippedReason) content.push({ type: "text", text: `CNM AUTO-UPDATE SKIPPED: ${autoUpdateSkippedReason}` });
   if (autoUpdateFailureReason) content.push({ type: "text", text: `CNM AUTO-UPDATE FAILED: ${autoUpdateFailureReason}. The previous index snapshot was preserved; do not rely on stale indexed results.` });
   if (refreshed && freshness.status === "current") content.push({ type: "text", text: "CNM AUTO-UPDATE: the index was incrementally reconciled and verified before this read." });
