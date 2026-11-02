@@ -1004,7 +1004,10 @@ function gitFreshness(project: IndexedGitMetadata, current: ReturnType<typeof ge
   };
 }
 
-export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
+export function getIndexFreshness(
+  location: ProjectLocation,
+  discover: (rootPath: string, explicitExcludes: string[]) => DiscoveryResult = discoverFiles,
+): IndexFreshness {
   const db = openDatabase(location);
   try {
     const project = db.prepare("SELECT last_indexed_at, index_revision, index_excludes_json, relations_config_hash, indexed_commit, indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths FROM projects WHERE id = ?").get(location.id) as ({
@@ -1019,7 +1022,7 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
         skippedFiles: [], errors: [], limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS }, totals: { skippedFiles: 0, errors: 0 }, truncated: { skippedFiles: false, errors: false }, git };
     }
     const excludes = JSON.parse(project.index_excludes_json) as string[];
-    const discovery = discoverFiles(location.rootPath, excludes);
+    const discovery = discover(location.rootPath, excludes);
     const indexed = db.prepare("SELECT path, content_hash FROM files ORDER BY path").all() as Array<{ path: string; content_hash: string }>;
     const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
     const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed) !== project.relations_config_hash;
