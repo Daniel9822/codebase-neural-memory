@@ -364,10 +364,13 @@ interface PathAliasConfig {
 
 function loadPathAliasConfig(root: string): PathAliasConfig | undefined {
   const configPath = join(root, "tsconfig.json");
-  const read = ts.readConfigFile(configPath, readConfigTextSafely);
+  // TypeScript compares diagnostic source paths byte-for-byte on Windows;
+  // keep its internal config identity in canonical slash form.
+  const typescriptConfigPath = configPath.replaceAll("\\", "/");
+  const read = ts.readConfigFile(typescriptConfigPath, readConfigTextSafely);
   if (read.error) return undefined;
   const configDirectory = dirname(configPath);
-  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, configDirectory, undefined, configPath);
+  const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, configDirectory, undefined, typescriptConfigPath);
   const paths = parsed.options.paths;
   if (!paths) return undefined;
   return {
@@ -548,7 +551,6 @@ function resolveExtendedConfigPath(configPath: string, specifier: string): strin
 }
 
 function collectExtendedConfigPaths(rootPath: string): string[] {
-  const rootConfig = resolve(rootPath, "tsconfig.json");
   const visited = new Set<string>();
   const visit = (configPath: string): void => {
     const normalized = resolve(configPath);
@@ -615,7 +617,7 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
       reportReadFailure(path, error);
       continue;
     }
-    const parsed = ts.parseConfigFileTextToJson(path, text);
+    const parsed = ts.parseConfigFileTextToJson(path.replaceAll("\\", "/"), text);
     if (parsed.error) {
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") +
         ": invalid TypeScript configuration (" + ts.flattenDiagnosticMessageText(parsed.error.messageText, " ") + ").");
