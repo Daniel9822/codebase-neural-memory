@@ -229,6 +229,33 @@ describe("indexWithDatabase", () => {
     expect(after).toEqual(before);
   });
 
+  it("preserves indexed descendants when a nested .gitignore is replaced by a symlink", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src", "nested"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", ".gitignore"), "");
+    writeFileSync(join(location.rootPath, "src", "nested", "keep.ts"), "export const keep = true;");
+    writeFileSync(join(location.rootPath, "root.ts"), "export const root = true;");
+    updateProjectIndex(location);
+
+    const before = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
+    expect(before.map((row) => row.path)).toEqual(["root.ts", "src/nested/keep.ts"]);
+
+    const savedIgnore = join(temporaryDirectory, "saved-nested.gitignore");
+    const outsideIgnore = join(temporaryDirectory, "outside-nested.gitignore");
+    renameSync(join(location.rootPath, "src", ".gitignore"), savedIgnore);
+    writeFileSync(outsideIgnore, "*.ts\\n");
+    symlinkSync(outsideIgnore, join(location.rootPath, "src", ".gitignore"));
+    writeFileSync(join(location.rootPath, "new-root.ts"), "export const added = true;");
+
+    const summary = updateProjectIndex(location);
+    const after = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
+
+    expect(after.map((row) => row.path)).toContain("src/nested/keep.ts");
+    expect(after.map((row) => row.path)).toContain("new-root.ts");
+    expect(summary.failed).toBeGreaterThan(0);
+    expect(summary.deleted).toBe(0);
+  });
+
   it("supports additive custom exclusions without disabling mandatory safety exclusions", () => {
     createProject();
     mkdirSync(join(location.rootPath, "generated"), { recursive: true });
