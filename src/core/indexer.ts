@@ -244,10 +244,17 @@ function loadIgnoreRules(
   return error ? { ...scope, error } : scope;
 }
 
-function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
-  return scopes.some(({ directory, rules, mandatoryRules }) => {
+function isMandatoryExcluded(absolutePath: string, scopes: IgnoreScope[]): boolean {
+  return scopes.some(({ directory, mandatoryRules }) => {
+    if (!mandatoryRules) return false;
     const scopedPath = relative(directory, absolutePath).replaceAll("\\", "/");
-    if (mandatoryRules && (mandatoryRules.ignores(scopedPath) || mandatoryRules.ignores(scopedPath + "/"))) return true;
+    return mandatoryRules.ignores(scopedPath) || mandatoryRules.ignores(scopedPath + "/");
+  });
+}
+
+function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
+  return scopes.some(({ directory, rules }) => {
+    const scopedPath = relative(directory, absolutePath).replaceAll("\\", "/");
     return rules.ignores(scopedPath) || rules.ignores(scopedPath + "/");
   });
 }
@@ -346,20 +353,12 @@ export function discoverFiles(
         assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
         const absolutePath = join(directory, entry.name);
         const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
-        if (isIgnored(absolutePath, scopes)) continue;
-        if (entry.isDirectory() && selectedPaths.length > 0 &&
-          !selectedPaths.some((selected) => selected === relativePath || selected.startsWith(relativePath + "/") || relativePath.startsWith(selected + "/"))) continue;
+        if (isMandatoryExcluded(absolutePath, scopes)) continue;
         const selected = isWithinIndexScope(relativePath, selectedPaths, includeMatcher);
-        if (selected && isSupportedSourceFile(relativePath) &&
-          options.maxFiles !== undefined && scanned >= options.maxFiles) {
-          truncated = true;
-          stopped = true;
-          break;
-        }
         if (entry.isSymbolicLink()) {
-          // A directory symlink can hide previously indexed descendants. Protect
-          // its lexical scope so a full reconciliation cannot mistake those
-          // records for deleted files. Never follow the link to classify it.
+          // User ignore rules must not hide a symlink that could mask indexed
+          // descendants. Mandatory exclusions (for example node_modules) are
+          // handled separately above; all other symlinks protect their scope.
           protectedDirectories.add(relativePath);
           if (selected && isSupportedSourceFile(relativePath)) {
             scanned += 1;
@@ -367,6 +366,15 @@ export function discoverFiles(
             skippedFiles.push(relativePath + ": symbolic link");
           }
           continue;
+        }
+        if (isIgnored(absolutePath, scopes)) continue;
+        if (entry.isDirectory() && selectedPaths.length > 0 &&
+          !selectedPaths.some((selected) => selected === relativePath || selected.startsWith(relativePath + "/") || relativePath.startsWith(selected + "/"))) continue;
+        if (selected && isSupportedSourceFile(relativePath) &&
+          options.maxFiles !== undefined && scanned >= options.maxFiles) {
+          truncated = true;
+          stopped = true;
+          break;
         }
         if (entry.isDirectory()) {
           walk(absolutePath, scopes);
