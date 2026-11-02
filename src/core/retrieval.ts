@@ -102,6 +102,9 @@ export function searchSymbols(
   limit = 20,
   filters: SymbolSearchFilters = {},
 ): RankedSearchHit[] {
+  if (typeof query !== "string" || query.length > 1_000) {
+    throw new Error("Search query must be a string no longer than 1000 characters.");
+  }
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_SEARCH_RESULTS) {
     throw new Error("Search limit must be a positive safe integer no greater than 1000.");
   }
