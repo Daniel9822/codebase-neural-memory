@@ -140,4 +140,33 @@ describe("integrated CNM integrity regressions", () => {
     expect(freshness.relationsConfigChanged).toBe(true);
   });
 
+  it("continues to support an explicitly external TypeScript extends target", () => {
+    createProject();
+    const externalConfig = join(temporaryDirectory, "outside-tsconfig.json");
+    writeFileSync(externalConfig, JSON.stringify({ compilerOptions: { strict: true } }));
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: externalConfig }));
+    writeFileSync(join(location.rootPath, "main.ts"), "export function main() { return true; }");
+
+    const summary = indexProject(location);
+    expect(summary.added).toBe(1);
+    expect(getIndexFreshness(location).status).toBe("current");
+  });
+
+  it("continues to support package-manager symlinks under node_modules", () => {
+    createProject();
+    const externalPackage = join(temporaryDirectory, "external-config-package");
+    const packageDirectory = join(location.rootPath, "node_modules", "shared-config");
+    mkdirSync(externalPackage, { recursive: true });
+    mkdirSync(join(location.rootPath, "node_modules"), { recursive: true });
+    writeFileSync(join(externalPackage, "package.json"), JSON.stringify({ tsconfig: "tsconfig.json" }));
+    writeFileSync(join(externalPackage, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true } }));
+    symlinkSync(externalPackage, packageDirectory, "dir");
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "shared-config" }));
+    writeFileSync(join(location.rootPath, "main.ts"), "export function main() { return true; }");
+
+    const summary = indexProject(location);
+    expect(summary.added).toBe(1);
+    expect(getIndexFreshness(location).status).toBe("current");
+  });
+
 });
