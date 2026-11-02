@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { builtinModules } from "node:module";
 import { lstatSync, realpathSync } from "node:fs";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
