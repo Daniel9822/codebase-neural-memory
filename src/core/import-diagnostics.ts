@@ -118,12 +118,108 @@ function readTypeScriptInputSafely(candidatePath: string, projectRoot: string): 
   }
 }
 
+function isWithinPath(candidate: string, parent: string): boolean {
+  const relativePath = relative(parent, candidate);
+  return relativePath === "" || (relativePath !== ".." && !relativePath.startsWith(".." + sep) && !isAbsolute(relativePath));
+}
+
+/**
+ * Restrict TypeScript's path-based discovery APIs as well as its file reads.
+ * Physical package-manager targets are admitted only after a lexical path
+ * beneath this project's node_modules has resolved to that directory.
+ */
 function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: string): ts.CompilerHost {
+  const root = realpathSync(projectRoot);
   const host = ts.createCompilerHost(options);
-  host.fileExists = (path) => readTypeScriptInputSafely(path, projectRoot) !== undefined;
-  host.readFile = (path) => readTypeScriptInputSafely(path, projectRoot);
+  const trustedExternalDirectories = new Set<string>();
+  const defaultGetDirectories = host.getDirectories.bind(host);
+  const defaultReadDirectory = host.readDirectory.bind(host);
+
+  // TypeScript's own standard library is a fixed, installation-derived root.
+  try {
+    trustedExternalDirectories.add(realpathSync(dirname(ts.getDefaultLibFilePath(options))));
+  } catch {
+    // If the compiler library cannot be canonicalized, its inputs fail closed.
+  }
+
+  const isPackageManagerPath = (absolute: string): boolean =>
+    isWithinPath(absolute, root) &&
+    relative(root, absolute).split(sep).includes("node_modules");
+
+  const isSafeDirectory = (candidate: string): boolean => {
+    try {
+      const absolute = resolve(candidate);
+      if (isWithinPath(absolute, root)) {
+        const relativeDirectory = relative(root, absolute);
+        let current = root;
+        for (const segment of relativeDirectory.split(sep).filter(Boolean)) {
+          current = join(current, segment);
+          const identity = lstatSync(current);
+          if (identity.isSymbolicLink()) {
+            if (!isPackageManagerPath(current)) return false;
+            const canonical = realpathSync(current);
+            if (lstatSync(canonical).isDirectory()) trustedExternalDirectories.add(canonical);
+          } else if (!identity.isDirectory()) {
+            return false;
+          }
+        }
+        return true;
+      }
+      return [...trustedExternalDirectories].some((trusted) => isWithinPath(absolute, trusted)) &&
+        lstatSync(absolute).isDirectory();
+    } catch {
+      return false;
+    }
+  };
+
+  const isSafeFileCandidate = (candidate: string): boolean => {
+    try {
+      const absolute = resolve(candidate);
+      if (!isSafeDirectory(dirname(absolute))) return false;
+      const identity = lstatSync(absolute);
+      return identity.isFile() && !identity.isSymbolicLink();
+    } catch {
+      return false;
+    }
+  };
+
+  host.directoryExists = (directoryName) => isSafeDirectory(directoryName);
+  host.getDirectories = (path) => {
+    if (!isSafeDirectory(path)) return [];
+    return defaultGetDirectories(path).filter((entry) => isSafeDirectory(join(path, entry)));
+  };
+  host.readDirectory = (path, extensions, excludes, includes, depth) => {
+    if (!isSafeDirectory(path)) return [];
+    return defaultReadDirectory(path, extensions, excludes, includes, depth)
+      .filter((entry) => isSafeFileCandidate(entry));
+  };
+  host.realpath = (path) => {
+    const absolute = resolve(path);
+    if (!isSafeDirectory(dirname(absolute)) && !isSafeDirectory(absolute)) {
+      throw new Error("TypeScript path resolution crossed an untrusted directory.");
+    }
+    const canonical = realpathSync(absolute);
+    if (isPackageManagerPath(absolute) && lstatSync(absolute).isSymbolicLink() &&
+        lstatSync(canonical).isDirectory()) {
+      trustedExternalDirectories.add(canonical);
+    }
+    if (!isWithinPath(canonical, root) &&
+        ![...trustedExternalDirectories].some((trusted) => isWithinPath(canonical, trusted))) {
+      throw new Error("TypeScript path resolution escaped approved roots.");
+    }
+    return canonical;
+  };
+  host.fileExists = (path) => isSafeFileCandidate(path) &&
+    readTypeScriptInputSafely(path, root) !== undefined;
+  host.readFile = (path) => isSafeFileCandidate(path)
+    ? readTypeScriptInputSafely(path, root)
+    : undefined;
   host.getSourceFile = (fileName, languageVersionOrOptions, onError) => {
-    const text = readTypeScriptInputSafely(fileName, projectRoot);
+    if (!isSafeFileCandidate(fileName)) {
+      onError?.("File is outside the approved TypeScript resolution roots.");
+      return undefined;
+    }
+    const text = readTypeScriptInputSafely(fileName, root);
     if (text === undefined) {
       onError?.("File could not be safely read.");
       return undefined;
