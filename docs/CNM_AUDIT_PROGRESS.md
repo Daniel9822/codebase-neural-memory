@@ -1,32 +1,27 @@
 # CNM Audit Progress
 
-Audit started 2026-11-02 against main. Source inspection has identified follow-up verification required for CNM-01 through CNM-06. No implementation item is closed until regression tests and CI evidence are recorded.
+Audit started 2026-11-02. This is the live implementation ledger for CNM-01 through CNM-06. A merged change closes only the behavior covered by its evidence; broader workstream closure requires the remaining call-site audit and combined regression tests.
 
-- [ ] CNM-01 relation configuration freshness: inspect inputs and verify tests.
-- [ ] CNM-02 directory symlink protection: test replacement of indexed directory with symlink.
-- [ ] CNM-03 selective reconciliation: audit every destructive path under incomplete discovery.
-- [ ] CNM-04 MCP read consistency: audit snapshot checks around reads.
-- [ ] CNM-05 safe file reads: audit path validation/open/read sequence.
-- [ ] CNM-06 deterministic bounded selection: audit candidate ordering and truncation.
+## Current status
 
-## Progress update — CNM-02
+- [x] **CNM-01 — Relation configuration freshness (PR #82):** freshness now fingerprints root and transitive extended TypeScript configs plus relevant project package manifests; configuration-only drift marks the index stale until a successful rebuild. CI run 41406437168 passed typecheck, tests, build, smoke, and benchmark jobs on supported runners. Merge: `2dc4c51c3dfad03a41ec6af6798bff4702dbb92e`.
+- [x] **CNM-02 — Directory symlink replacement (PR #75):** a directory symlink scope is protected, and full reconciliation aborts rather than deleting previously indexed descendants. CI run 41404323034 passed. Merge: `3d7d94de32151b1f891308d7e661c945cfd694b9`. Remaining: audit other symlink scopes and combined failure paths.
+- [x] **CNM-03 — Complete snapshot at full-index entry points (PR #79):** the CLI-facing `indexProject` path now requires a complete snapshot for unscoped runs; selective/budgeted runs remain non-destructive. CI run 41405788148 passed. Merge: `7b1f4b8b9edb4d1a8c73db1cac4ad38c9bbdaaf9`. Remaining: audit every destructive reconciliation path and failure injection cases.
+- [x] **CNM-04 — Post-read freshness (PR #77):** indexed reads revalidate after the operation; strict mode refuses changed/unverifiable snapshots and non-strict mode warns. Deterministic mutation tests cover both modes. CI run 41405092697 passed. Merge: `e5fffa774c180aa45ea60195cf28dead2ea51f10`. Remaining: broader cross-process and multi-handler verification.
+- [x] **CNM-05 — Safe source excerpt open/read (PR #76):** reads use a verified file descriptor, post-open containment and file identity checks; outside-root symlink substitution is rejected. CI run 41404690251 passed. Merge: `da7e7fd90a15a39af551237ca7c3ee6868ccc43a`. Remaining: audit all other path-based reads and add deterministic race injection where feasible.
+- [x] **CNM-06 — Deterministic bounded discovery (PR #84):** directory entries are sorted before `maxFiles` selection; when `maxProcessed` or the directory sorting safety cap is exceeded, indexing aborts before writes instead of committing an order-dependent partial set. Shuffled-creation-order regression coverage passed. CI run 41407210746 passed typecheck, tests, build, smoke, and benchmark jobs on Ubuntu, Windows, and macOS. Merge: `14b9d59ad397cd4357759da8b48ba7b91f4dac37`. Remaining: audit other bounded retrieval paths and complete combined CNM-01–CNM-06 regression coverage.
 
-- [x] CNM-02 directory symlink protection implemented and merged in PR #75.
-- Regression: index a real directory, replace it with a symlink to an outside directory, run full index update, verify it aborts and retains the prior indexed file row.
-- CI: run 41404323034 passed on Ubuntu and Windows for typecheck, full tests, build, and smoke; benchmark jobs passed on Ubuntu, Windows, and macOS.
-- Merge commit: `3d7d94de32151b1f891308d7e661c945cfd694b9`.
-- Remaining qualification: this closes the tested directory-replacement case. Continue auditing other symlink scopes and combined failure cases before declaring the full integrity workstream complete.
+## Required close-out for the integrity workstream
 
-## Progress update — CNM-05 and CNM-06 audit
+- [ ] Audit every path-based filesystem read/open for TOCTOU and root-containment guarantees.
+- [ ] Audit every full/selective/budgeted index path and every destructive reconciliation call site.
+- [ ] Add combined tests for directory symlink replacement, incomplete discovery, source drift, and relation configuration drift.
+- [ ] Verify freshness/error semantics when configuration files are missing, malformed, or unreadable.
+- [ ] Review all bounded candidate selection paths beyond file discovery for deterministic ordering and stable tie-breakers.
+- [ ] Run final clean-checkout CI on the integrated main state and update the master checklist with final evidence.
 
-- [ ] CNM-05 safe file reads: PR #76 opened with descriptor-based reads, post-open canonical containment, file identity checks, and an outside-root symlink substitution regression. CI run 41404690251 is in progress; the first run exposed a malformed test fixture, which was corrected in the current head. Keep the item open until the latest CI passes and the remaining filesystem read sites are audited.
-- [ ] CNM-06 deterministic limits: source inspection found that `discoverFiles` streams raw directory enumeration order and stops when `maxFiles` / `maxProcessed` budgets are reached, sorting only the selected output afterward. This can make the selected subset depend on filesystem enumeration order. Design a deterministic bounded policy that does not silently violate the processing budget, then add shuffled-order regression tests.
+## Evidence policy
 
-## Progress update — CNM-05 merged
-
-- [x] CNM-05 source-excerpt read now uses an opened descriptor, post-open canonical containment and file identity checks, and closes the descriptor in a `finally` block.
-- Regression: replacing an indexed source file with a symlink outside the project is rejected.
-- CI: run 41404690251 passed typecheck, tests, build, and smoke on Ubuntu and Windows; benchmark jobs passed on Ubuntu, Windows, and macOS.
-- Merge commit: `da7e7fd90a15a39af551237ca7c3ee6868ccc43a`.
-- Remaining scope: audit other filesystem reads and add deterministic race injection where feasible. CNM-05 is not fully closed until those call sites and platform limitations are reviewed.
-
+- A checked item means the cited PR is merged and the referenced CI passed for that PR head.
+- A partially addressed risk remains open under the broader close-out list above.
+- No local test execution is claimed; validation evidence is from GitHub Actions run records.
