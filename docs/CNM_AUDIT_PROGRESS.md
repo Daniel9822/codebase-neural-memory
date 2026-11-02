@@ -41,7 +41,6 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Switch the CLI to the shared bounded `getProjectMapReport` contract: 1–200 files, 200 nested rows per file, 200 candidates per import, and 2,000 candidate paths globally.
 - [x] Surface exact file/candidate truncation and TypeScript import diagnostics in CLI output; candidate evidence remains fully persisted in SQLite.
 - [x] Verify CI run 41434244151 passed and merge PR #112 (`b20429746fcb77c95856673baa52381854a42701`); continue auditing remaining CLI and MCP retrieval entry points.
-- [x] Verify CI (runs 41431584105 and 41431576683 passed) and merge PR #110 (`da169033995f6c295aad0f28065968b367f1ad90`); the broader MCP output-contract audit remains open.
 
 
 ### CNM-06 follow-up — file_details candidate output budget (2026-11-02)
