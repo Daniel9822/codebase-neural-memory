@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProjectLocation } from "../src/core/project.js";
@@ -67,4 +67,56 @@ describe("post-read freshness validation", () => {
     expect(response.content[0]!.text).toContain("returned with warning");
     expect(response.content.some((item) => item.text.includes("CNM POST-READ FRESHNESS WARNING"))).toBe(true);
   });
+  it("refuses strict results when a separate database connection advances the index during the read", () => {
+    createProject();
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    const secondHandlerDatabase = openDatabase(location);
+    try {
+      const response = readResponse(location, { strictFreshness: true }, () => {
+        indexWithDatabase(secondHandlerDatabase, location, true);
+        return { result: "must not span two index revisions" };
+      });
+
+      expect(response.isError).toBe(true);
+      const refusal = JSON.parse(response.content[0]!.text) as {
+        status: string;
+        readSnapshot: { preflightRevision: number; postReadRevision: number | null; revisionChanged: boolean };
+      };
+      expect(refusal.status).toBe("refused");
+      expect(refusal.readSnapshot.preflightRevision).toBe(beforeRevision);
+      expect(refusal.readSnapshot.postReadRevision).toBeGreaterThan(beforeRevision);
+      expect(refusal.readSnapshot.revisionChanged).toBe(true);
+      expect(response.content[0]!.text).not.toContain("must not span two index revisions");
+    } finally {
+      secondHandlerDatabase.close();
+    }
+  });
+
+  it("refuses a strict read when discovery becomes incomplete during the operation", () => {
+    createProject();
+    const sourceDirectory = join(location.rootPath, "src");
+    const savedDirectory = join(temporaryDirectory, "saved-src");
+    const outsideDirectory = join(temporaryDirectory, "outside-src");
+    mkdirSync(sourceDirectory, { recursive: true });
+    writeFileSync(join(sourceDirectory, "nested.ts"), "export const nested = true;");
+    indexWithDatabase(database!, location);
+
+    const response = readResponse(location, { strictFreshness: true }, () => {
+      renameSync(sourceDirectory, savedDirectory);
+      mkdirSync(outsideDirectory, { recursive: true });
+      writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;");
+      symlinkSync(outsideDirectory, sourceDirectory, "dir");
+      return { result: "must not be served after discovery becomes incomplete" };
+    });
+
+    expect(response.isError).toBe(true);
+    const refusal = JSON.parse(response.content[0]!.text) as {
+      status: string;
+      staleness: { status: string };
+    };
+    expect(refusal.status).toBe("refused");
+    expect(refusal.staleness.status).toBe("incomplete");
+    expect(response.content[0]!.text).not.toContain("must not be served after discovery becomes incomplete");
+  });
+
 });

@@ -121,6 +121,32 @@ describe("indexWithDatabase", () => {
     expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([]);
   });
 
+  it("reports incomplete freshness without deleting indexed paths when a directory exceeds the sorting cap", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "main.ts"), "export function main() { return true; }");
+    indexWithDatabase(database!, location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    const entries = Array.from({ length: 100_001 }, (_, index) => ({
+      name: `entry-${String(index).padStart(6, "0")}.ts`,
+    }));
+    const openDirectory = () => {
+      let cursor = 0;
+      return {
+        readSync: () => entries[cursor++] ?? null,
+        closeSync: () => undefined,
+      } as unknown as ReturnType<typeof opendirSync>;
+    };
+    const freshness = getIndexFreshness(location, (rootPath, excludes) =>
+      discoverFiles(rootPath, excludes, {}, openDirectory));
+
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.checkedFiles).toBe(0);
+    expect(freshness.deletedFiles).toBe(0);
+    expect(freshness.fileChanges).toEqual([]);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+  }, 30_000);
+
   it("selects the same maxFiles subset regardless of directory insertion order", () => {
     createProject();
     for (const name of ["z.ts", "m.ts", "a.ts"]) {
@@ -413,55 +439,63 @@ describe("indexWithDatabase", () => {
     writeFileSync(join(location.rootPath, "src", "main.ts"),
       'import { helper } from "@/helper";\nexport function run() { return helper(); }');
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
+    }));
+    indexProject(location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
+      .toEqual({ count: 1 });
+
     const outsideConfig = join(temporaryDirectory, "outside-tsconfig.json");
     writeFileSync(outsideConfig, JSON.stringify({
       compilerOptions: { baseUrl: ".", paths: { "@/*": ["repository/src/*"] } },
     }));
+    rmSync(join(location.rootPath, "tsconfig.json"));
     symlinkSync(outsideConfig, join(location.rootPath, "tsconfig.json"));
 
-    indexWithDatabase(database!, location);
-
-    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
-      .toEqual({ count: 0 });
-    // The diagnostic pass must not bypass the verified config reader and
-    // follow the same final-component symlink through TypeScript's default host.
-    expect(database!.prepare("SELECT module_specifier, kind FROM import_diagnostics").all())
-      .toEqual([{ module_specifier: "@/helper", kind: "missing-package" }]);
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("tsconfig.json"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["src/main.ts"] })).toThrow(/relation configuration is incomplete/i);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
+      .toEqual({ count: 1 });
   });
 
   it("marks malformed package metadata for an extended config as incomplete", () => {
     createProject();
-    mkdirSync(join(location.rootPath, "node_modules", "shared-config"), { recursive: true });
+    const packageDirectory = join(location.rootPath, "node_modules", "shared-config");
+    mkdirSync(packageDirectory, { recursive: true });
     writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "shared-config" }));
-    writeFileSync(join(location.rootPath, "node_modules", "shared-config", "package.json"), '{"tsconfig": ');
-    writeFileSync(join(location.rootPath, "node_modules", "shared-config", "tsconfig.json"),
-      JSON.stringify({ compilerOptions: { strict: true } }));
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ tsconfig: "tsconfig.json" }));
+    writeFileSync(join(packageDirectory, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true } }));
     writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+    indexProject(location);
 
-    indexWithDatabase(database!, location);
-
+    writeFileSync(join(packageDirectory, "package.json"), '{"tsconfig": ');
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("node_modules/shared-config/package.json"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
   });
 
   it("marks non-string package tsconfig metadata for an extended config as incomplete", () => {
     createProject();
-    mkdirSync(join(location.rootPath, "node_modules", "shared-config"), { recursive: true });
+    const packageDirectory = join(location.rootPath, "node_modules", "shared-config");
+    mkdirSync(packageDirectory, { recursive: true });
     writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "shared-config" }));
-    writeFileSync(join(location.rootPath, "node_modules", "shared-config", "package.json"), JSON.stringify({ tsconfig: 42 }));
-    writeFileSync(join(location.rootPath, "node_modules", "shared-config", "tsconfig.json"),
-      JSON.stringify({ compilerOptions: { strict: true } }));
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ tsconfig: "tsconfig.json" }));
+    writeFileSync(join(packageDirectory, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true } }));
     writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+    indexProject(location);
 
-    indexWithDatabase(database!, location);
-
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ tsconfig: 42 }));
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("node_modules/shared-config/package.json"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
   });
 
   it("does not consume an extended TypeScript config through a final symlink", () => {
@@ -471,52 +505,99 @@ describe("indexWithDatabase", () => {
       'import { helper } from "@/helper";\nexport function run() { return helper(); }');
     writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
     writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./tsconfig.base.json" }));
+    writeFileSync(join(location.rootPath, "tsconfig.base.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: {} },
+    }));
+    indexProject(location);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
+      .toEqual({ count: 0 });
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+
     const outsideConfig = join(temporaryDirectory, "outside-tsconfig.json");
     writeFileSync(outsideConfig, JSON.stringify({
       compilerOptions: { baseUrl: ".", paths: { "@/*": ["repository/src/*"] } },
     }));
+    rmSync(join(location.rootPath, "tsconfig.base.json"));
     symlinkSync(outsideConfig, join(location.rootPath, "tsconfig.base.json"));
 
-    indexWithDatabase(database!, location);
-
-    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
-      .toEqual({ count: 0 });
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("tsconfig.base.json"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["src/main.ts"] })).toThrow(/relation configuration is incomplete/i);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
   });
 
   it("marks malformed TypeScript relation configuration as incomplete", () => {
     createProject();
-    writeFileSync(join(location.rootPath, "tsconfig.json"), '{"compilerOptions": {');
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ compilerOptions: {} }));
     writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
-    indexWithDatabase(database!, location);
+    indexProject(location);
 
+    writeFileSync(join(location.rootPath, "tsconfig.json"), '{"compilerOptions": {');
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("tsconfig.json") && error.includes("invalid TypeScript configuration"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
   });
 
   it("marks missing extended TypeScript configuration as incomplete", () => {
     createProject();
     writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./tsconfig.missing.json" }));
+    writeFileSync(join(location.rootPath, "tsconfig.missing.json"), JSON.stringify({ compilerOptions: { strict: true } }));
     writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
-    indexWithDatabase(database!, location);
+    indexProject(location);
 
+    rmSync(join(location.rootPath, "tsconfig.missing.json"));
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("tsconfig.missing.json") && error.includes("ENOENT"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
+  });
+
+  it("rolls back a scoped update when relation configuration changes after preflight", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"),
+      'import { helper } from "@/helper";\nexport function run() { return helper(); }');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+    const configPath = join(location.rootPath, "tsconfig.json");
+    writeFileSync(configPath, JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
+    }));
+    indexProject(location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    const beforeHash = (database!.prepare("SELECT content_hash FROM files WHERE path = 'src/main.ts'").get() as { content_hash: string }).content_hash;
+    const beforeRelations = database!.prepare("SELECT kind, source_id, target_id FROM relations ORDER BY kind, source_id, target_id").all();
+
+    writeFileSync(join(location.rootPath, "src", "main.ts"),
+      'import { helper } from "@/helper";\nexport function run() { return helper() ? false : true; }');
+    expect(() => indexWithDatabase(database!, location, false, [], { paths: ["src/main.ts"] }, () => {
+      writeFileSync(configPath, JSON.stringify({
+        compilerOptions: { baseUrl: ".", paths: { "@/*": ["generated/*"] } },
+      }));
+    })).toThrow(/relation configuration changed during indexing/i);
+
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+    expect((database!.prepare("SELECT content_hash FROM files WHERE path = 'src/main.ts'").get() as { content_hash: string }).content_hash)
+      .toBe(beforeHash);
+    expect(database!.prepare("SELECT kind, source_id, target_id FROM relations ORDER BY kind, source_id, target_id").all())
+      .toEqual(beforeRelations);
+    expect(getIndexFreshness(location).status).toBe("stale");
   });
 
   it("marks malformed package manifests used by relation resolution as incomplete", () => {
     createProject();
-    writeFileSync(join(location.rootPath, "package.json"), '{"name": ');
+    writeFileSync(join(location.rootPath, "package.json"), JSON.stringify({ name: "fixture" }));
     writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
-    indexWithDatabase(database!, location);
+    indexProject(location);
 
+    writeFileSync(join(location.rootPath, "package.json"), '{"name": ');
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("package.json") && error.includes("invalid or unreadable"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
   });
 
   it("rebuilds graph relations when TypeScript/package configuration changes without source edits", () => {

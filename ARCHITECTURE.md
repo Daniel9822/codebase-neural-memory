@@ -62,7 +62,7 @@ MCP exposes read/retrieval tools plus two explicit local write operations throug
 - `source_excerpt` — bounded source lines with current/indexed hash comparison.
 - `change_impact` — bounded reverse-import impact traversal.
 - `task_context` — deterministic, bounded task-oriented context from indexed facts and memories.
-- `memory_freshness` — source-file fingerprint and Git commit-ancestry inspection for linked or commit-referenced memories.
+- `memory_freshness` — bounded source-file fingerprint and Git commit-ancestry inspection for linked or commit-referenced memories (default 100, maximum 500; total and truncation are explicit).
 - `memory_recall` — bounded lexical retrieval with lifecycle labels, filters, and explicit candidate-window truncation metadata. The 5,000-record candidate ceiling is reported rather than silently presented as complete.
 - `memory_propose` — stores an agent suggestion only as `proposed`; explicit human confirmation is still required.
 

@@ -6,7 +6,7 @@ import { ensureProject, openDatabase } from "../storage/database.js";
 import { getProjectLocation, resolveProjectRoot } from "../core/project.js";
 import { getIndexFreshness, indexProject } from "../core/indexer.js";
 import { explainSymbol, getComponentMap, findDependencies, findImpact, findSymbolImpact, getFileDetails, getProjectMapReport, getProjectOverview, getSymbolRelations, searchSymbols } from "../core/retrieval.js";
-import { deleteMemory, inspectMemoryFreshness, proposeMemory, recallMemories, remember, transitionMemory, updateMemory, type MemoryStatus } from "../core/memories.js";
+import { deleteMemory, getMemoryFreshnessReport, proposeMemory, recallMemories, remember, transitionMemory, updateMemory, type MemoryStatus } from "../core/memories.js";
 import { startMcpServer } from "../adapters/mcp/server.js";
 import { parsePositiveInteger } from "../shared/validation.js";
 import { buildTaskContext } from "../core/context.js";
@@ -309,9 +309,10 @@ memory.command("transition <id> <status>")
   });
 
 memory.command("freshness")
-  .description("Check source-file fingerprints and referenced Git commits for project memories.")
-  .action(() => {
-    console.log(JSON.stringify(inspectMemoryFreshness(ensureInitialized()), null, 2));
+  .description("Check bounded source-file fingerprints and referenced Git commits for project memories.")
+  .option("--limit <limit>", "Maximum memory records to inspect (1–500).", parsePositiveInteger, 100)
+  .action((options: { limit: number }) => {
+    console.log(JSON.stringify(getMemoryFreshnessReport(ensureInitialized(), options.limit), null, 2));
   });
 
 memory.command("delete <id>")

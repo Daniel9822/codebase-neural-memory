@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { basename, extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -42,10 +42,53 @@ function compareCodeUnits(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
 
-function readConfigBytesSafely(candidatePath: string): Buffer {
-  // Resolve the containing directory first, then address the final component
-  // under that canonical directory. This permits intentional external
-  // TypeScript "extends" paths while refusing a final-component symlink.
+function assertNoSymlinkedConfigParents(candidatePath: string, projectRoot: string): void {
+  const root = realpathSync(projectRoot);
+  const absoluteCandidate = resolve(candidatePath);
+  const relativeCandidate = relative(root, absoluteCandidate).replaceAll("\\", "/");
+  // Explicit external TypeScript "extends" targets remain supported. For
+  // project-local config paths, do not let a directory symlink redirect the
+  // final safe read outside the lexical project tree. Package-manager links
+  // under node_modules are an intentional dependency-resolution boundary.
+  if (relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
+      isAbsolute(relativeCandidate)) return;
+  const relativeParent = relative(root, dirname(absoluteCandidate)).replaceAll("\\", "/");
+  let current = root;
+  for (const segment of relativeParent.split("/").filter(Boolean)) {
+    current = join(current, segment);
+    const identity = lstatSync(current);
+    const currentRelative = relative(root, current).replaceAll("\\", "/");
+    if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
+      throw new Error("Configuration path traverses a symbolic-link directory.");
+    }
+    if (!identity.isDirectory() && !identity.isSymbolicLink()) {
+      throw new Error("Configuration parent is not a directory.");
+    }
+  }
+}
+
+function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buffer {
+  assertNoSymlinkedConfigParents(candidatePath, projectRoot);
+  const root = realpathSync(projectRoot);
+  const absoluteCandidate = resolve(candidatePath);
+  const relativeCandidate = relative(root, absoluteCandidate).replaceAll("\\", "/");
+  const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
+    isAbsolute(relativeCandidate);
+  const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
+  if (!external && !packageManagerPath) {
+    // Keep project-local config reads rooted at the canonical project. This
+    // makes a parent-directory substitution fail containment during open/read.
+    const read = readFileWithinRoot(root, absoluteCandidate, {
+      canonicalRoot: root,
+      rejectFinalSymlink: true,
+    });
+    // Recheck parent components after the descriptor-bound read to detect
+    // substitutions that occurred after the pre-open path inspection.
+    assertNoSymlinkedConfigParents(candidatePath, projectRoot);
+    return read.content;
+  }
+  // Explicit external "extends" paths and package-manager links under
+  // node_modules remain supported as separate, intentional trust boundaries.
   const canonicalParent = realpathSync(dirname(candidatePath));
   const canonicalCandidate = join(canonicalParent, basename(candidatePath));
   return readFileWithinRoot(canonicalParent, canonicalCandidate, {
@@ -54,22 +97,23 @@ function readConfigBytesSafely(candidatePath: string): Buffer {
   }).content;
 }
 
-function readConfigTextSafely(candidatePath: string): string | undefined {
+function readConfigTextSafely(candidatePath: string, projectRoot: string): string | undefined {
   try {
-    return readConfigBytesSafely(candidatePath).toString("utf8");
+    return readConfigBytesSafely(candidatePath, projectRoot).toString("utf8");
   } catch {
     return undefined;
   }
 }
 
-function isExtendedConfigCandidate(candidatePath: string): boolean {
+function isExtendedConfigCandidate(candidatePath: string, projectRoot: string): boolean {
   try {
+    assertNoSymlinkedConfigParents(candidatePath, projectRoot);
     const candidateStat = lstatSync(candidatePath);
     // Preserve unsafe candidates for the diagnostic pass; never follow a
     // final-component symlink merely to decide which config path to inspect.
     if (candidateStat.isSymbolicLink()) return true;
     if (!candidateStat.isFile()) return false;
-    readConfigBytesSafely(candidatePath);
+    readConfigBytesSafely(candidatePath, projectRoot);
     return true;
   } catch (error) {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
@@ -200,10 +244,17 @@ function loadIgnoreRules(
   return error ? { ...scope, error } : scope;
 }
 
-function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
-  return scopes.some(({ directory, rules, mandatoryRules }) => {
+function isMandatoryExcluded(absolutePath: string, scopes: IgnoreScope[]): boolean {
+  return scopes.some(({ directory, mandatoryRules }) => {
+    if (!mandatoryRules) return false;
     const scopedPath = relative(directory, absolutePath).replaceAll("\\", "/");
-    if (mandatoryRules && (mandatoryRules.ignores(scopedPath) || mandatoryRules.ignores(scopedPath + "/"))) return true;
+    return mandatoryRules.ignores(scopedPath) || mandatoryRules.ignores(scopedPath + "/");
+  });
+}
+
+function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
+  return scopes.some(({ directory, rules }) => {
+    const scopedPath = relative(directory, absolutePath).replaceAll("\\", "/");
     return rules.ignores(scopedPath) || rules.ignores(scopedPath + "/");
   });
 }
@@ -302,20 +353,12 @@ export function discoverFiles(
         assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
         const absolutePath = join(directory, entry.name);
         const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
-        if (isIgnored(absolutePath, scopes)) continue;
-        if (entry.isDirectory() && selectedPaths.length > 0 &&
-          !selectedPaths.some((selected) => selected === relativePath || selected.startsWith(relativePath + "/") || relativePath.startsWith(selected + "/"))) continue;
+        if (isMandatoryExcluded(absolutePath, scopes)) continue;
         const selected = isWithinIndexScope(relativePath, selectedPaths, includeMatcher);
-        if (selected && isSupportedSourceFile(relativePath) &&
-          options.maxFiles !== undefined && scanned >= options.maxFiles) {
-          truncated = true;
-          stopped = true;
-          break;
-        }
         if (entry.isSymbolicLink()) {
-          // A directory symlink can hide previously indexed descendants. Protect
-          // its lexical scope so a full reconciliation cannot mistake those
-          // records for deleted files. Never follow the link to classify it.
+          // User ignore rules must not hide a symlink that could mask indexed
+          // descendants. Mandatory exclusions (for example node_modules) are
+          // handled separately above; all other symlinks protect their scope.
           protectedDirectories.add(relativePath);
           if (selected && isSupportedSourceFile(relativePath)) {
             scanned += 1;
@@ -323,6 +366,15 @@ export function discoverFiles(
             skippedFiles.push(relativePath + ": symbolic link");
           }
           continue;
+        }
+        if (isIgnored(absolutePath, scopes)) continue;
+        if (entry.isDirectory() && selectedPaths.length > 0 &&
+          !selectedPaths.some((selected) => selected === relativePath || selected.startsWith(relativePath + "/") || relativePath.startsWith(selected + "/"))) continue;
+        if (selected && isSupportedSourceFile(relativePath) &&
+          options.maxFiles !== undefined && scanned >= options.maxFiles) {
+          truncated = true;
+          stopped = true;
+          break;
         }
         if (entry.isDirectory()) {
           walk(absolutePath, scopes);
@@ -430,10 +482,10 @@ function loadPathAliasConfig(root: string): PathAliasConfig | undefined {
   // TypeScript compares diagnostic source paths byte-for-byte on Windows;
   // keep its internal config identity in canonical slash form.
   const typescriptConfigPath = configPath.replaceAll("\\", "/");
-  const read = ts.readConfigFile(typescriptConfigPath, readConfigTextSafely);
+  const read = ts.readConfigFile(typescriptConfigPath, (path) => readConfigTextSafely(path, root));
   if (read.error) return undefined;
   const configDirectory = dirname(configPath);
-  const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: readConfigTextSafely };
+  const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: (path) => readConfigTextSafely(path, root), readDirectory: () => [] };
   const parsed = ts.parseJsonConfigFileContent(read.config, configHost, configDirectory, undefined, typescriptConfigPath);
   const paths = parsed.options.paths;
   if (!paths) return undefined;
@@ -481,7 +533,7 @@ function readLocalPackages(rootPath: string, files: Array<{ id: number; path: st
   const packages = new Map<string, LocalPackage[]>();
   for (const packageRoot of [...packageRoots].sort((a, b) => compareCodeUnits(a, b))) {
     try {
-      const manifest = JSON.parse(readConfigBytesSafely(join(packageRoot, "package.json")).toString("utf8")) as { name?: unknown; exports?: unknown };
+      const manifest = JSON.parse(readConfigBytesSafely(join(packageRoot, "package.json"), root).toString("utf8")) as { name?: unknown; exports?: unknown };
       if (typeof manifest.name !== "string" || !manifest.name) continue;
       const entries = packages.get(manifest.name) ?? [];
       entries.push({ root: packageRoot, exports: manifest.exports });
@@ -570,18 +622,18 @@ function expandSourceCandidates(base: string): string[] {
 }
 
 function hasExtendedTsConfig(rootPath: string): boolean {
-  const config = ts.readConfigFile(join(rootPath, "tsconfig.json"), readConfigTextSafely);
+  const config = ts.readConfigFile(join(rootPath, "tsconfig.json"), (path) => readConfigTextSafely(path, rootPath));
   return !config.error && Boolean(config.config && typeof config.config === "object" &&
     "extends" in config.config);
 }
 
-function resolveExtendedConfigPath(configPath: string, specifier: string): string {
+function resolveExtendedConfigPath(configPath: string, specifier: string, projectRoot: string, visitedConfigPaths: Set<string>): string {
   const absoluteSpecifier = isAbsolute(specifier);
   const relativeSpecifier = specifier.startsWith(".") || absoluteSpecifier;
   if (relativeSpecifier) {
     const base = absoluteSpecifier ? resolve(specifier) : resolve(dirname(configPath), specifier);
     const candidates = /\\.json$/i.test(base) ? [base] : [base, base + ".json", join(base, "tsconfig.json")];
-    return candidates.find(isExtendedConfigCandidate) ?? candidates[0]!;
+    return candidates.find((candidate) => isExtendedConfigCandidate(candidate, projectRoot)) ?? candidates[0]!;
   }
 
   const parts = specifier.split("/");
@@ -591,14 +643,15 @@ function resolveExtendedConfigPath(configPath: string, specifier: string): strin
   while (true) {
     const packageRoot = join(directory, "node_modules", packageName);
     const packageJson = join(packageRoot, "package.json");
+    if (!subpath) visitedConfigPaths.add(resolve(packageJson));
     const candidates = subpath
       ? (/\\.json$/i.test(subpath)
           ? [join(packageRoot, subpath)]
           : [join(packageRoot, subpath), join(packageRoot, subpath + ".json"), join(packageRoot, subpath, "tsconfig.json")])
       : [join(packageRoot, "tsconfig.json")];
     try {
-      if (!subpath && existsSync(packageJson)) {
-        const manifestValue: unknown = JSON.parse(readConfigBytesSafely(packageJson).toString("utf8"));
+      if (!subpath) {
+        const manifestValue: unknown = JSON.parse(readConfigBytesSafely(packageJson, projectRoot).toString("utf8"));
         if (!manifestValue || typeof manifestValue !== "object" || Array.isArray(manifestValue)) {
           // Keep malformed metadata in the traversal so freshness can report it.
           candidates.unshift(packageJson);
@@ -615,7 +668,7 @@ function resolveExtendedConfigPath(configPath: string, specifier: string): strin
       const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
       if (code !== "ENOENT" && code !== "ENOTDIR") candidates.unshift(packageJson);
     }
-    const resolved = candidates.find(isExtendedConfigCandidate);
+    const resolved = candidates.find((candidate) => isExtendedConfigCandidate(candidate, projectRoot));
     if (resolved) return resolved;
     const parent = dirname(directory);
     if (parent === directory) return candidates[0]!;
@@ -632,7 +685,7 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
     visited.add(normalized);
     let config: unknown;
     try {
-      const read = ts.readConfigFile(normalized, readConfigTextSafely);
+      const read = ts.readConfigFile(normalized, (path) => readConfigTextSafely(path, rootPath));
       config = read.config;
     } catch {
       return;
@@ -642,7 +695,7 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
     const specifiers = Array.isArray(value) ? value : [value];
     for (const specifier of specifiers) {
       if (typeof specifier === "string" && specifier.trim()) {
-        visit(resolveExtendedConfigPath(normalized, specifier));
+        visit(resolveExtendedConfigPath(normalized, specifier, rootPath, visited));
       }
     }
   };
@@ -662,7 +715,7 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
   const diagnostics: string[] = [];
   const reportReadFailure = (path: string, error: unknown): void => {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
-    if (code === "ENOENT" && path === resolve(rootPath, "tsconfig.json")) return;
+    if (code === "ENOENT" && (path === resolve(rootPath, "tsconfig.json") || basename(path) === "package.json")) return;
     diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": configuration could not be safely read (" + code + ").");
   };
 
@@ -671,7 +724,7 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
       ? resolve(rootPath, ...directory.split("/"), "package.json")
       : resolve(rootPath, "package.json");
     try {
-      const parsed: unknown = JSON.parse(readConfigBytesSafely(path).toString("utf8"));
+      const parsed: unknown = JSON.parse(readConfigBytesSafely(path, rootPath).toString("utf8"));
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
         diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": package configuration must contain a JSON object.");
       }
@@ -686,7 +739,7 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
   for (const path of collectExtendedConfigPaths(rootPath)) {
     let text: string;
     try {
-      text = readConfigBytesSafely(path).toString("utf8");
+      text = readConfigBytesSafely(path, rootPath).toString("utf8");
     } catch (error) {
       reportReadFailure(path, error);
       continue;
@@ -695,7 +748,8 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
     const parsed = ts.parseConfigFileTextToJson(normalizedPath, text);
     if (parsed.error) {
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") +
-        ": invalid TypeScript configuration (" + ts.flattenDiagnosticMessageText(parsed.error.messageText, " ") + ").");
+        (basename(path) === "package.json" ? ": invalid package configuration (" : ": invalid TypeScript configuration (") +
+        ts.flattenDiagnosticMessageText(parsed.error.messageText, " ") + ").");
     } else if (basename(path) === "package.json") {
       const manifest = parsed.config as { tsconfig?: unknown } | null;
       if (manifest && typeof manifest === "object" && "tsconfig" in manifest &&
@@ -732,7 +786,7 @@ function computeRelationsConfigHash(rootPath: string, files: Array<{ path: strin
       : relativeConfigPath;
     hash.update(configIdentity).update("\\0");
     try {
-      hash.update(readConfigBytesSafely(absoluteConfigPath));
+      hash.update(readConfigBytesSafely(absoluteConfigPath, rootPath));
     } catch (error) {
       const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unknown";
       hash.update(code === "ENOENT" ? "<missing>" : `<unreadable:${code}>`);
@@ -958,7 +1012,11 @@ function gitFreshness(project: IndexedGitMetadata, current: ReturnType<typeof ge
   };
 }
 
-export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
+/** @internal Optional discovery injection is reserved for deterministic filesystem-failure tests. */
+export function getIndexFreshness(
+  location: ProjectLocation,
+  discover: (rootPath: string, explicitExcludes: string[]) => DiscoveryResult = discoverFiles,
+): IndexFreshness {
   const db = openDatabase(location);
   try {
     const project = db.prepare("SELECT last_indexed_at, index_revision, index_excludes_json, relations_config_hash, indexed_commit, indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths FROM projects WHERE id = ?").get(location.id) as ({
@@ -973,7 +1031,7 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
         skippedFiles: [], errors: [], limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS }, totals: { skippedFiles: 0, errors: 0 }, truncated: { skippedFiles: false, errors: false }, git };
     }
     const excludes = JSON.parse(project.index_excludes_json) as string[];
-    const discovery = discoverFiles(location.rootPath, excludes);
+    const discovery = discover(location.rootPath, excludes);
     const indexed = db.prepare("SELECT path, content_hash FROM files ORDER BY path").all() as Array<{ path: string; content_hash: string }>;
     const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
     const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed) !== project.relations_config_hash;
@@ -1085,6 +1143,8 @@ export function indexWithDatabase(
   force = false,
   extraExcludes: string[] = [],
   options: IndexOptions = {},
+  /** @internal Deterministic config-drift fault injection for tests only. */
+  afterConfigPreflight?: () => void,
 ): IndexSummary {
   validateIndexOptions(options, extraExcludes);
   const gitBefore = getGitSnapshot(location.rootPath);
@@ -1099,6 +1159,19 @@ export function indexWithDatabase(
     throw new Error("Index update aborted: source discovery is incomplete; no index changes were committed. Resolve skipped or unreadable files and retry.");
   }
   const { files: discovered, presentPaths } = discovery;
+  const indexedConfigPaths = (db.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>)
+    .map((file) => file.path);
+  const configScopeFiles = scoped
+    ? [...new Set([...indexedConfigPaths, ...discovered.map((file) => file.relativePath)])]
+        .sort(compareCodeUnits).map((path) => ({ path }))
+    : discovered.map((file) => ({ path: file.relativePath }));
+  const initialRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles);
+  const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles);
+  if (configErrors.length > 0) {
+    throw new Error("Index update aborted: relation configuration is incomplete; no index changes were committed. " +
+      configErrors.slice(0, MAX_INDEX_DETAIL_ITEMS).join(" "));
+  }
+  afterConfigPreflight?.();
   return db.transaction(() => {
     const projectState = db.prepare("SELECT relations_config_hash FROM projects WHERE id = ?").get(location.id) as {
       relations_config_hash: string | null;
@@ -1214,6 +1287,10 @@ export function indexWithDatabase(
       // call, package export, and diagnostic for an unchanged source snapshot.
       db.prepare("UPDATE relations SET index_revision = ?").run(revisionRow.index_revision);
       summary.relations = (db.prepare("SELECT COUNT(*) AS count FROM relations").get() as { count: number }).count;
+    }
+    const verifiedRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles);
+    if (verifiedRelationsConfigHash !== initialRelationsConfigHash) {
+      throw new Error("Index update aborted: relation configuration changed during indexing; no index changes were committed. Retry the update.");
     }
     db.prepare("UPDATE projects SET relations_config_hash = ? WHERE id = ?").run(currentRelationsConfigHash, location.id);
     summary.symbols = (db.prepare("SELECT COUNT(*) AS count FROM symbols").get() as { count: number }).count;
