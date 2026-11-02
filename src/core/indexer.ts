@@ -598,10 +598,23 @@ function resolveExtendedConfigPath(configPath: string, specifier: string): strin
       : [join(packageRoot, "tsconfig.json")];
     try {
       if (!subpath && existsSync(packageJson)) {
-        const manifest = JSON.parse(readConfigBytesSafely(packageJson).toString("utf8")) as { tsconfig?: unknown };
-        if (typeof manifest.tsconfig === "string") candidates.unshift(join(packageRoot, manifest.tsconfig));
+        const manifestValue: unknown = JSON.parse(readConfigBytesSafely(packageJson).toString("utf8"));
+        if (!manifestValue || typeof manifestValue !== "object" || Array.isArray(manifestValue)) {
+          // Keep malformed metadata in the traversal so freshness can report it.
+          candidates.unshift(packageJson);
+        } else {
+          const manifest = manifestValue as { tsconfig?: unknown };
+          if (typeof manifest.tsconfig === "string" && manifest.tsconfig.trim()) {
+            candidates.unshift(join(packageRoot, manifest.tsconfig));
+          } else if ("tsconfig" in manifest && typeof manifest.tsconfig !== "string") {
+            candidates.unshift(packageJson);
+          }
+        }
       }
-    } catch { /* Invalid package metadata is represented by the package config candidates. */ }
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+      if (code !== "ENOENT" && code !== "ENOTDIR") candidates.unshift(packageJson);
+    }
     const resolved = candidates.find(isExtendedConfigCandidate);
     if (resolved) return resolved;
     const parent = dirname(directory);
@@ -678,10 +691,18 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
       reportReadFailure(path, error);
       continue;
     }
-    const parsed = ts.parseConfigFileTextToJson(path.replaceAll("\\", "/"), text);
+    const normalizedPath = path.replaceAll("\\", "/");
+    const parsed = ts.parseConfigFileTextToJson(normalizedPath, text);
     if (parsed.error) {
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") +
         ": invalid TypeScript configuration (" + ts.flattenDiagnosticMessageText(parsed.error.messageText, " ") + ").");
+    } else if (basename(path) === "package.json") {
+      const manifest = parsed.config as { tsconfig?: unknown } | null;
+      if (manifest && typeof manifest === "object" && "tsconfig" in manifest &&
+          (typeof manifest.tsconfig !== "string" || !manifest.tsconfig.trim())) {
+        diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") +
+          ": invalid TypeScript extends package metadata (tsconfig must be a non-empty string).");
+      }
     } else if (!parsed.config || typeof parsed.config !== "object" || Array.isArray(parsed.config)) {
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": TypeScript configuration must contain a JSON object.");
     }
