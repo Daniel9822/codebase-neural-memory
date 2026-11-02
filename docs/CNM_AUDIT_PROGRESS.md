@@ -79,3 +79,12 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [ ] Close directory-open race coverage: discovery classifies entries with `Dirent`, then recursively calls `opendirSync(directory)` by path. A directory can be replaced between classification and open; source-file opens are separately root/identity checked, but directory enumeration itself has no verified directory-handle identity contract. Add deterministic replacement injection and fail-closed behavior where supported.
 - [x] Confirmed `readFileWithinRoot` validates the opened file against the resolved path before reading and again after reading; no source change is claimed by this audit-only finding.
 - [ ] Implement focused diagnostics and race regressions before marking CNM-01/CNM-05 complete.
+
+
+### CNM-05 follow-up — directory identity during traversal (2026-11-02)
+
+- [x] Revalidate each discovered directory with `lstat`, canonical `realpath`, root containment, and device/inode identity before opening.
+- [x] Revalidate directory identity immediately after `opendirSync`, throughout enumeration, before processing each entry, and after source-file reads.
+- [x] Add a deterministic regression that swaps a classified directory for an outside symlink at the `opendirSync` boundary; discovery must fail closed and protect the directory scope.
+- [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on the directory-race PR; merge evidence pending.
+- [ ] Node's path-based `opendirSync` API does not expose the opened directory descriptor for direct `fstat`; repeated path/identity checks reduce and detect replacement races but are not a descriptor-relative `openat` guarantee. Keep this limitation explicit pending a stronger platform abstraction.
