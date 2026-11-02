@@ -311,6 +311,36 @@ describe("MCP adapter protocol contract", () => {
     expect(context.items.every((item) => item.origin === "anchor" || item.origin === "graph")).toBe(true);
   });
 
+  it("applies symbol filters before the bounded candidate limit", async () => {
+    createProject();
+    const declarations = Array.from({ length: 1_001 }, (_, index) =>
+      `const needleValue${String(index).padStart(4, "0")} = ${index};`);
+    declarations.push("export function needleTarget() { return true; }");
+    writeFileSync(join(location.rootPath, "filtered.ts"), declarations.join("\\n"));
+    indexWithDatabase(database!, location);
+
+    const client = await connectClient();
+    const response = await client.request("tools/call", {
+      name: "symbol_lookup",
+      arguments: {
+        query: "needle",
+        kind: "function",
+        filePath: "filtered.ts",
+        exported: true,
+        limit: 5,
+      },
+    });
+    const result = response.result as { content: Array<{ text: string }> };
+    expect(JSON.parse(result.content[0]!.text)).toEqual([
+      expect.objectContaining({
+        name: "needleTarget",
+        kind: "function",
+        filePath: "filtered.ts",
+        exported: true,
+      }),
+    ]);
+  });
+
   it("rejects invalid arguments with an MCP error response", async () => {
     createProject();
     const client = await connectClient();
