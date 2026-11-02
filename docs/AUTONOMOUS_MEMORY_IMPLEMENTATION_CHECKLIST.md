@@ -376,10 +376,11 @@ These are documentation-level observations, not yet a complete source-level audi
 
 | Date | Work item | Evidence / commit / PR / CI | Outcome / next action |
 |---|---|---|---|
-| 2026-11-02 | Initial documentation-level baseline review | `main`: `docs/ROADMAP.md`, `docs/PRODUCT_SPEC.md`, `docs/ACCEPTANCE_CRITERIA.md`, `docs/PHASE_6_MCP_CONTRACT.md`, `docs/AGENT_WORKFLOW.md`, `AGENTS.md`, `package.json` inspected | Source-level audit and CI verification still required; all implementation checklist items remain open. |
+| 2026-11-02 | Initial documentation-level baseline review | `main`: `docs/ROADMAP.md`, `docs/PRODUCT_SPEC.md`, `docs/ACCEPTANCE_CRITERIA.md`, `docs/PHASE_6_MCP_CONTRACT.md`, `docs/AGENT_WORKFLOW.md`, `AGENTS.md`, `package.json` inspected | Source-level audit and CI verification were pending at baseline; subsequent implementation progress is recorded below. |
 
 | 2026-11-02 | CNM-02 directory symlink replacement | PR #75; CI 41404323034; merge `3d7d94de32151b1f891308d7e661c945cfd694b9` | Targeted regression merged; broader symlink combinations remain open. |
 | 2026-11-02 | CNM-05 source-excerpt safe open/read | PR #76; CI 41404690251; merge `da7e7fd90a15a39af551237ca7c3ee6868ccc43a` | Descriptor-based read and identity checks merged; other path-based read sites still require audit. |
 | 2026-11-02 | CNM-04 post-read freshness | PR #77; CI 41405092697; merge `e5fffa774c180aa45ea60195cf28dead2ea51f10` | Strict refusal and non-strict warning after a deterministic mutation test merged. |
 | 2026-11-02 | CNM-03 full-index snapshot guard | PR #79; CI 41405788148; merge `7b1f4b8b9edb4d1a8c73db1cac4ad38c9bbdaaf9` | CLI-facing full indexing now refuses incomplete discovery; all destructive paths still need final audit. |
 | 2026-11-02 | CNM-01 relation configuration freshness | PR #82; CI 41406437168; merge `2dc4c51c3dfad03a41ec6af6798bff4702dbb92e` | Config-only drift marks index stale; successful rebuild clears the flag. |
+| 2026-11-02 | CNM-06 deterministic bounded discovery | PR #84 and PR #87; CI 41407210746 and 41407851656; merge `14b9d59ad397cd4357759da8b48ba7b91f4dac37` and root-scope follow-up | `maxFiles` selection is deterministic; over-budget discovery aborts without writes and protects unvisited paths. Broader retrieval-limit audit remains open. |
