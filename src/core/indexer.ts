@@ -716,7 +716,12 @@ export function indexProject(
       const row = db.prepare("SELECT index_excludes_json FROM projects WHERE id = ?").get(location.id) as { index_excludes_json: string } | undefined;
       return row ? JSON.parse(row.index_excludes_json) as string[] : [];
     })();
-    return indexWithDatabase(db, location, force, excludes, options);
+    const selective = Boolean(options.paths?.length || options.include?.length ||
+      options.maxFiles !== undefined || options.maxProcessed !== undefined);
+    return indexWithDatabase(db, location, force, excludes, {
+      ...options,
+      requireCompleteSnapshot: options.requireCompleteSnapshot ?? !selective,
+    });
   } finally {
     db.close();
   }
