@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, opendirSync, readdirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { basename, extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -40,6 +40,17 @@ function assertDirectoryIdentity(
 
 function compareCodeUnits(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
+}
+
+function directoryEntryKind(entry: Dirent): string {
+  if (entry.isDirectory()) return "directory";
+  if (entry.isFile()) return "file";
+  if (entry.isSymbolicLink()) return "symlink";
+  if (entry.isBlockDevice()) return "block";
+  if (entry.isCharacterDevice()) return "character";
+  if (entry.isFIFO()) return "fifo";
+  if (entry.isSocket()) return "socket";
+  return "unknown";
 }
 
 function assertNoSymlinkedConfigParents(candidatePath: string, projectRoot: string): void {
@@ -347,6 +358,23 @@ export function discoverFiles(
         enumeratedEntries += 1;
       }
       assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
+      // opendirSync(path) cannot bind its handle to the identity checked above.
+      // Cross-check the descriptor enumeration against a fresh path-based view
+      // before trusting absence/presence for destructive reconciliation. If a
+      // directory was swapped while opening and then restored, the two views
+      // differ and this scope is protected rather than treated as deleted.
+      const pathEntries = readdirSync(directory, { withFileTypes: true });
+      assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
+      const openedSnapshot = entries
+        .map((entry) => entry.name + "\\0" + directoryEntryKind(entry))
+        .sort(compareCodeUnits);
+      const pathSnapshot = pathEntries
+        .map((entry) => entry.name + "\\0" + directoryEntryKind(entry))
+        .sort(compareCodeUnits);
+      if (openedSnapshot.length !== pathSnapshot.length ||
+          openedSnapshot.some((entry, index) => entry !== pathSnapshot[index])) {
+        throw new Error("Directory contents changed between handle and path enumeration; retry indexing.");
+      }
       entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
       for (const entry of entries) {
         if (stopped) break;
