@@ -43,7 +43,7 @@ function compareCodeUnits(left: string, right: string): number {
 }
 
 function assertNoSymlinkedConfigParents(candidatePath: string, projectRoot: string): void {
-  const root = resolve(projectRoot);
+  const root = realpathSync(projectRoot);
   const absoluteCandidate = resolve(candidatePath);
   const relativeCandidate = relative(root, absoluteCandidate).replaceAll("\\", "/");
   // Explicit external TypeScript "extends" targets remain supported. For
@@ -614,7 +614,7 @@ function hasExtendedTsConfig(rootPath: string): boolean {
     "extends" in config.config);
 }
 
-function resolveExtendedConfigPath(configPath: string, specifier: string, projectRoot: string): string {
+function resolveExtendedConfigPath(configPath: string, specifier: string, projectRoot: string, visitedConfigPaths: Set<string>): string {
   const absoluteSpecifier = isAbsolute(specifier);
   const relativeSpecifier = specifier.startsWith(".") || absoluteSpecifier;
   if (relativeSpecifier) {
@@ -630,6 +630,7 @@ function resolveExtendedConfigPath(configPath: string, specifier: string, projec
   while (true) {
     const packageRoot = join(directory, "node_modules", packageName);
     const packageJson = join(packageRoot, "package.json");
+    if (!subpath) visitedConfigPaths.add(resolve(packageJson));
     const candidates = subpath
       ? (/\\.json$/i.test(subpath)
           ? [join(packageRoot, subpath)]
@@ -681,7 +682,7 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
     const specifiers = Array.isArray(value) ? value : [value];
     for (const specifier of specifiers) {
       if (typeof specifier === "string" && specifier.trim()) {
-        visit(resolveExtendedConfigPath(normalized, specifier, rootPath));
+        visit(resolveExtendedConfigPath(normalized, specifier, rootPath, visited));
       }
     }
   };
@@ -701,7 +702,7 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
   const diagnostics: string[] = [];
   const reportReadFailure = (path: string, error: unknown): void => {
     const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
-    if (code === "ENOENT" && path === resolve(rootPath, "tsconfig.json")) return;
+    if (code === "ENOENT" && (path === resolve(rootPath, "tsconfig.json") || basename(path) === "package.json")) return;
     diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") + ": configuration could not be safely read (" + code + ").");
   };
 
@@ -734,7 +735,8 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
     const parsed = ts.parseConfigFileTextToJson(normalizedPath, text);
     if (parsed.error) {
       diagnostics.push(relative(rootPath, path).replaceAll("\\", "/") +
-        ": invalid TypeScript configuration (" + ts.flattenDiagnosticMessageText(parsed.error.messageText, " ") + ").");
+        (basename(path) === "package.json" ? ": invalid package configuration (" : ": invalid TypeScript configuration (") +
+        ts.flattenDiagnosticMessageText(parsed.error.messageText, " ") + ").");
     } else if (basename(path) === "package.json") {
       const manifest = parsed.config as { tsconfig?: unknown } | null;
       if (manifest && typeof manifest === "object" && "tsconfig" in manifest &&
