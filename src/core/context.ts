@@ -180,8 +180,9 @@ export function buildTaskContext(
   const symbolMatches = explicitAnchorMode
     ? anchorSymbols.flatMap((name) => searchSymbols(location, name, symbolLimit + 1).filter((symbol) => symbol.name === name))
     : searchSymbols(location, normalizedTask, symbolLimit + 1);
+  const symbolSearchWindowTruncated = symbolMatches.some((symbol) => symbol.candidateWindowTruncated);
   const symbolCandidatesTruncated = symbolMatches.length > symbolLimit ||
-    symbolMatches.some((symbol) => symbol.candidateWindowTruncated);
+    symbolSearchWindowTruncated;
   const symbols = symbolMatches.slice(0, symbolLimit);
   const fileCandidatesTruncated = new Set(symbolMatches.map((symbol) => symbol.filePath)).size > fileLimit;
   for (const symbol of symbols) {
@@ -372,6 +373,7 @@ export function buildTaskContext(
     });
     if (sourceFreshness?.requiresReview) warnings.push(`Memory "${memory.title}" requires review: source is ${sourceFreshness.status}.`);
   }
+  if (symbolSearchWindowTruncated) warnings.push("Symbol search reached its bounded candidate window; additional matching symbols may be omitted.");
   if (symbols.length === 0 && !explicitAnchorMode) warnings.push("No indexed symbols matched the task lexically; consider a more specific follow-up query.");
   if (memories.some((memory) => memory.status === "proposed")) warnings.push("Proposed memories are suggestions, not confirmed project knowledge.");
   if (memories.some((memory) => memory.status === "obsolete")) warnings.push("Obsolete memories are included for traceability and must not be treated as current guidance.");
