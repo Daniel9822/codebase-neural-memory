@@ -67,4 +67,15 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Found custom CLI/core index exclusions were the remaining repeated input list without a count/length ceiling; added a maximum of 100 non-empty patterns, each at most 500 characters, with regression coverage.
 - [x] Added a 200-character non-empty symbol-name ceiling to core `explainSymbol` and `getSymbolRelations`; regression tests cover empty and oversized names.
 - [x] Clarified CLI help for search, dependencies, memories, and repeated exclusion patterns so user-visible limits match core contracts.
-- [ ] Verify CI and merge this follow-up; the broader CNM-01–CNM-06 filesystem/freshness close-out and autonomous-memory implementation remain open.
+- [x] Verify PR #114 merged as `89fe1f69028ca1d9483fafeaf02d8b9ca6f5bfde`; CI and merge are complete. The broader CNM-01–CNM-06 filesystem/freshness close-out and autonomous-memory implementation remain open.
+
+
+### CNM-01 / CNM-05 follow-up — configuration reads and directory traversal audit (2026-11-02)
+
+- [x] Confirmed relation-config bytes are read through `readFileWithinRoot` in `src/core/indexer.ts`; the shared reader uses a file descriptor, `O_NOFOLLOW` where available, root containment checks, descriptor/path identity checks, and post-read revalidation.
+- [x] Confirmed `package.json` manifests used for local package resolution and TypeScript extended-config package metadata use the same safe byte reader.
+- [ ] Close the configuration error-state gap: `readConfigTextSafely` currently converts every safe-read failure to `undefined`; `loadPathAliasConfig`, `readLocalPackages`, and extended-config traversal can then silently omit invalid/unreadable configuration. Freshness hashes raw bytes/error codes, but does not expose a distinct actionable configuration diagnostic or consistently classify an invalid resolution configuration as incomplete.
+- [ ] Harden extended-config candidate discovery: `resolveExtendedConfigPath` uses path-based `existsSync` / `statSync` to select candidates before the final safe read. The final byte read is protected, but candidate selection and package-manifest interpretation need explicit missing/malformed/unreadable semantics and race tests.
+- [ ] Close directory-open race coverage: discovery classifies entries with `Dirent`, then recursively calls `opendirSync(directory)` by path. A directory can be replaced between classification and open; source-file opens are separately root/identity checked, but directory enumeration itself has no verified directory-handle identity contract. Add deterministic replacement injection and fail-closed behavior where supported.
+- [x] Confirmed `readFileWithinRoot` validates the opened file against the resolved path before reading and again after reading; no source change is claimed by this audit-only finding.
+- [ ] Implement focused diagnostics and race regressions before marking CNM-01/CNM-05 complete.
