@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, existsSync, fstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -113,7 +113,7 @@ function loadIgnoreRules(
     rules.add(extraExcludes);
   }
   try {
-    const ignoreFile = readFileWithinRoot(canonicalRoot, join(directory, ".gitignore"), { canonicalRoot });
+    const ignoreFile = readFileWithinRoot(canonicalRoot, join(directory, ".gitignore"), { canonicalRoot, rejectFinalSymlink: true });
     rules.add(ignoreFile.content.toString("utf8"));
   } catch (cause) {
     const code = cause && typeof cause === "object" && "code" in cause ? String(cause.code) : "";
@@ -267,9 +267,12 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
 
             const content = readFileSync(descriptor);
             const afterRead = fstatSync(descriptor);
-            if (afterRead.dev !== stat.dev || afterRead.ino !== stat.ino ||
+            const pathAfterRead = lstatSync(absolutePath);
+            if (pathAfterRead.isSymbolicLink() || pathAfterRead.dev !== stat.dev || pathAfterRead.ino !== stat.ino ||
+                pathAfterRead.size !== stat.size || pathAfterRead.mtimeMs !== stat.mtimeMs ||
+                afterRead.dev !== stat.dev || afterRead.ino !== stat.ino ||
                 afterRead.size !== stat.size || afterRead.mtimeMs !== stat.mtimeMs) {
-              throw new Error("Source file changed while being read; retry indexing.");
+              throw new Error("Source path or file changed while being read; retry indexing.");
             }
             if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
             const source = content.toString("utf8");
