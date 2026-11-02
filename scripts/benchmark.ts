@@ -190,7 +190,7 @@ function runCase(scale: typeof scales[number]) {
 
 function findFirstSource(rootPath: string, currentPath = rootPath): string | null {
   const ignored = new Set([".git", "node_modules", "dist", "coverage", ".cnm"]);
-  const entries = readdirSync(currentPath, { withFileTypes: true }).sort((left, right) => left.name.localeCompare(right.name));
+  const entries = readdirSync(currentPath, { withFileTypes: true }).sort((left, right) => (left.name < right.name ? -1 : left.name > right.name ? 1 : 0));
   for (const entry of entries) {
     if (entry.isDirectory()) {
       if (ignored.has(entry.name)) continue;

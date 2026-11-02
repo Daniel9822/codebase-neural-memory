@@ -4,6 +4,11 @@ import type { ProjectLocation } from "./project.js";
 import { openDatabase } from "../storage/database.js";
 import { getIndexFreshness } from "./indexer.js";
 
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+
 export interface TaskContextOptions {
   maxItems?: number;
   maxCharacters?: number;
@@ -51,7 +56,7 @@ function anchorsFor(task: string): string[] {
     .filter((word) => word.length >= 3)
     .map((word) => word.replace(/^-+|-+$/g, ""))
     .filter(Boolean)
-    .map((word) => word.toLocaleLowerCase()))].slice(0, 20);
+    .map((word) => word.toLowerCase()))].slice(0, 20);
 }
 
 function itemIdentity(item: TaskContextItem): string {
@@ -77,7 +82,7 @@ function boundedItems(
     if (!previous || item.score > previous.score) unique.set(key, item);
   }
   const ranked = [...unique.values()].sort((a, b) =>
-    b.score - a.score || a.source.localeCompare(b.source) || a.title.localeCompare(b.title));
+    b.score - a.score || compareCodeUnits(a.source, b.source) || compareCodeUnits(a.title, b.title));
   const items: TaskContextItem[] = [];
   // maxCharacters is the exact character length of JSON.stringify(items), including
   // the array brackets, commas, quotes, and serialized item fields.
@@ -287,7 +292,7 @@ export function buildTaskContext(
       .filter((path) => /(^|[/\\])tests?([/\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path));
   } finally { testDb.close(); }
   for (const path of testPaths) {
-    const matchingAnchors = explicitAnchorMode ? [] : anchors.filter((anchor) => path.toLocaleLowerCase().includes(anchor));
+    const matchingAnchors = explicitAnchorMode ? [] : anchors.filter((anchor) => path.toLowerCase().includes(anchor));
     // Do not add every test in the repository: a test path must match at least
     // one lexical task anchor to be considered a task-context candidate.
     if (matchingAnchors.length === 0) continue;
@@ -303,10 +308,10 @@ export function buildTaskContext(
 
   const matchedMemories = (explicitAnchorMode ? [] : recallMemories(location, "", 500))
     .map((memory) => ({ memory, matches: anchors.filter((anchor) =>
-      `${memory.title} ${memory.content} ${memory.category}`.toLocaleLowerCase().includes(anchor)).length }))
+      `${memory.title} ${memory.content} ${memory.category}`.toLowerCase().includes(anchor)).length }))
     .filter((entry) => entry.matches > 0)
-    .sort((a, b) => b.matches - a.matches || b.memory.updatedAt.localeCompare(a.memory.updatedAt)
-      || a.memory.id.localeCompare(b.memory.id));
+    .sort((a, b) => b.matches - a.matches || compareCodeUnits(b.memory.updatedAt, a.memory.updatedAt)
+      || compareCodeUnits(a.memory.id, b.memory.id));
   const memoryCandidatesTruncated = matchedMemories.length > memoryLimit;
   const memories = matchedMemories.slice(0, memoryLimit).map((entry) => entry.memory);
   const freshness = inspectMemoryFreshness(location);

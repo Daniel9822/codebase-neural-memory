@@ -5,6 +5,11 @@ import type { ProjectLocation } from "./project.js";
 import { compareGitCommits, getGitSnapshot, type GitCommitRelationship } from "./git.js";
 import { readFileWithinRoot } from "./safe-file.js";
 
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+
 export type MemoryStatus = "proposed" | "confirmed" | "obsolete" | "rejected";
 
 export interface MemoryRecord {
@@ -345,8 +350,8 @@ export function recallMemories(
       .map((row) => ({ row, score: memoryMatchScore(row, normalizedQuery, tokens) }))
       .filter((item) => item.score > 0)
       .sort((left, right) => right.score - left.score ||
-        right.row.updatedAt.localeCompare(left.row.updatedAt) ||
-        left.row.id.localeCompare(right.row.id))
+        compareCodeUnits(right.row.updatedAt, left.row.updatedAt) ||
+        compareCodeUnits(left.row.id, right.row.id))
       .slice(0, limit)
       .map((item) => item.row);
   } finally {

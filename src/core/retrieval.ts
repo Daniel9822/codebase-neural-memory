@@ -43,10 +43,10 @@ function rankSearchCandidates(
   tokens: string[],
   limit: number,
 ): RankedSearchHit[] {
-  const normalizedTokens = tokens.map((token) => token.toLocaleLowerCase());
+  const normalizedTokens = tokens.map((token) => token.toLowerCase());
   return rows.map((row) => {
-    const name = row.name.toLocaleLowerCase();
-    const signature = row.signature.toLocaleLowerCase();
+    const name = row.name.toLowerCase();
+    const signature = row.signature.toLowerCase();
     const nameTokens = normalizedTokens.filter((token) => name.includes(token));
     const signatureTokens = normalizedTokens.filter((token) => signature.includes(token));
     const signals: string[] = [];

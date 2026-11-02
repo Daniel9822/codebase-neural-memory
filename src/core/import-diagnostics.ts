@@ -3,6 +3,11 @@ import { existsSync } from "node:fs";
 import { join, relative, resolve, sep } from "node:path";
 import ts from "typescript";
 
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
+
 export interface ImportDiagnostic {
   filePath: string;
   moduleSpecifier: string;
@@ -139,6 +144,6 @@ export function analyzeImportDiagnostics(
     unique.set(key, item);
   }
   return [...unique.values()].sort((a, b) =>
-    a.filePath.localeCompare(b.filePath) || a.line - b.line || a.column - b.column || a.code - b.code,
+    compareCodeUnits(a.filePath, b.filePath) || a.line - b.line || a.column - b.column || a.code - b.code,
   );
 }

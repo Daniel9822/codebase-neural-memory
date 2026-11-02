@@ -68,6 +68,21 @@ describe("task-oriented context builder", () => {
     expect(result.budget.usedCharacters).toBeLessThanOrEqual(12000);
   });
 
+  it("orders equal-score path anchors by locale-independent code units", () => {
+    setup();
+    for (const name of ["ä.ts", "a.ts", "Z.ts"]) {
+      writeFileSync(join(location.rootPath, name), "export const value = true;");
+    }
+    indexWithDatabase(db!, location);
+
+    const result = buildTaskContext(location, "anchored files", {
+      anchors: { paths: ["ä.ts", "a.ts", "Z.ts"] },
+    });
+
+    expect(result.items.filter((item) => item.kind === "file").map((item) => item.source))
+      .toEqual(["Z.ts", "a.ts", "ä.ts"]);
+  });
+
   it("retrieves requested details incrementally from a source already present in context", () => {
     setup();
     const context = buildTaskContext(location, "refresh auth token", { maxItems: 20, maxCharacters: 8000 });
