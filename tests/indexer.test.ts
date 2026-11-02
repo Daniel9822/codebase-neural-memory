@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, opendirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
@@ -313,6 +313,31 @@ describe("indexWithDatabase", () => {
     expect(() => indexProject(location)).toThrow(/discovery is incomplete/i);
     const after = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
     expect(after).toEqual([{ path: "src/nested.ts" }]);
+  });
+
+  it("fails closed when a directory is replaced between classification and open", () => {
+    createProject();
+    const sourceDirectory = join(location.rootPath, "src");
+    const movedDirectory = join(temporaryDirectory, "saved-src");
+    const outsideDirectory = join(temporaryDirectory, "outside-src");
+    mkdirSync(sourceDirectory, { recursive: true });
+    writeFileSync(join(sourceDirectory, "inside.ts"), "export const inside = true;");
+    mkdirSync(outsideDirectory, { recursive: true });
+    writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;");
+
+    let replaced = false;
+    const discovery = discoverFiles(location.rootPath, [], {}, (directory) => {
+      if (!replaced && directory === sourceDirectory) {
+        replaced = true;
+        renameSync(sourceDirectory, movedDirectory);
+        symlinkSync(outsideDirectory, sourceDirectory, "dir");
+      }
+      return opendirSync(directory);
+    });
+    expect(replaced).toBe(true);
+    expect(discovery.failed).toBeGreaterThan(0);
+    expect(discovery.protectedDirectories.has("src")).toBe(true);
+    expect(discovery.files).toEqual([]);
   });
 
   it("removes stale symbols, FTS entries, and graph relations when a file is deleted", () => {

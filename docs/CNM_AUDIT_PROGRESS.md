@@ -77,8 +77,11 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [ ] Close the configuration error-state gap: `readConfigTextSafely` currently converts every safe-read failure to `undefined`; `loadPathAliasConfig`, `readLocalPackages`, and extended-config traversal can then silently omit invalid/unreadable configuration. Freshness hashes raw bytes/error codes, but does not expose a distinct actionable configuration diagnostic or consistently classify an invalid resolution configuration as incomplete.
 - [x] Harden extended-config candidate discovery: candidate selection uses `lstat` and the verified config reader; missing candidates permit normal extension fallbacks, while symlink/unreadable candidates remain visible to freshness diagnostics. TypeScript's config host also uses the verified reader when parsing inherited configs. Package-manifest `tsconfig` metadata error semantics remain open.
 - [ ] Close directory-open race coverage: discovery classifies entries with `Dirent`, then recursively calls `opendirSync(directory)` by path. A directory can be replaced between classification and open; source-file opens are separately root/identity checked, but directory enumeration itself has no verified directory-handle identity contract. Add deterministic replacement injection and fail-closed behavior where supported.
+- [x] Close the configuration error-state gap for freshness: PR #116 reports malformed/unreadable relation configuration through bounded freshness diagnostics and marks the index `incomplete`. Resolution-time fallback behavior remains a separate audit item.
+- [ ] Harden extended-config candidate discovery: `resolveExtendedConfigPath` uses path-based `existsSync` / `statSync` to select candidates before the final safe read. The final byte read is protected, but candidate selection and package-manifest interpretation need explicit missing/malformed/unreadable semantics and race tests.
+- [x] Add directory identity checks before opening and after `opendirSync`, during enumeration, before entry processing, and after source reads; deterministic replacement injection proves fail-closed behavior. Node's path-based API still cannot bind these checks to the opened directory descriptor; retain that limitation.
 - [x] Confirmed `readFileWithinRoot` validates the opened file against the resolved path before reading and again after reading; no source change is claimed by this audit-only finding.
-- [ ] Implement focused diagnostics and race regressions before marking CNM-01/CNM-05 complete.
+- [ ] Complete the remaining candidate-discovery race audit and combined CNM-01/CNM-05 regression coverage before closing the workstreams.
 
 
 
@@ -98,3 +101,14 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Add a regression where the root config extends a final-component symlink to an outside config; no alias import relation may be created and freshness must be `incomplete`.
 - [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on the inherited-config hardening PR.
 - [ ] Package-manifest `tsconfig` metadata (malformed, non-string, symlink, and unreadable cases) still needs explicit diagnostics and regression coverage.
+- [x] Directory replacement race hardening is implemented in PR #117; its refreshed cross-platform CI remains pending.
+
+
+### CNM-01 / CNM-05 follow-up — merged configuration diagnostics and directory identity (2026-11-02)
+
+- [x] PR #116 merged into `main`; CI runs 41438435498 and 41438442638 passed. Malformed TypeScript/package JSON, missing `extends`, and unsafe/unreadable config paths now produce bounded freshness diagnostics and `incomplete` status.
+- [x] Validate directory identity with `lstat`, canonical `realpath`, root containment, and device/inode identity before recursive enumeration.
+- [x] Revalidate identity after directory open, while reading entries, before processing entries, and after source reads.
+- [x] Add deterministic directory replacement injection through a narrow directory-opener seam; avoid spying on immutable ESM namespace exports.
+- [ ] Verify typecheck, full tests, build, smoke, and Linux/Windows/macOS CI on the refreshed PR #117 head.
+- [ ] Descriptor-relative directory opening remains unavailable through Node's path-based `opendirSync`; current repeated path identity checks are fail-closed detection, not an `openat`/descriptor-bound guarantee.

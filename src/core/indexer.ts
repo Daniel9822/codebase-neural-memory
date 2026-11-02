@@ -11,6 +11,33 @@ import type { IndexSummary } from "../shared/types.js";
 import { readFileWithinRoot } from "./safe-file.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
 
+function assertDirectoryIdentity(
+  directory: string,
+  canonicalRoot: string,
+  expected?: ReturnType<typeof lstatSync>,
+): ReturnType<typeof lstatSync> {
+  const pathStat = lstatSync(directory);
+  if (pathStat.isSymbolicLink() || !pathStat.isDirectory()) {
+    throw new Error("Directory path was replaced or is not a real directory; retry indexing.");
+  }
+  if (expected) {
+    if (pathStat.dev !== expected.dev || pathStat.ino !== expected.ino) {
+      throw new Error("Directory identity changed during discovery; retry indexing.");
+    }
+    return pathStat;
+  }
+  const canonicalPath = realpathSync(directory);
+  const canonicalRelative = relative(canonicalRoot, canonicalPath).replaceAll("\\", "/");
+  if (canonicalRelative === ".." || canonicalRelative.startsWith("../") || isAbsolute(canonicalRelative)) {
+    throw new Error("Directory path resolves outside the project root.");
+  }
+  const canonicalStat = statSync(canonicalPath);
+  if (pathStat.dev !== canonicalStat.dev || pathStat.ino !== canonicalStat.ino) {
+    throw new Error("Directory identity changed during discovery; retry indexing.");
+  }
+  return pathStat;
+}
+
 function compareCodeUnits(left: string, right: string): number {
   return left < right ? -1 : left > right ? 1 : 0;
 }
@@ -181,7 +208,12 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
   });
 }
 
-export function discoverFiles(root: string, extraExcludes: string[] = [], options: IndexOptions = {}): DiscoveryResult {
+export function discoverFiles(
+  root: string,
+  extraExcludes: string[] = [],
+  options: IndexOptions = {},
+  openDirectory: (directory: string) => ReturnType<typeof opendirSync> = opendirSync,
+): DiscoveryResult {
   validateIndexOptions(options, extraExcludes);
   const canonicalRoot = realpathSync(root);
   root = canonicalRoot;
@@ -212,6 +244,15 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
   const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
     if (stopped) return;
     const directoryPath = relative(root, directory).replaceAll("\\", "/");
+    let directoryIdentity: ReturnType<typeof lstatSync>;
+    try {
+      directoryIdentity = assertDirectoryIdentity(directory, canonicalRoot);
+    } catch (error) {
+      failed += 1;
+      errors.push((directoryPath || ".") + ": " + (error instanceof Error ? error.message : String(error)));
+      protectedDirectories.add(directoryPath);
+      return;
+    }
     let scopes = parentScopes;
     if (directory !== root) {
       const localScope = loadIgnoreRules(directory, false, [], canonicalRoot);
@@ -225,7 +266,7 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
     }
     let handle: ReturnType<typeof opendirSync>;
     try {
-      handle = opendirSync(directory);
+      handle = openDirectory(directory);
     } catch (error) {
       failed += 1;
       errors.push((directoryPath || ".") + ": " + (error instanceof Error ? error.message : String(error)));
@@ -233,12 +274,14 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
       return;
     }
     try {
+      assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
       // Sort each directory before selecting bounded candidates. If the
       // enumeration budget is exceeded, abort the whole update rather than
       // committing a filesystem-order-dependent partial selection.
       const entries: Dirent[] = [];
       let entry: Dirent | null;
       while (!stopped && (entry = handle.readSync()) !== null) {
+        assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
         if ((options.maxProcessed !== undefined && enumeratedEntries >= options.maxProcessed) ||
             entries.length >= MAX_DIRECTORY_ENTRIES_FOR_SORT) {
           truncated = true;
@@ -252,9 +295,11 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
         entries.push(entry);
         enumeratedEntries += 1;
       }
+      assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
       entries.sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0);
       for (const entry of entries) {
         if (stopped) break;
+        assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
         const absolutePath = join(directory, entry.name);
         const relativePath = relative(root, absolutePath).replaceAll("\\", "/");
         if (isIgnored(absolutePath, scopes)) continue;
@@ -321,6 +366,7 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
                 afterRead.size !== stat.size || afterRead.mtimeMs !== stat.mtimeMs) {
               throw new Error("Source path or file changed while being read; retry indexing.");
             }
+            assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
             if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
             const source = content.toString("utf8");
             output.push({
