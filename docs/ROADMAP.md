@@ -397,3 +397,10 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Add a 200-candidate-per-import cap and 2,000-candidate global budget per file, with exact candidate totals and truncation metadata.
 - [x] Add MCP regression coverage with 11 unresolved imports and 11,000 stored candidate paths, including the nested `task_context` presentation bound.
 - [ ] Verify CI and merge before closing this retrieval-output sub-audit.
+
+
+### CNM-06 follow-up — bounded symbol relations
+
+- [x] Enforce a 500-result maximum in `getSymbolRelations`; reject zero, unsafe, and over-limit values.
+- [x] Document the CLI `cnm relations --limit` range as 1–500.
+- [ ] Verify CI and merge; continue the cross-surface output audit.
