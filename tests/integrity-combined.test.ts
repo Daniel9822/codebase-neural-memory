@@ -73,22 +73,30 @@ describe("integrated CNM integrity regressions", () => {
       { name: "retained" },
     ]);
   });
-  it("reports a symlinked package manifest encountered while resolving an extended config", () => {
+  it("reports symlinked package manifests and refuses scoped updates without destroying the prior graph", () => {
     createProject();
     const packageDirectory = join(location.rootPath, "node_modules", "shared-config");
+    const packageManifest = join(packageDirectory, "package.json");
     const outsideManifest = join(temporaryDirectory, "outside-package.json");
     mkdirSync(packageDirectory, { recursive: true });
     writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "shared-config" }));
     writeFileSync(join(packageDirectory, "tsconfig.json"), JSON.stringify({ compilerOptions: { strict: true } }));
+    writeFileSync(packageManifest, JSON.stringify({ tsconfig: "tsconfig.json" }));
     writeFileSync(outsideManifest, JSON.stringify({ tsconfig: "tsconfig.json" }));
-    symlinkSync(outsideManifest, join(packageDirectory, "package.json"), "file");
-    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+    writeFileSync(join(location.rootPath, "main.ts"), "export function main() { return true; }");
+    indexProject(location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
 
-    indexWithDatabase(database!, location);
+    rmSync(packageManifest);
+    symlinkSync(outsideManifest, packageManifest, "file");
 
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("node_modules/shared-config/package.json"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+    expect(database!.prepare("SELECT path FROM files").all()).toEqual([{ path: "main.ts" }]);
   });
 
   it("refuses a full index when relation configuration is malformed instead of committing an incomplete graph", () => {
@@ -101,25 +109,35 @@ describe("integrated CNM integrity regressions", () => {
     expect(database!.prepare("SELECT COUNT(*) AS count FROM relations").get()).toEqual({ count: 0 });
   });
 
-  it("rejects a project-local extends path whose parent directory is a symlink", () => {
+  it("rejects project-local extends through symlinked parent directories and preserves the existing index", () => {
     createProject();
     const linkedConfigDirectory = join(location.rootPath, "configs");
+    const savedConfigDirectory = join(temporaryDirectory, "saved-configs");
     const outsideConfigDirectory = join(temporaryDirectory, "outside-configs");
+    mkdirSync(linkedConfigDirectory, { recursive: true });
     mkdirSync(outsideConfigDirectory, { recursive: true });
+    writeFileSync(join(linkedConfigDirectory, "base.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
+    }));
     writeFileSync(join(outsideConfigDirectory, "base.json"), JSON.stringify({
       compilerOptions: { baseUrl: ".", paths: { "@/*": ["outside/*"] } },
     }));
-    symlinkSync(outsideConfigDirectory, linkedConfigDirectory, "dir");
     writeFileSync(join(location.rootPath, ".gitignore"), "configs/");
     writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./configs/base.json" }));
     writeFileSync(join(location.rootPath, "main.ts"), "export function main() { return true; }");
+    indexProject(location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
 
-    indexWithDatabase(database!, location);
+    renameSync(linkedConfigDirectory, savedConfigDirectory);
+    symlinkSync(outsideConfigDirectory, linkedConfigDirectory, "dir");
 
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("configs/base.json"))).toBe(true);
-    expect(() => indexProject(location)).toThrow(/relation configuration is incomplete/i);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+    expect(database!.prepare("SELECT path FROM files").all()).toEqual([{ path: "main.ts" }]);
   });
 
   it("fingerprints package metadata that selects an extended TypeScript config", () => {
