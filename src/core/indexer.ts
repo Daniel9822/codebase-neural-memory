@@ -243,7 +243,7 @@ function loadIgnoreRules(
     rules.add(extraExcludes);
   }
   try {
-    const ignoreFile = readFileWithinRoot(canonicalRoot, join(directory, ".gitignore"), { canonicalRoot, rejectFinalSymlink: true });
+    const ignoreFile = readFileWithinRoot(canonicalRoot, join(directory, ".gitignore"), { canonicalRoot, rejectFinalSymlink: true, rejectHardLinks: true });
     rules.add(ignoreFile.content.toString("utf8"));
   } catch (cause) {
     const code = cause && typeof cause === "object" && "code" in cause ? String(cause.code) : "";
