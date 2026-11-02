@@ -74,11 +74,11 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 
 - [x] Confirmed relation-config bytes are read through `readFileWithinRoot` in `src/core/indexer.ts`; the shared reader uses a file descriptor, `O_NOFOLLOW` where available, root containment checks, descriptor/path identity checks, and post-read revalidation.
 - [x] Confirmed `package.json` manifests used for local package resolution and TypeScript extended-config package metadata use the same safe byte reader.
-- [ ] Close the configuration error-state gap: `readConfigTextSafely` currently converts every safe-read failure to `undefined`; `loadPathAliasConfig`, `readLocalPackages`, and extended-config traversal can then silently omit invalid/unreadable configuration. Freshness hashes raw bytes/error codes, but does not expose a distinct actionable configuration diagnostic or consistently classify an invalid resolution configuration as incomplete.
+- [x] Close the configuration error-state gap for freshness: PR #116 reports malformed/unreadable relation configuration through bounded freshness diagnostics and marks the index `incomplete`. Resolution-time fallback behavior remains a separate audit item.
 - [ ] Harden extended-config candidate discovery: `resolveExtendedConfigPath` uses path-based `existsSync` / `statSync` to select candidates before the final safe read. The final byte read is protected, but candidate selection and package-manifest interpretation need explicit missing/malformed/unreadable semantics and race tests.
 - [x] Add directory identity checks before opening and after `opendirSync`, during enumeration, before entry processing, and after source reads; deterministic replacement injection proves fail-closed behavior. Node's path-based API still cannot bind these checks to the opened directory descriptor; retain that limitation.
 - [x] Confirmed `readFileWithinRoot` validates the opened file against the resolved path before reading and again after reading; no source change is claimed by this audit-only finding.
-- [ ] Implement focused diagnostics and race regressions before marking CNM-01/CNM-05 complete.
+- [ ] Complete the remaining candidate-discovery race audit and combined CNM-01/CNM-05 regression coverage before closing the workstreams.
 
 
 
@@ -87,8 +87,8 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Add freshness inspection for root and transitive TypeScript configs plus package manifests used by relation resolution.
 - [x] Report malformed TypeScript JSON, missing extended configs, malformed package manifests, and unsafe/unreadable config files through bounded freshness errors; classify these states as `incomplete` instead of silently reporting `current`.
 - [x] Add regression coverage for malformed `tsconfig.json`, a missing extended config, malformed `package.json`, and a final-component symlink config.
-- [ ] Verify typecheck, full tests, build, smoke, and cross-platform CI on PR #116; merge evidence pending.
-- [ ] Directory enumeration still opens recursively by path after Dirent classification; directory replacement race hardening remains open under CNM-05.
+- [x] Verify PR #116 CI runs 41438435498 and 41438442638 passed; PR #116 is merged into `main`.
+- [x] Directory replacement race hardening is implemented in PR #117; its refreshed cross-platform CI remains pending.
 
 
 ### CNM-01 / CNM-05 follow-up — merged configuration diagnostics and directory identity (2026-11-02)
