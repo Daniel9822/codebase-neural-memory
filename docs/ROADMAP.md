@@ -375,3 +375,11 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Add regression coverage with more than 500 indexed test paths and a matching test beyond the bounded discovery window.
 - [x] Document the bound and its incompleteness semantics in the MCP contract.
 
+
+
+### CNM-06 follow-up — exact test-path candidate filtering (2026-11-02)
+
+- [x] Apply the 500-candidate test discovery bound only after SQL narrows paths to supported test-directory and `.test`/`.spec` filename patterns.
+- [x] Add regression coverage proving unrelated names containing the substring `test` cannot exhaust the test-path discovery window.
+- [x] Clarify the candidate definition in the MCP contract.
+
