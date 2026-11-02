@@ -44,6 +44,18 @@ function readConfigTextSafely(candidatePath: string, projectRoot: string): strin
         }
       }
     }
+    const canonicalRoot = realpathSync(root);
+    const absoluteCandidate = resolve(candidatePath);
+    const relativeCandidate = relative(canonicalRoot, absoluteCandidate).split(sep).join("/");
+    const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
+      isAbsolute(relativeCandidate);
+    const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
+    if (!external && !packageManagerPath) {
+      return readFileWithinRoot(canonicalRoot, absoluteCandidate, {
+        canonicalRoot,
+        rejectFinalSymlink: true,
+      }).content.toString("utf8");
+    }
     // Explicit external "extends" targets and package-manager links under
     // node_modules remain supported; final-component symlinks still fail closed.
     const canonicalParent = realpathSync(dirname(candidatePath));
