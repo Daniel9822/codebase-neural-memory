@@ -221,7 +221,7 @@ describe("indexWithDatabase", () => {
     const savedIgnore = join(temporaryDirectory, "saved.gitignore");
     const outsideIgnore = join(temporaryDirectory, "outside.gitignore");
     renameSync(join(location.rootPath, ".gitignore"), savedIgnore);
-    writeFileSync(outsideIgnore, "*.ts\\n");
+    writeFileSync(outsideIgnore, "*.ts\n");
     symlinkSync(outsideIgnore, join(location.rootPath, ".gitignore"));
 
     expect(() => updateProjectIndex(location)).toThrow(/discovery is incomplete/i);
