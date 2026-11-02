@@ -201,7 +201,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   server.registerTool("symbol_lookup", {
     description: "Search indexed symbols with optional kind, project-relative path prefix, and export filters. includeSource returns bounded current source snippets with their own hashes and freshness status.",
     inputSchema: z.object({
-      query: z.string().min(1),
+      query: z.string().min(1).max(1000),
       limit: z.number().int().min(1).max(50).optional(),
       kind: z.string().min(1).max(40).optional(),
       filePath: z.string().min(1).max(500).optional(),
