@@ -217,7 +217,7 @@ describe("integrated CNM integrity regressions", () => {
     writeFileSync(packageManifest, JSON.stringify({ types: "./index.d.ts" }));
     writeFileSync(join(packageDirectory, "index.d.ts"), "export declare const value: string;");
     writeFileSync(outsideManifest, JSON.stringify({ types: "./outside.d.ts" }));
-    writeFileSync(join(location.rootPath, "main.ts"), 'import { value } from "semantic-fixture";\\nexport const result = value;');
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { value } from "semantic-fixture";\nexport const result = value;');
     indexWithDatabase(database!, location);
     const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
 
