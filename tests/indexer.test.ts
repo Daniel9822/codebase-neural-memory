@@ -555,6 +555,38 @@ describe("indexWithDatabase", () => {
     expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
   });
 
+  it("rolls back a scoped update when relation configuration changes after preflight", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"),
+      'import { helper } from "@/helper";\nexport function run() { return helper(); }');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+    const configPath = join(location.rootPath, "tsconfig.json");
+    writeFileSync(configPath, JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
+    }));
+    indexProject(location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    const beforeHash = (database!.prepare("SELECT content_hash FROM files WHERE path = 'src/main.ts'").get() as { content_hash: string }).content_hash;
+    const beforeRelations = database!.prepare("SELECT kind, source_file_id, target_file_id FROM relations ORDER BY kind, source_file_id, target_file_id").all();
+
+    writeFileSync(join(location.rootPath, "src", "main.ts"),
+      'import { helper } from "@/helper";\nexport function run() { return helper() ? false : true; }');
+    expect(() => indexWithDatabase(database!, location, false, [], { paths: ["src/main.ts"] }, () => {
+      writeFileSync(configPath, JSON.stringify({
+        compilerOptions: { baseUrl: ".", paths: { "@/*": ["generated/*"] } },
+      }));
+    })).toThrow(/relation configuration changed during indexing/i);
+
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+    expect((database!.prepare("SELECT content_hash FROM files WHERE path = 'src/main.ts'").get() as { content_hash: string }).content_hash)
+      .toBe(beforeHash);
+    expect(database!.prepare("SELECT kind, source_file_id, target_file_id FROM relations ORDER BY kind, source_file_id, target_file_id").all())
+      .toEqual(beforeRelations);
+    expect(getIndexFreshness(location).status).toBe("stale");
+  });
+
   it("marks malformed package manifests used by relation resolution as incomplete", () => {
     createProject();
     writeFileSync(join(location.rootPath, "package.json"), JSON.stringify({ name: "fixture" }));
