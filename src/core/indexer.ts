@@ -1135,6 +1135,8 @@ export function indexWithDatabase(
   force = false,
   extraExcludes: string[] = [],
   options: IndexOptions = {},
+  /** @internal Deterministic config-drift fault injection for tests only. */
+  afterConfigPreflight?: () => void,
 ): IndexSummary {
   validateIndexOptions(options, extraExcludes);
   const gitBefore = getGitSnapshot(location.rootPath);
@@ -1161,6 +1163,7 @@ export function indexWithDatabase(
     throw new Error("Index update aborted: relation configuration is incomplete; no index changes were committed. " +
       configErrors.slice(0, MAX_INDEX_DETAIL_ITEMS).join(" "));
   }
+  afterConfigPreflight?.();
   return db.transaction(() => {
     const projectState = db.prepare("SELECT relations_config_hash FROM projects WHERE id = ?").get(location.id) as {
       relations_config_hash: string | null;
