@@ -356,6 +356,18 @@ describe("MCP adapter protocol contract", () => {
       : (result?.content ?? []).map((item) => item.text ?? "").join("\n");
     expect(errorText.length).toBeGreaterThan(0);
 
+    for (const [name, args] of [
+      ["dependency_graph", { path: "x".repeat(501) }],
+      ["file_details", { path: "x".repeat(501) }],
+      ["source_excerpt", { path: "x".repeat(501), startLine: 1, endLine: 1 }],
+      ["change_impact", { path: "x".repeat(501) }],
+      ["task_context", { task: "x".repeat(2_001) }],
+    ] as const) {
+      const oversized = await client.request("tools/call", { name, arguments: args });
+      const oversizedResult = oversized.result as { isError?: boolean } | undefined;
+      expect(Boolean(oversized.error) || oversizedResult?.isError === true, name).toBe(true);
+    }
+
     const oversizedQuery = await client.request("tools/call", {
       name: "symbol_lookup",
       arguments: { query: "x".repeat(1_001) },
