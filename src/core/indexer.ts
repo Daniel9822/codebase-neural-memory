@@ -108,7 +108,11 @@ function normalizeIncludePatterns(patterns: string[] = []): string[] {
     return normalized;
   });
 }
-function validateIndexOptions(options: IndexOptions): void {
+function validateIndexOptions(options: IndexOptions, extraExcludes: string[]): void {
+  if (extraExcludes.length > 100) throw new Error("At most 100 custom exclusion patterns are allowed.");
+  if (extraExcludes.some((pattern) => typeof pattern !== "string" || !pattern.trim() || pattern.length > 500)) {
+    throw new Error("Custom exclusion patterns must be non-empty strings no longer than 500 characters.");
+  }
   if (options.maxFiles !== undefined && (!Number.isInteger(options.maxFiles) || options.maxFiles < 1 || options.maxFiles > 10_000)) {
     throw new Error("maxFiles must be an integer between 1 and 10000.");
   }
@@ -161,7 +165,7 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
 }
 
 export function discoverFiles(root: string, extraExcludes: string[] = [], options: IndexOptions = {}): DiscoveryResult {
-  validateIndexOptions(options);
+  validateIndexOptions(options, extraExcludes);
   const canonicalRoot = realpathSync(root);
   root = canonicalRoot;
   const selectedPaths = normalizeScopePaths(options.paths);
