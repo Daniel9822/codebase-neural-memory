@@ -403,7 +403,8 @@ This work turns CNM into an agent-ready project capability rather than relying o
 
 - [x] Enforce a 500-result maximum in `getSymbolRelations`; reject zero, unsafe, and over-limit values.
 - [x] Document the CLI `cnm relations --limit` range as 1–500.
-- [ ] Verify CI and merge; continue the cross-surface output audit.
+- [x] Verify PR #113 CI run 41434956754 passed and merge commit `b2ecb2ab37482fe38016d14f742799426700b307` is on `main`.
+- [ ] The remaining cross-surface audit is implemented separately in PR #135; final CI/merge is pending.
 
 
 ### CNM-06 follow-up — deterministic retrieval close-out (2026-11-02)
