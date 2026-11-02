@@ -144,7 +144,7 @@ program.command("map")
       if (row.truncated.importDiagnostics) console.log(`  └─ import diagnostics truncated (${row.totals.importDiagnostics} total)`);
     }
     if (report.truncated || report.candidatePathsTruncated) {
-      console.log("\\nProject map output was truncated:");
+      console.log("\nProject map output was truncated:");
       console.log(`  files: ${report.files.length}/${report.totalFiles} (limit ${report.limit})`);
       console.log(`  candidate paths: ${report.candidatePathsReturned}/${report.candidatePathsTotal} (global budget ${report.candidateBudget})`);
     }
