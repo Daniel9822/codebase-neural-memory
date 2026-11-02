@@ -86,7 +86,10 @@ function rankSearchCandidates(
     compareCodeUnits(a.filePath, b.filePath) ||
     a.startLine - b.startLine ||
     compareCodeUnits(a.name, b.name) ||
-    compareCodeUnits(a.kind, b.kind),
+    compareCodeUnits(a.kind, b.kind) ||
+    compareCodeUnits(a.signature, b.signature) ||
+    a.endLine - b.endLine ||
+    Number(b.exported) - Number(a.exported),
   ).slice(0, limit);
 }
 
@@ -140,7 +143,7 @@ export function searchSymbols(
         JOIN symbols s ON s.id = symbols_fts.rowid
         JOIN files f ON f.id = s.file_id
         WHERE symbols_fts MATCH ?${filterSql}
-        ORDER BY ftsRank, f.path, s.start_line, s.name, s.kind
+        ORDER BY ftsRank, f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.exported, s.id
         LIMIT ?
       `).all(ftsQuery, ...filterParameters, candidateLimit) as Array<SearchHit & { ftsRank: number }>;
       const fallbackParameters = tokens.flatMap((token) => [`%${escapeLikePattern(token)}%`, `%${escapeLikePattern(token)}%`]);
@@ -149,11 +152,11 @@ export function searchSymbols(
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
         WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
-        ORDER BY f.path, s.start_line, s.name, s.kind
+        ORDER BY f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.exported, s.id
         LIMIT ?
       `).all(...fallbackParameters, ...filterParameters, candidateLimit) as SearchHit[];
       const combined = new Map<string, SearchHit & { ftsRank?: number }>();
-      for (const row of rows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}`, row);
+      for (const row of rows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}:${row.signature}:${row.endLine}:${Number(row.exported)}`, row);
       for (const row of fallbackRows) {
         const key = `${row.filePath}:${row.startLine}:${row.name}:${row.kind}`;
         if (!combined.has(key)) combined.set(key, row);
@@ -282,7 +285,7 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
         )) FROM (
           SELECT module_specifier, kind, diagnostic_code, message, line, column_number, imported_name
           FROM import_diagnostics WHERE source_file_id = f.id
-          ORDER BY line, column_number, diagnostic_code LIMIT ?
+          ORDER BY line, column_number, diagnostic_code, module_specifier, kind, message LIMIT ?
         )), '[]') AS importDiagnostics
       FROM files f ORDER BY f.path LIMIT ?
     `).all(MAX_PROJECT_MAP_PER_FILE, MAX_PROJECT_MAP_PER_FILE, MAX_PROJECT_MAP_PER_FILE, limit) as Array<{
@@ -375,7 +378,7 @@ export function explainSymbol(location: ProjectLocation, name: string): SearchHi
         s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
       FROM symbols s JOIN files f ON f.id = s.file_id
       WHERE s.name = ? OR s.name LIKE ?
-      ORDER BY s.exported DESC, f.path, s.start_line LIMIT 20
+      ORDER BY s.exported DESC, f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.id LIMIT 20
     `).all(name, `%${name}%`) as SearchHit[];
   } finally {
     db.close();
@@ -620,7 +623,7 @@ export function getFileDetails(
       SELECT s.stable_id AS stableId, s.name, s.kind, s.signature, f.path AS filePath,
         s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
       FROM symbols s JOIN files f ON f.id = s.file_id
-      WHERE s.file_id = ? ORDER BY s.start_line, s.name, s.kind LIMIT ?
+      WHERE s.file_id = ? ORDER BY s.start_line, s.name, s.kind, s.signature, s.end_line, s.id LIMIT ?
     `).all(file.id, limit) as FileDetailSymbol[];
     const imports = db.prepare(`
       SELECT target.path, r.provenance, r.confidence, r.index_revision AS indexRevision
