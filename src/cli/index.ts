@@ -86,7 +86,7 @@ program.command("index")
   .option("--force", "Reparse every supported file")
   .option("--path <path>", "Select a project-relative file or directory (repeatable)", (value: string, previous: string[]) => [...previous, value], [])
   .option("--include <pattern>", "Select matching project-relative glob paths (repeatable)", (value: string, previous: string[]) => [...previous, value], [])
-  .option("--exclude <pattern>", "Additional ignore pattern (repeatable)", (value: string, previous: string[]) => [...previous, value], [])
+  .option("--exclude <pattern>", "Additional ignore pattern (repeatable; max 100 patterns, 500 characters each)", (value: string, previous: string[]) => [...previous, value], [])
   .option("--max-files <number>", "Maximum selected source files to read (1-10000)", parsePositiveInteger)
   .option("--max-processed <number>", "Maximum directory entries to examine (1-100000)", parsePositiveInteger)
   .action((options: { force?: boolean; path: string[]; include: string[]; exclude: string[]; maxFiles?: number; maxProcessed?: number }) => {
@@ -165,7 +165,7 @@ program.command("components")
 
 program.command("search <query>")
   .description("Search indexed symbols using exact-name, name-term, signature, export, and FTS5 ranking signals.")
-  .option("--limit <number>", "Maximum results", parsePositiveInteger, 20)
+  .option("--limit <number>", "Maximum results (1-1000)", parsePositiveInteger, 20)
   .action((query: string, options: { limit: number }) => {
     const hits = searchSymbols(ensureInitialized(), query, options.limit);
     if (hits.length === 0) {
@@ -239,9 +239,9 @@ program.command("blame <file>")
 
 program.command("dependencies <file>")
   .description("List files imported by the target, directly or up to a depth.")
-  .option("--depth <number>", "Maximum dependency depth", parsePositiveInteger, 1)
-  .option("--limit <number>", "Maximum unique dependency results", parsePositiveInteger, 100)
-  .option("--max-processed <number>", "Maximum import edges examined during traversal", parsePositiveInteger, 1000)
+  .option("--depth <number>", "Maximum dependency depth (1-100)", parsePositiveInteger, 1)
+  .option("--limit <number>", "Maximum unique dependency results (1-5000)", parsePositiveInteger, 100)
+  .option("--max-processed <number>", "Maximum import edges examined during traversal (1-10000)", parsePositiveInteger, 1000)
   .action((file: string, options: { depth: number; limit: number; maxProcessed: number }) => {
     const dependencies = findDependencies(ensureInitialized(), file, options.depth, options.limit, options.maxProcessed);
     console.log(JSON.stringify(dependencies, null, 2));
@@ -323,7 +323,7 @@ memory.command("delete <id>")
 
 program.command("memories [query]")
   .description("List local project memories, optionally filtered by text.")
-  .option("--limit <number>", "Maximum results", parsePositiveInteger, 20)
+  .option("--limit <number>", "Maximum results (1-500)", parsePositiveInteger, 20)
   .action((query: string | undefined, options: { limit: number }) => {
     console.log(JSON.stringify(recallMemories(ensureInitialized(), query ?? "", options.limit), null, 2));
   });

@@ -35,6 +35,14 @@ afterEach(() => {
 
 
 describe("symbol retrieval contracts", () => {
+  it("rejects empty or oversized symbol names in explain and relation lookups", () => {
+    createProject();
+    expect(() => explainSymbol(location, " ")).toThrow("Symbol name must be non-empty");
+    expect(() => explainSymbol(location, "x".repeat(201))).toThrow("no longer than 200 characters");
+    expect(() => getSymbolRelations(location, " ")).toThrow("Symbol name must be non-empty");
+    expect(() => getSymbolRelations(location, "x".repeat(201))).toThrow("no longer than 200 characters");
+  });
+
   it("supports exact symbol lookup and partial lexical prefix search with source locations", () => {
     createProject();
     writeFileSync(join(location.rootPath, "totals.ts"),

@@ -149,6 +149,10 @@ describe("indexWithDatabase", () => {
       .toThrow("maxProcessed");
     expect(() => indexWithDatabase(database!, location, false, [], { include: ["../outside/**/*.ts"] }))
       .toThrow("Include patterns");
+    expect(() => indexWithDatabase(database!, location, false, Array.from({ length: 101 }, (_, i) => `ignored-${i}/`)))
+      .toThrow("At most 100 custom exclusion patterns");
+    expect(() => indexWithDatabase(database!, location, false, ["x".repeat(501)]))
+      .toThrow("no longer than 500 characters");
     expect(() => indexWithDatabase(database!, location, false, [], { paths: Array.from({ length: 101 }, (_, i) => `src/${i}.ts`) }))
       .toThrow("At most 100 index scope paths");
   });

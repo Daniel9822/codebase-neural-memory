@@ -56,4 +56,15 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Confirmed `getSymbolRelations` accepted any positive safe integer, allowing arbitrarily large relation result materialization from the core/CLI API.
 - [x] Enforce a 500-result ceiling in the core API and document the CLI limit.
 - [x] Route the deprecated legacy `getProjectMap` API through `getProjectMapReport`, so external core callers also receive bounded candidate arrays and the 1–200 file limit; add regression coverage for its legacy projection.
-- [ ] Verify CI and merge; continue auditing all remaining CLI result-limit inputs.
+- [x] Verify PR #113 CI run 41434956754 passed and merge commit `b2ecb2ab37482fe38016d14f742799426700b307` is on `main`.
+- [ ] Complete the cross-surface audit of remaining CLI/MCP retrieval inputs, ordering, processing budgets, and truncation contracts.
+
+
+### CNM-06 follow-up — CLI/index input-budget audit (2026-11-02)
+
+- [x] Audited CLI retrieval ceilings against core validators: search (1–1,000), relations (1–500), project map (1–200), file details (1–500), component map (depth 1–20, groups 1–100, files/group 1–20), impact (results 1–5,000; processed 1–10,000), dependency traversal (depth 1–100; results 1–5,000; processed 1–10,000), symbol impact (depth 1–20; results 1–500; processed 1–10,000), task context (items 1–100; characters 100–50,000; per-kind 1–50), and memory recall (1–500).
+- [x] Confirmed MCP schemas expose stricter or matching limits for registered retrieval tools; project-map/file-details nested candidate arrays, task-context test discovery, index diagnostics, Git history, and blame have bounded windows.
+- [x] Found custom CLI/core index exclusions were the remaining repeated input list without a count/length ceiling; added a maximum of 100 non-empty patterns, each at most 500 characters, with regression coverage.
+- [x] Added a 200-character non-empty symbol-name ceiling to core `explainSymbol` and `getSymbolRelations`; regression tests cover empty and oversized names.
+- [x] Clarified CLI help for search, dependencies, memories, and repeated exclusion patterns so user-visible limits match core contracts.
+- [ ] Verify CI and merge this follow-up; the broader CNM-01–CNM-06 filesystem/freshness close-out and autonomous-memory implementation remain open.

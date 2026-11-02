@@ -365,6 +365,9 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
 }
 
 export function explainSymbol(location: ProjectLocation, name: string): SearchHit[] {
+  if (typeof name !== "string" || !name.trim() || name.length > 200) {
+    throw new Error("Symbol name must be non-empty and no longer than 200 characters.");
+  }
   const db = openDatabase(location);
   try {
     return db.prepare(`
@@ -724,6 +727,9 @@ export interface SymbolRelationHit {
 const MAX_SYMBOL_RELATIONS = 500;
 
 export function getSymbolRelations(location: ProjectLocation, name: string, limit = 50): SymbolRelationHit[] {
+  if (typeof name !== "string" || !name.trim() || name.length > 200) {
+    throw new Error("Symbol name must be non-empty and no longer than 200 characters.");
+  }
   if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_SYMBOL_RELATIONS) {
     throw new Error(`Relation limit must be a positive safe integer no greater than ${MAX_SYMBOL_RELATIONS}.`);
   }
