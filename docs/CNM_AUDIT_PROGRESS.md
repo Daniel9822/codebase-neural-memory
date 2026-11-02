@@ -74,14 +74,14 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 
 - [x] Confirmed relation-config bytes are read through `readFileWithinRoot` in `src/core/indexer.ts`; the shared reader uses a file descriptor, `O_NOFOLLOW` where available, root containment checks, descriptor/path identity checks, and post-read revalidation.
 - [x] Confirmed `package.json` manifests used for local package resolution and TypeScript extended-config package metadata use the same safe byte reader.
-- [ ] Close the configuration error-state gap: `readConfigTextSafely` currently converts every safe-read failure to `undefined`; `loadPathAliasConfig`, `readLocalPackages`, and extended-config traversal can then silently omit invalid/unreadable configuration. Freshness hashes raw bytes/error codes, but does not expose a distinct actionable configuration diagnostic or consistently classify an invalid resolution configuration as incomplete.
+- [ ] PR #122 implements actionable freshness diagnostics and an all-scope preflight that rejects malformed, unreadable, or unsafe relation configuration before writes; confirm the behavior after the PR's final cross-platform CI and merge.
 - [x] Harden extended-config candidate discovery: candidate selection uses `lstat` and the verified config reader; missing candidates permit normal extension fallbacks, while symlink/unreadable candidates remain visible to freshness diagnostics. TypeScript's config host also uses the verified reader when parsing inherited configs. Package-manifest `tsconfig` metadata error semantics remain open.
 - [ ] Close directory-open race coverage: discovery classifies entries with `Dirent`, then recursively calls `opendirSync(directory)` by path. A directory can be replaced between classification and open; source-file opens are separately root/identity checked, but directory enumeration itself has no verified directory-handle identity contract. Add deterministic replacement injection and fail-closed behavior where supported.
 - [x] Close the configuration error-state gap for freshness: PR #116 reports malformed/unreadable relation configuration through bounded freshness diagnostics and marks the index `incomplete`. Resolution-time fallback behavior remains a separate audit item.
-- [ ] Harden extended-config candidate discovery: `resolveExtendedConfigPath` uses path-based `existsSync` / `statSync` to select candidates before the final safe read. The final byte read is protected, but candidate selection and package-manifest interpretation need explicit missing/malformed/unreadable semantics and race tests.
+- [ ] PR #122 removes path-following existence checks, uses `lstat` plus the verified reader, fingerprints package manifests consulted by bare-package `extends`, and adds missing/malformed/symlink regressions; confirm after final CI and merge.
 - [x] Add directory identity checks before opening and after `opendirSync`, during enumeration, before entry processing, and after source reads; deterministic replacement injection proves fail-closed behavior. Node's path-based API still cannot bind these checks to the opened directory descriptor; retain that limitation.
 - [x] Confirmed `readFileWithinRoot` validates the opened file against the resolved path before reading and again after reading; no source change is claimed by this audit-only finding.
-- [ ] Complete the remaining candidate-discovery race audit and combined CNM-01/CNM-05 regression coverage before closing the workstreams.
+- [ ] PR #122 adds combined configuration/symlink/source-drift tests and pre/post fingerprint rollback coverage. External `node_modules` manifests used by semantic module resolution remain outside the fingerprint and require a separate audit.
 
 
 
@@ -100,7 +100,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Replace `existsSync` / `statSync` candidate selection for `extends` paths with `lstat` plus verified safe reads. Missing candidates still allow standard `.json` and `tsconfig.json` fallbacks; unsafe/unreadable candidates remain diagnosable.
 - [x] Add a regression where the root config extends a final-component symlink to an outside config; no alias import relation may be created and freshness must be `incomplete`.
 - [x] Verify inherited-config hardening in merged PR #118; cross-platform CI passed.
-- [x] PR #120 follow-up covers malformed and non-string `tsconfig` metadata in package manifests; symlink/unreadable manifest cases remain part of the broader security audit.
+- [ ] PR #122 adds final-component manifest symlink rejection, local symlink-parent rejection, package-manager directory-symlink compatibility, and all-scope abort tests; validate after final CI and merge.
 - [x] Directory replacement race hardening is merged in PR #117; CI run 41439352404 passed across the required test/build/smoke and benchmark matrix.
 
 
@@ -124,31 +124,31 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 
 ### CNM-06 follow-up — bounded memory freshness
 
-- [x] Bound `inspectMemoryFreshness` to 100 records by default and 500 maximum.
-- [x] Add targeted memory-ID freshness inspection (maximum 50 IDs) so `task_context` hashes only the memory candidates it actually returns.
-- [x] Change `cnm memory freshness` to use the bounded report, expose `--limit` (1–500), and return total/truncation metadata.
-- [x] Verify the CLI report's default budget of 100 as well as explicit limit/truncation behavior in `tests/memories.test.ts`.
-- [x] Add a synthetic 100,001-entry directory regression proving the deterministic sorting cap aborts discovery, marks the root protected, and returns no partial candidate set.
-- [x] Inject the discovery provider into freshness evaluation for deterministic testing; assert the sorting cap reports `incomplete`, preserves all indexed records, emits no false deletions, and leaves the index revision unchanged. The 100,001-entry fixture uses a 30-second timeout for cross-platform filesystem overhead.
-- [x] Update README, architecture, and product-contract documentation to match the CLI and context budgets.
+- [ ] Bound `inspectMemoryFreshness` to 100 records by default and 500 maximum.
+- [ ] Add targeted memory-ID freshness inspection (maximum 50 IDs) so `task_context` hashes only the memory candidates it actually returns.
+- [ ] Change `cnm memory freshness` to use the bounded report, expose `--limit` (1–500), and return total/truncation metadata.
+- [ ] Verify the CLI report's default budget of 100 as well as explicit limit/truncation behavior in `tests/memories.test.ts`.
+- [ ] Add a synthetic 100,001-entry directory regression proving the deterministic sorting cap aborts discovery, marks the root protected, and returns no partial candidate set.
+- [ ] Inject the discovery provider into freshness evaluation for deterministic testing; assert the sorting cap reports `incomplete`, preserves all indexed records, emits no false deletions, and leaves the index revision unchanged. The 100,001-entry fixture uses a 30-second timeout for cross-platform filesystem overhead.
+- [ ] Update README, architecture, and product-contract documentation to match the CLI and context budgets.
 - [ ] Verify the final cross-platform CI matrix on the latest PR head after adding ignored-symlink protection, all-scope config fail-closed behavior, deterministic config-drift rollback, the 100,001-entry sorting-cap freshness regression, and bounded memory freshness.
 
 ### Integrated CNM close-out regression — PR #122 (2026-11-02)
 
-- [x] Add a combined regression for directory-to-symlink replacement, incomplete discovery, simultaneous source-file drift, and relation-configuration drift.
-- [x] Assert the destructive reconciliation is refused and previously indexed file/symbol records remain intact.
-- [x] Add a regression ensuring a symlinked package manifest encountered during TypeScript `extends` resolution is surfaced as an incomplete freshness diagnostic.
-- [x] Make every index-update scope reject malformed/unsafe relation configuration before database writes and verify the relation-config fingerprint again before commit; any detected drift rolls back the transaction.
-- [x] Reject project-local relative `extends` paths that traverse symlinked parent directories; preserve explicitly external `extends` and package-manager symlinks under `node_modules`, and add a regression for the rejected local path.
-- [x] Add regressions proving malformed/unsafe relation configuration blocks both full and selective updates before writes, preserving the prior index revision and relation graph.
-- [x] Verify the relation-config fingerprint before and after every update scope; inject a config change after preflight and assert the scoped transaction rolls back file hashes, relations, and index revision.
-- [x] Include package manifests consulted during bare-package `extends` resolution in the configuration fingerprint and diagnostics, including missing candidates; add a regression proving that changing the manifest's `tsconfig` target makes freshness stale.
-- [x] Add positive regressions proving explicit external `extends` targets and package-manager symlinks under `node_modules` remain supported by the documented trust boundary.
-- [x] Bind project-local config reads to the canonical project root, reject symlinked parent directories, remove path-following `existsSync` candidate checks, and disable config-driven directory enumeration in both TypeScript config hosts.
-- [x] Remove path-following existence prechecks for package manifests and the root semantic-diagnostics config; attempt the verified read directly and preserve normal missing-config fallback behavior.
-- [x] Document the full-snapshot configuration fail-closed behavior in the README, distinguishing it from selective/bounded updates.
-- [x] Add a strict MCP freshness regression where a second independent SQLite connection advances the index revision during a read; the first handler must refuse the mixed-snapshot result.
-- [x] Add a strict MCP freshness regression where a directory is replaced by an outside-root symlink during the read; post-read discovery becomes incomplete and the result is refused.
+- [ ] Add a combined regression for directory-to-symlink replacement, incomplete discovery, simultaneous source-file drift, and relation-configuration drift.
+- [ ] Assert the destructive reconciliation is refused and previously indexed file/symbol records remain intact.
+- [ ] Add a regression ensuring a symlinked package manifest encountered during TypeScript `extends` resolution is surfaced as an incomplete freshness diagnostic.
+- [ ] Make every index-update scope reject malformed/unsafe relation configuration before database writes and verify the relation-config fingerprint again before commit; any detected drift rolls back the transaction.
+- [ ] Reject project-local relative `extends` paths that traverse symlinked parent directories; preserve explicitly external `extends` and package-manager symlinks under `node_modules`, and add a regression for the rejected local path.
+- [ ] Add regressions proving malformed/unsafe relation configuration blocks both full and selective updates before writes, preserving the prior index revision and relation graph.
+- [ ] Verify the relation-config fingerprint before and after every update scope; inject a config change after preflight and assert the scoped transaction rolls back file hashes, relations, and index revision.
+- [ ] Include package manifests consulted during bare-package `extends` resolution in the configuration fingerprint and diagnostics, including missing candidates; add a regression proving that changing the manifest's `tsconfig` target makes freshness stale.
+- [ ] Add positive regressions proving explicit external `extends` targets and package-manager symlinks under `node_modules` remain supported by the documented trust boundary.
+- [ ] Bind project-local config reads to the canonical project root, reject symlinked parent directories, remove path-following `existsSync` candidate checks, and disable config-driven directory enumeration in both TypeScript config hosts.
+- [ ] Remove path-following existence prechecks for package manifests and the root semantic-diagnostics config; attempt the verified read directly and preserve normal missing-config fallback behavior.
+- [ ] Document the full-snapshot configuration fail-closed behavior in the README, distinguishing it from selective/bounded updates.
+- [ ] Add a strict MCP freshness regression where a second independent SQLite connection advances the index revision during a read; the first handler must refuse the mixed-snapshot result.
+- [ ] Add a strict MCP freshness regression where a directory is replaced by an outside-root symlink during the read; post-read discovery becomes incomplete and the result is refused.
 - [ ] Re-run the complete GitHub Actions matrix on the latest PR head after the follow-up fixes: the local-extends fixture now excludes its symlink directory to isolate config diagnostics; the semantic-diagnostics reader has been consolidated, and local config reads are revalidated after the descriptor-bound read. Runs 41456135085 and 41456423882 exercised earlier PR heads and are not final validation. Verify typecheck, full tests, build, smoke, and benchmarks.
 - [ ] Continue the cross-process/MCP-handler race audit and remaining destructive reconciliation call-site review; this PR does not close CNM-01–CNM-06 globally.
 - [ ] Complete the CNM-05 audit of TypeScript program/dependency reads in `src/core/import-diagnostics.ts`: config bytes use the verified reader, but `ts.createProgram` and `ts.resolveModuleName` still rely on TypeScript's default filesystem host for dependency resolution; define and test the intended symlink/external-package boundary.
