@@ -42,7 +42,7 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
     throw new Error("Memory source path must stay inside the project root");
   }
   try {
-    const source = readFileWithinRoot(location.rootPath, absolutePath);
+    const source = readFileWithinRoot(location.rootPath, absolutePath, { rejectFinalSymlink: true });
     return createHash("sha256").update(source.content).digest("hex");
   } catch (error) {
     if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
