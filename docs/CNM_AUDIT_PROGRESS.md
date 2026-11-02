@@ -127,5 +127,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Add a combined regression for directory-to-symlink replacement, incomplete discovery, simultaneous source-file drift, and relation-configuration drift.
 - [x] Assert the destructive reconciliation is refused and previously indexed file/symbol records remain intact.
 - [x] Add a regression ensuring a symlinked package manifest encountered during TypeScript `extends` resolution is surfaced as an incomplete freshness diagnostic.
+- [x] Make complete-snapshot indexing reject malformed/unsafe relation configuration before database writes and verify the relation-config fingerprint again before commit; roll back on drift.
+- [x] Add a strict MCP freshness regression where a second independent SQLite connection advances the index revision during a read; the first handler must refuse the mixed-snapshot result.
 - [ ] Verify the new tests on the latest PR head with GitHub Actions (typecheck, full tests, build, smoke, and benchmark matrix).
 - [ ] Continue the cross-process/MCP-handler race audit and remaining destructive reconciliation call-site review; this PR does not close CNM-01–CNM-06 globally.
