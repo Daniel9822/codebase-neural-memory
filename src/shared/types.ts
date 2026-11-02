@@ -50,6 +50,12 @@ export interface IndexSummary {
   failed: number;
   errors: string[];
   skippedFiles: string[];
+  /** Exact counts before the bounded diagnostic detail lists are truncated. */
+  totals: { errors: number; skippedFiles: number };
+  /** Maximum number of diagnostic path/error details returned per collection. */
+  limits: { detailItems: number };
+  /** Indicates whether either diagnostic detail list omits entries. */
+  detailsTruncated: { errors: boolean; skippedFiles: boolean };
   /** True when a bounded selective scan stopped before exhausting its scope. */
   truncated?: boolean;
 }

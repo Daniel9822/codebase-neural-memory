@@ -367,6 +367,7 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Apply `symbol_lookup` kind, project-relative path-prefix, and export filters in SQL before the bounded candidate window.
 - [x] Add a regression fixture with more than 1,000 unfiltered candidates and a matching symbol beyond that window.
 - [ ] Complete the remaining MCP output-contract audit for ranking, deterministic tie-breaks, processing budgets, and order-before-truncation across all registered tools.
+- [x] Bound `index_update` diagnostic response collections to 200 sorted details each while preserving exact counters/totals and explicit truncation metadata (PR pending; regression in `tests/mcp-boundaries.test.ts`).
 
 
 ### CNM-06 follow-up — task-context test discovery (2026-11-02)

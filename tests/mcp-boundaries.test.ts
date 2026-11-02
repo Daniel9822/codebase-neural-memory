@@ -187,6 +187,24 @@ describe("MCP bounded output and project isolation", () => {
       item.candidatesTotal === 1_000 && item.candidatesTruncated)).toBe(true);
   });
 
+  it("bounds index_update diagnostic details while preserving exact totals", async () => {
+    const { location, root } = createProject("index-update-output-budget");
+    writeFileSync(join(root, "entry.ts"), "export const entry = true;\n");
+    indexWithDatabase(databases[0]!, location);
+    for (let index = 0; index < 205; index += 1) {
+      symlinkSync(join(root, "entry.ts"), join(root, `linked-${String(index).padStart(3, "0")}.ts`));
+    }
+
+    const client = await connect(location);
+    const result = await client.call("index_update", { include: ["*.ts"], maxProcessed: 1_000 });
+    expect(result.skipped).toBe(205);
+    expect(result.skippedFiles).toHaveLength(200);
+    expect(result.totals).toEqual({ errors: 0, skippedFiles: 205 });
+    expect(result.limits).toEqual({ detailItems: 200 });
+    expect(result.detailsTruncated).toEqual({ errors: false, skippedFiles: true });
+    expect(result.skippedFiles).toEqual([...result.skippedFiles].sort());
+  });
+
   it("keeps concurrent MCP servers isolated to their own repositories and memories", async () => {
     const first = createProject("first");
     const second = createProject("second");
