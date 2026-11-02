@@ -208,6 +208,30 @@ describe("integrated CNM integrity regressions", () => {
     expect(freshness.relationsConfigChanged).toBe(true);
   });
 
+  it("fails closed when a consulted semantic dependency manifest becomes a symlink", () => {
+    createProject();
+    const packageDirectory = join(location.rootPath, "node_modules", "semantic-fixture");
+    const packageManifest = join(packageDirectory, "package.json");
+    const outsideManifest = join(temporaryDirectory, "outside-semantic-package.json");
+    mkdirSync(packageDirectory, { recursive: true });
+    writeFileSync(packageManifest, JSON.stringify({ types: "./index.d.ts" }));
+    writeFileSync(join(packageDirectory, "index.d.ts"), "export declare const value: string;");
+    writeFileSync(outsideManifest, JSON.stringify({ types: "./outside.d.ts" }));
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { value } from "semantic-fixture";\\nexport const result = value;');
+    indexWithDatabase(database!, location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+
+    rmSync(packageManifest);
+    symlinkSync(outsideManifest, packageManifest, "file");
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("semantic-fixture/package.json"))).toBe(true);
+    expect(() => updateProjectIndex(location, { paths: ["main.ts"] })).toThrow(/relation configuration is incomplete/i);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
+  });
+
   it("continues to support an explicitly external TypeScript extends target", () => {
     createProject();
     const externalConfig = join(temporaryDirectory, "outside-tsconfig.json");
