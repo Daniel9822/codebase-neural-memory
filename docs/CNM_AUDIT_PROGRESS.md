@@ -128,7 +128,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Add targeted memory-ID freshness inspection (maximum 50 IDs) so `task_context` hashes only the memory candidates it actually returns.
 - [x] Change `cnm memory freshness` to use the bounded report, expose `--limit` (1–500), and return total/truncation metadata.
 - [x] Update README, architecture, and product-contract documentation to match the CLI and context budgets.
-- [ ] Verify the memory freshness and task-context tests plus the final cross-platform CI matrix before merge.
+- [ ] Verify the memory freshness and task-context tests plus the final cross-platform CI matrix on the latest PR head; the latest changes now include bounded source/Git inspection, selected-ID freshness for task context, and the CLI report/limit contract.
 
 ### Integrated CNM close-out regression — PR #122 (2026-11-02)
 
