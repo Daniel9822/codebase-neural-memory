@@ -391,7 +391,7 @@ describe("indexWithDatabase", () => {
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.deletedFiles).toBe(0);
-    expect(freshness.errors.some((error) => error.includes("source.ts"))).toBe(true);
+    expect(freshness.skippedFiles).toContain("source.ts: symbolic link");
     expect(() => updateProjectIndex(location)).toThrow(/source discovery is incomplete/i);
 
     expect(database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id))
