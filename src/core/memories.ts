@@ -211,15 +211,24 @@ export interface MemorySourceFreshness {
 }
 
 /** Inspect source and Git provenance without changing memory content or lifecycle status. */
-export function inspectMemoryFreshness(location: ProjectLocation, limit?: number): MemorySourceFreshness[] {
-  if (limit !== undefined && (!Number.isSafeInteger(limit) || limit < 1 || limit > 500)) {
+export function inspectMemoryFreshness(
+  location: ProjectLocation, limit = 100, memoryIds?: string[],
+): MemorySourceFreshness[] {
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > 500) {
     throw new Error("Memory freshness limit must be a positive safe integer no greater than 500");
   }
+  const selectedIds = memoryIds === undefined ? undefined : [...new Set(memoryIds)];
+  if (selectedIds && (selectedIds.length > 50 || selectedIds.some((id) => typeof id !== "string" || !id.trim() || id.length > 128))) {
+    throw new Error("Targeted memory freshness accepts at most 50 non-empty IDs of no more than 128 characters");
+  }
+  if (selectedIds?.length === 0) return [];
   const db = openDatabase(location);
   try {
-    const sql = "SELECT id, title, source_path AS sourcePath, source_hash AS sourceHash, commit_sha AS commitSha FROM memories WHERE status != 'rejected' AND (source_path IS NOT NULL OR commit_sha IS NOT NULL) ORDER BY updated_at DESC, id" +
-      (limit === undefined ? "" : " LIMIT ?");
-    const rows = (limit === undefined ? db.prepare(sql).all() : db.prepare(sql).all(limit)) as Array<{
+    const idFilter = selectedIds ? " AND id IN (" + selectedIds.map(() => "?").join(", ") + ")" : "";
+    const sql = "SELECT id, title, source_path AS sourcePath, source_hash AS sourceHash, commit_sha AS commitSha FROM memories WHERE status != 'rejected' AND (source_path IS NOT NULL OR commit_sha IS NOT NULL)" +
+      idFilter + " ORDER BY updated_at DESC, id LIMIT ?";
+    const parameters = selectedIds ? [...selectedIds, limit] : [limit];
+    const rows = db.prepare(sql).all(...parameters) as Array<{
       id: string; title: string; sourcePath: string | null; sourceHash: string | null; commitSha: string | null;
     }>;
     const git = getGitSnapshot(location.rootPath);
