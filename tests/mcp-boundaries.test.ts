@@ -190,7 +190,7 @@ describe("MCP bounded output and project isolation", () => {
   it("bounds file_details unresolved-import candidate materialization globally", async () => {
     const { location, root } = createProject("file-details-candidate-budget");
     const imports = Array.from({ length: 11 }, (_, index) => `import "./missing-${String(index).padStart(2, "0")}";`);
-    writeFileSync(join(root, "entry.ts"), imports.join("\\n"));
+    writeFileSync(join(root, "entry.ts"), imports.join("\n"));
     indexWithDatabase(databases[0]!, location);
     const unresolved = databases[0]!.prepare(
       "SELECT id FROM unresolved_imports WHERE source_file_id = (SELECT id FROM files WHERE path = 'entry.ts') ORDER BY module_specifier",
