@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { opendirSync, readFileSync, statSync, type Dirent } from "node:fs";
+import { existsSync, opendirSync, readFileSync, statSync, type Dirent } from "node:fs";
 import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -394,6 +394,72 @@ function hasExtendedTsConfig(rootPath: string): boolean {
     "extends" in config.config);
 }
 
+function resolveExtendedConfigPath(configPath: string, specifier: string): string {
+  const absoluteSpecifier = isAbsolute(specifier);
+  const relativeSpecifier = specifier.startsWith(".") || absoluteSpecifier;
+  if (relativeSpecifier) {
+    const base = absoluteSpecifier ? resolve(specifier) : resolve(dirname(configPath), specifier);
+    const candidates = /\\.json$/i.test(base) ? [base] : [base, base + ".json", join(base, "tsconfig.json")];
+    return candidates.find((candidate) => {
+      try { return existsSync(candidate) && statSync(candidate).isFile(); } catch { return false; }
+    }) ?? candidates[0]!;
+  }
+
+  const parts = specifier.split("/");
+  const packageName = specifier.startsWith("@") ? parts.slice(0, 2).join("/") : parts[0]!;
+  const subpath = parts.slice(specifier.startsWith("@") ? 2 : 1).join("/");
+  let directory = dirname(configPath);
+  while (true) {
+    const packageRoot = join(directory, "node_modules", packageName);
+    const packageJson = join(packageRoot, "package.json");
+    const candidates = subpath
+      ? ( /\\.json$/i.test(subpath)
+          ? [join(packageRoot, subpath)]
+          : [join(packageRoot, subpath), join(packageRoot, subpath + ".json"), join(packageRoot, subpath, "tsconfig.json")] )
+      : [join(packageRoot, "tsconfig.json")];
+    try {
+      if (!subpath && existsSync(packageJson)) {
+        const manifest = JSON.parse(readFileSync(packageJson, "utf8")) as { tsconfig?: unknown };
+        if (typeof manifest.tsconfig === "string") candidates.unshift(join(packageRoot, manifest.tsconfig));
+      }
+    } catch { /* Invalid package metadata is represented by the package config candidates. */ }
+    const resolved = candidates.find((candidate) => {
+      try { return existsSync(candidate) && statSync(candidate).isFile(); } catch { return false; }
+    });
+    if (resolved) return resolved;
+    const parent = dirname(directory);
+    if (parent === directory) return candidates[0]!;
+    directory = parent;
+  }
+}
+
+function collectExtendedConfigPaths(rootPath: string): string[] {
+  const rootConfig = resolve(rootPath, "tsconfig.json");
+  const visited = new Set<string>();
+  const visit = (configPath: string): void => {
+    const normalized = resolve(configPath);
+    if (visited.has(normalized)) return;
+    visited.add(normalized);
+    let config: unknown;
+    try {
+      const read = ts.readConfigFile(normalized, ts.sys.readFile);
+      config = read.config;
+    } catch {
+      return;
+    }
+    if (!config || typeof config !== "object" || !("extends" in config)) return;
+    const value = (config as { extends?: unknown }).extends;
+    const specifiers = Array.isArray(value) ? value : [value];
+    for (const specifier of specifiers) {
+      if (typeof specifier === "string" && specifier.trim()) {
+        visit(resolveExtendedConfigPath(normalized, specifier));
+      }
+    }
+  };
+  visit(rootConfig);
+  return [...visited].sort((a, b) => a.localeCompare(b));
+}
+
 function computeRelationsConfigHash(rootPath: string, files: Array<{ path: string }>): string {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
@@ -404,17 +470,22 @@ function computeRelationsConfigHash(rootPath: string, files: Array<{ path: strin
     }
   }
   const configPaths = [
-    "tsconfig.json",
     ...[...packageDirectories].map((directory) =>
-      directory ? posix.join(directory, "package.json") : "package.json"),
+      directory ? resolve(rootPath, ...directory.split("/"), "package.json") : resolve(rootPath, "package.json")),
+    ...collectExtendedConfigPaths(rootPath),
   ].sort((a, b) => a.localeCompare(b));
   const hash = createHash("sha256");
-  for (const configPath of configPaths) {
-    hash.update(configPath).update("\\0");
+  for (const absoluteConfigPath of configPaths) {
+    const relativeConfigPath = relative(rootPath, absoluteConfigPath).replaceAll("\\", "/");
+    const configIdentity = relativeConfigPath === ".." || relativeConfigPath.startsWith("../") || isAbsolute(relativeConfigPath)
+      ? absoluteConfigPath
+      : relativeConfigPath;
+    hash.update(configIdentity).update("\\0");
     try {
-      hash.update(readFileSync(join(rootPath, ...configPath.split("/"))));
-    } catch {
-      hash.update("<missing>");
+      hash.update(readFileSync(absoluteConfigPath));
+    } catch (error) {
+      const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unknown";
+      hash.update(code === "ENOENT" ? "<missing>" : `<unreadable:${code}>`);
     }
     hash.update("\0");
   }
@@ -578,6 +649,7 @@ export interface IndexFreshness {
   addedFiles: number;
   changedFiles: number;
   deletedFiles: number;
+  relationsConfigChanged: boolean;
   fileChanges: Array<{ path: string; status: "added" | "changed" | "deleted"; oldHash: string | null; newHash: string | null }>;
   fileChangesTotal: number;
   fileChangesTruncated: boolean;
