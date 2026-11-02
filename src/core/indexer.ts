@@ -78,10 +78,14 @@ function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buff
   if (!external && !packageManagerPath) {
     // Keep project-local config reads rooted at the canonical project. This
     // makes a parent-directory substitution fail containment during open/read.
-    return readFileWithinRoot(root, absoluteCandidate, {
+    const read = readFileWithinRoot(root, absoluteCandidate, {
       canonicalRoot: root,
       rejectFinalSymlink: true,
-    }).content;
+    });
+    // Recheck parent components after the descriptor-bound read to detect
+    // substitutions that occurred after the pre-open path inspection.
+    assertNoSymlinkedConfigParents(candidatePath, projectRoot);
+    return read.content;
   }
   // Explicit external "extends" paths and package-manager links under
   // node_modules remain supported as separate, intentional trust boundaries.
