@@ -25,10 +25,11 @@ const BUILTINS = new Set(builtinModules.flatMap((name) => [name, name.replace(/^
 
 function readConfigTextSafely(candidatePath: string, projectRoot: string): string | undefined {
   try {
-    const root = resolve(projectRoot);
+    const root = realpathSync(projectRoot);
     const absoluteCandidate = resolve(candidatePath);
     const relativeCandidate = relative(root, absoluteCandidate).split(sep).join("/");
-    const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") || isAbsolute(relativeCandidate);
+    const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
+      isAbsolute(relativeCandidate);
     if (!external) {
       const relativeParent = relative(root, dirname(absoluteCandidate));
       let current = root;
@@ -44,15 +45,10 @@ function readConfigTextSafely(candidatePath: string, projectRoot: string): strin
         }
       }
     }
-    const canonicalRoot = realpathSync(root);
-    const absoluteCandidate = resolve(candidatePath);
-    const relativeCandidate = relative(canonicalRoot, absoluteCandidate).split(sep).join("/");
-    const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
-      isAbsolute(relativeCandidate);
     const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
     if (!external && !packageManagerPath) {
-      return readFileWithinRoot(canonicalRoot, absoluteCandidate, {
-        canonicalRoot,
+      return readFileWithinRoot(root, absoluteCandidate, {
+        canonicalRoot: root,
         rejectFinalSymlink: true,
       }).content.toString("utf8");
     }
@@ -68,7 +64,6 @@ function readConfigTextSafely(candidatePath: string, projectRoot: string): strin
     return undefined;
   }
 }
-
 function nodeAtPosition(sourceFile: ts.SourceFile, position: number): ts.Node {
   let best: ts.Node = sourceFile;
   const visit = (node: ts.Node): void => {
