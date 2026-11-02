@@ -132,6 +132,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Include package manifests consulted during bare-package `extends` resolution in the configuration fingerprint and diagnostics, including missing candidates; add a regression proving that changing the manifest's `tsconfig` target makes freshness stale.
 - [x] Add positive regressions proving explicit external `extends` targets and package-manager symlinks under `node_modules` remain supported by the documented trust boundary.
 - [x] Bind project-local config reads to the canonical project root, reject symlinked parent directories, remove path-following `existsSync` candidate checks, and disable config-driven directory enumeration in both TypeScript config hosts.
+- [x] Remove path-following existence prechecks for package manifests and the root semantic-diagnostics config; attempt the verified read directly and preserve normal missing-config fallback behavior.
 - [x] Document the full-snapshot configuration fail-closed behavior in the README, distinguishing it from selective/bounded updates.
 - [x] Add a strict MCP freshness regression where a second independent SQLite connection advances the index revision during a read; the first handler must refuse the mixed-snapshot result.
 - [x] Add a strict MCP freshness regression where a directory is replaced by an outside-root symlink during the read; post-read discovery becomes incomplete and the result is refused.
