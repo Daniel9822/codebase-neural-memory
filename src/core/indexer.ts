@@ -947,7 +947,7 @@ export function indexWithDatabase(
   extraExcludes: string[] = [],
   options: IndexOptions = {},
 ): IndexSummary {
-  validateIndexOptions(options);
+  validateIndexOptions(options, extraExcludes);
   const gitBefore = getGitSnapshot(location.rootPath);
   const discovery = discoverFiles(location.rootPath, extraExcludes, options);
   const scoped = Boolean(options.paths?.length || options.include?.length ||
