@@ -8,6 +8,7 @@ import { getGitSnapshot, sameGitSnapshot } from "./git.js";
 import { isSupportedSourceFile, parseTypeScriptFile } from "./typescript-parser.js";
 import { analyzeImportDiagnostics } from "./import-diagnostics.js";
 import type { IndexSummary } from "../shared/types.js";
+import { readFileWithinRoot } from "./safe-file.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
 
 const MAX_FILE_BYTES = 1_000_000;
@@ -31,6 +32,7 @@ interface IgnoreScope {
   directory: string;
   rules: ReturnType<typeof ignore>;
   mandatoryRules?: ReturnType<typeof ignore>;
+  error?: string;
 }
 
 interface DiscoveryResult {
