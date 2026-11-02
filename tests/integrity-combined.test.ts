@@ -110,6 +110,7 @@ describe("integrated CNM integrity regressions", () => {
       compilerOptions: { baseUrl: ".", paths: { "@/*": ["outside/*"] } },
     }));
     symlinkSync(outsideConfigDirectory, linkedConfigDirectory, "dir");
+    writeFileSync(join(location.rootPath, ".gitignore"), "configs/");
     writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./configs/base.json" }));
     writeFileSync(join(location.rootPath, "main.ts"), "export function main() { return true; }");
 
