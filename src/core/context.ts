@@ -292,7 +292,7 @@ export function buildTaskContext(
     `).all() as Array<{ path: string }>;
     testPathDiscoveryTruncated = testPathRows.length > 500;
     testPaths = testPathRows.slice(0, 500).map((row) => row.path)
-      .filter((path) => /(^|[/\\\\])tests?([/\\\\.-]|$)|\\.(test|spec)\\.[cm]?[jt]sx?$/i.test(path));
+      .filter((path) => /(^|[/\\\\])tests?([/\\\\.-]|$)|\.(test|spec)\.[cm]?[jt]sx?$/i.test(path));
   } finally { testDb.close(); }
   for (const path of testPaths) {
     const matchingAnchors = explicitAnchorMode ? [] : anchors.filter((anchor) => path.toLowerCase().includes(anchor));
