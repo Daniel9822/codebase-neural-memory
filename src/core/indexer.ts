@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
-import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
+import { basename, extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
 import type { ProjectLocation } from "./project.js";
@@ -10,6 +10,27 @@ import { analyzeImportDiagnostics } from "./import-diagnostics.js";
 import type { IndexSummary } from "../shared/types.js";
 import { readFileWithinRoot } from "./safe-file.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
+
+function readConfigBytesSafely(candidatePath: string): Buffer {
+  // Resolve the containing directory first, then address the final component
+  // under that canonical directory. This permits intentional external
+  // TypeScript "extends" paths while refusing a final-component symlink.
+  const canonicalParent = realpathSync(dirname(candidatePath));
+  const canonicalCandidate = join(canonicalParent, basename(candidatePath));
+  return readFileWithinRoot(canonicalParent, canonicalCandidate, {
+    canonicalRoot: canonicalParent,
+    rejectFinalSymlink: true,
+  }).content;
+}
+
+function readConfigTextSafely(candidatePath: string): string | undefined {
+  try {
+    return readConfigBytesSafely(candidatePath).toString("utf8");
+  } catch {
+    return undefined;
+  }
+}
+
 
 const MAX_FILE_BYTES = 1_000_000;
 const MAX_DIRECTORY_ENTRIES_FOR_SORT = 100_000;
@@ -334,7 +355,7 @@ interface PathAliasConfig {
 
 function loadPathAliasConfig(root: string): PathAliasConfig | undefined {
   const configPath = join(root, "tsconfig.json");
-  const read = ts.readConfigFile(configPath, ts.sys.readFile);
+  const read = ts.readConfigFile(configPath, readConfigTextSafely);
   if (read.error) return undefined;
   const configDirectory = dirname(configPath);
   const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, configDirectory, undefined, configPath);
@@ -384,7 +405,7 @@ function readLocalPackages(rootPath: string, files: Array<{ id: number; path: st
   const packages = new Map<string, LocalPackage[]>();
   for (const packageRoot of [...packageRoots].sort((a, b) => a.localeCompare(b))) {
     try {
-      const manifest = JSON.parse(readFileSync(join(packageRoot, "package.json"), "utf8")) as { name?: unknown; exports?: unknown };
+      const manifest = JSON.parse(readConfigBytesSafely(join(packageRoot, "package.json")).toString("utf8")) as { name?: unknown; exports?: unknown };
       if (typeof manifest.name !== "string" || !manifest.name) continue;
       const entries = packages.get(manifest.name) ?? [];
       entries.push({ root: packageRoot, exports: manifest.exports });
@@ -473,7 +494,7 @@ function expandSourceCandidates(base: string): string[] {
 }
 
 function hasExtendedTsConfig(rootPath: string): boolean {
-  const config = ts.readConfigFile(join(rootPath, "tsconfig.json"), ts.sys.readFile);
+  const config = ts.readConfigFile(join(rootPath, "tsconfig.json"), readConfigTextSafely);
   return !config.error && Boolean(config.config && typeof config.config === "object" &&
     "extends" in config.config);
 }
@@ -503,7 +524,7 @@ function resolveExtendedConfigPath(configPath: string, specifier: string): strin
       : [join(packageRoot, "tsconfig.json")];
     try {
       if (!subpath && existsSync(packageJson)) {
-        const manifest = JSON.parse(readFileSync(packageJson, "utf8")) as { tsconfig?: unknown };
+        const manifest = JSON.parse(readConfigBytesSafely(packageJson).toString("utf8")) as { tsconfig?: unknown };
         if (typeof manifest.tsconfig === "string") candidates.unshift(join(packageRoot, manifest.tsconfig));
       }
     } catch { /* Invalid package metadata is represented by the package config candidates. */ }
@@ -526,7 +547,7 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
     visited.add(normalized);
     let config: unknown;
     try {
-      const read = ts.readConfigFile(normalized, ts.sys.readFile);
+      const read = ts.readConfigFile(normalized, readConfigTextSafely);
       config = read.config;
     } catch {
       return;
@@ -566,7 +587,7 @@ function computeRelationsConfigHash(rootPath: string, files: Array<{ path: strin
       : relativeConfigPath;
     hash.update(configIdentity).update("\\0");
     try {
-      hash.update(readFileSync(absoluteConfigPath));
+      hash.update(readConfigBytesSafely(absoluteConfigPath));
     } catch (error) {
       const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unknown";
       hash.update(code === "ENOENT" ? "<missing>" : `<unreadable:${code}>`);
