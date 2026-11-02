@@ -336,12 +336,14 @@ describe("getSymbolRelations", () => {
 
     expect(getSymbolRelations(location, "Worker")).toEqual([
       {
+        resultsTruncated: false,
         direction: "outgoing", relation: "EXTENDS", symbolName: "Worker", symbolKind: "class",
         symbolFilePath: "worker.ts", symbolStartLine: 3, symbolEndLine: 3,
         relatedSymbolName: "Base", relatedSymbolKind: "class", relatedFilePath: "base.ts",
         relatedStartLine: 1, relatedEndLine: 1, confidence: 1, provenance: "typescript-ast-heritage", indexRevision: 1,
       },
       {
+        resultsTruncated: false,
         direction: "outgoing", relation: "IMPLEMENTS", symbolName: "Worker", symbolKind: "class",
         symbolFilePath: "worker.ts", symbolStartLine: 3, symbolEndLine: 3,
         relatedSymbolName: "Contract", relatedSymbolKind: "interface", relatedFilePath: "contract.ts",
