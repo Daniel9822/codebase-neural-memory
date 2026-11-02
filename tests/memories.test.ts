@@ -156,6 +156,7 @@ describe("explicit memory lifecycle", () => {
     const report = getMemoryFreshnessReport(location, 1);
     expect(report).toMatchObject({ total: 2, limit: 1, truncated: true });
     expect(report.records).toHaveLength(1);
+    expect(getMemoryFreshnessReport(location)).toMatchObject({ total: 2, limit: 100, truncated: false });
     expect(() => inspectMemoryFreshness(location, 1, Array.from({ length: 51 }, (_, index) => String(index))))
       .toThrow(/at most 50/i);
     expect(() => inspectMemoryFreshness(location, 501)).toThrow(/no greater than 500/i);
