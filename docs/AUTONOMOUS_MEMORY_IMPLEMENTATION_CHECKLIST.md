@@ -70,7 +70,7 @@ These are documentation-level observations, not yet a complete source-level audi
 
 - [ ] Inventory every input that affects import/relation resolution (including applicable `tsconfig.json`, `package.json`, and any other actually consumed configuration).
 - [x] Trace how configuration is read, normalized, fingerprinted, persisted, and compared by freshness (PR #82; CI 41406437168).
-- [x] Define a stable canonical fingerprint that changes only for relevant resolution inputs, including transitive `tsconfig` extends and relevant package manifests (PR #82).
+- [ ] Define a fingerprint that changes only for resolution-relevant inputs. Current implementation fingerprints whole relevant `package.json` files conservatively, so unrelated manifest edits can also mark the index stale; narrow to resolution-relevant fields if measurements justify it.
 - [x] Persist the fingerprint atomically with the index/relation revision (existing index transaction, verified by config-only rebuild test in PR #82).
 - [ ] Report missing, changed, malformed, and unreadable configuration distinctly.
 - [x] Add a non-Git fixture that modifies a `tsconfig` alias without changing source files (PR #82; `tests/indexer.test.ts`).
@@ -97,8 +97,8 @@ These are documentation-level observations, not yet a complete source-level audi
 
 - [ ] Inventory every filesystem read/open for project-controlled paths, including excerpts, indexing, config, and source inspection.
 - [ ] Identify time-of-check/time-of-use gaps between path validation and opening/reading.
-- [x] Use a verified file descriptor, `O_NOFOLLOW` where available, and post-open containment/identity checks for source excerpts (PR #76).
-- [x] Verify the opened source-excerpt object remains inside the project boundary and matches path identity (PR #76).
+- [ ] Audit and harden all project-controlled filesystem reads. `source_excerpt` now uses a verified file descriptor, `O_NOFOLLOW` where available, and post-open containment/identity checks (PR #76); other read sites still require audit.
+- [ ] Verify every opened object remains inside the project boundary and matches expected file identity/metadata; source excerpts are covered by PR #76, but all other call sites remain open.
 - [ ] Define a safe fallback where the platform cannot provide equivalent guarantees.
 - [ ] Add tests that replace a validated file or parent directory with a symlink between validation and open/read.
 - [ ] Test traversal, absolute paths, hard links where relevant, dangling links, and file replacement.
@@ -124,7 +124,7 @@ These are documentation-level observations, not yet a complete source-level audi
 - [ ] Inventory all full, selective, bounded, retry, and failure recovery index paths.
 - [ ] Mark discovery completeness and selected scope explicitly in the internal result contract.
 - [ ] Identify every deletion/reconciliation call reachable after partial, truncated, failed, or unsafe discovery.
-- [x] Require a complete validated snapshot for unscoped `indexProject`/CLI indexing and `updateProjectIndex`; selective updates do not perform deletion reconciliation (PR #79).
+- [ ] Require a complete validated snapshot before every destructive reconciliation. The CLI-facing `indexProject` and `updateProjectIndex` paths now guard unscoped runs (PR #79), but all direct/internal entry points still need audit.
 - [ ] Preserve records outside inspected scope and under incomplete scopes.
 - [ ] Add failure injection for traversal limits, unreadable directories, symlinks, parser failures, interruption, and partial discovery.
 - [ ] Verify index, symbols, relations, and FTS updates are atomic/recoverable as designed.
