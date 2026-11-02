@@ -86,7 +86,10 @@ function rankSearchCandidates(
     compareCodeUnits(a.filePath, b.filePath) ||
     a.startLine - b.startLine ||
     compareCodeUnits(a.name, b.name) ||
-    compareCodeUnits(a.kind, b.kind),
+    compareCodeUnits(a.kind, b.kind) ||
+    compareCodeUnits(a.signature, b.signature) ||
+    a.endLine - b.endLine ||
+    Number(b.exported) - Number(a.exported),
   ).slice(0, limit);
 }
 
@@ -140,7 +143,7 @@ export function searchSymbols(
         JOIN symbols s ON s.id = symbols_fts.rowid
         JOIN files f ON f.id = s.file_id
         WHERE symbols_fts MATCH ?${filterSql}
-        ORDER BY ftsRank, f.path, s.start_line, s.name, s.kind
+        ORDER BY ftsRank, f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.exported, s.id
         LIMIT ?
       `).all(ftsQuery, ...filterParameters, candidateLimit) as Array<SearchHit & { ftsRank: number }>;
       const fallbackParameters = tokens.flatMap((token) => [`%${escapeLikePattern(token)}%`, `%${escapeLikePattern(token)}%`]);
@@ -149,13 +152,13 @@ export function searchSymbols(
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
         WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
-        ORDER BY f.path, s.start_line, s.name, s.kind
+        ORDER BY f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.exported, s.id
         LIMIT ?
       `).all(...fallbackParameters, ...filterParameters, candidateLimit) as SearchHit[];
       const combined = new Map<string, SearchHit & { ftsRank?: number }>();
-      for (const row of rows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}`, row);
+      for (const row of rows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}:${row.signature}:${row.endLine}:${Number(row.exported)}`, row);
       for (const row of fallbackRows) {
-        const key = `${row.filePath}:${row.startLine}:${row.name}:${row.kind}`;
+        const key = `${row.filePath}:${row.startLine}:${row.name}:${row.kind}:${row.signature}:${row.endLine}:${Number(row.exported)}`;
         if (!combined.has(key)) combined.set(key, row);
       }
       return rankSearchCandidates([...combined.values()], tokens, limit);
@@ -167,7 +170,7 @@ export function searchSymbols(
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
         WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
-        ORDER BY f.path, s.start_line, s.name, s.kind
+        ORDER BY f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.exported, s.id
         LIMIT ?
       `).all(...parameters, ...filterParameters, candidateLimit) as SearchHit[];
       return rankSearchCandidates(rows.map((row) => ({ ...row })), tokens, limit);
@@ -266,7 +269,7 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
           SELECT target.path AS path FROM relations r
           JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
           WHERE r.source_kind = 'file' AND r.source_id = f.id AND r.kind = 'IMPORTS'
-          ORDER BY target.path LIMIT ?
+          ORDER BY target.path, r.provenance, r.confidence, r.index_revision LIMIT ?
         )), '[]') AS imports,
         COALESCE((SELECT json_group_array(json_object(
           'id', id, 'specifier', specifier, 'status', status, 'candidatesTotal', candidatesTotal
@@ -282,7 +285,7 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
         )) FROM (
           SELECT module_specifier, kind, diagnostic_code, message, line, column_number, imported_name
           FROM import_diagnostics WHERE source_file_id = f.id
-          ORDER BY line, column_number, diagnostic_code LIMIT ?
+          ORDER BY line, column_number, diagnostic_code, module_specifier, kind, message LIMIT ?
         )), '[]') AS importDiagnostics
       FROM files f ORDER BY f.path LIMIT ?
     `).all(MAX_PROJECT_MAP_PER_FILE, MAX_PROJECT_MAP_PER_FILE, MAX_PROJECT_MAP_PER_FILE, limit) as Array<{
@@ -375,7 +378,7 @@ export function explainSymbol(location: ProjectLocation, name: string): SearchHi
         s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
       FROM symbols s JOIN files f ON f.id = s.file_id
       WHERE s.name = ? OR s.name LIKE ?
-      ORDER BY s.exported DESC, f.path, s.start_line LIMIT 20
+      ORDER BY s.exported DESC, f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.id LIMIT 20
     `).all(name, `%${name}%`) as SearchHit[];
   } finally {
     db.close();
@@ -427,7 +430,7 @@ export function findImpact(
         SELECT source.id, source.path FROM relations r
         JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id
         WHERE r.target_kind = 'file' AND r.target_id = ? AND r.kind = 'IMPORTS'
-        ORDER BY source.path
+        ORDER BY source.path, source.id
         LIMIT ?
       `).all(current, Math.max(1, remaining + 1)) as Array<{ id: number; path: string }>;
       for (const item of dependents) {
@@ -514,7 +517,7 @@ export function findDependencies(
         FROM relations r
         JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
         WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
-        ORDER BY target.path
+        ORDER BY target.path, target.id, r.provenance, r.confidence, r.index_revision
         LIMIT ?
       `).all(current.id, Math.max(1, maxProcessed - processedRelations + 1)) as Array<{
         id: number; path: string; provenance: string; confidence: number; indexRevision: number;
@@ -620,13 +623,13 @@ export function getFileDetails(
       SELECT s.stable_id AS stableId, s.name, s.kind, s.signature, f.path AS filePath,
         s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
       FROM symbols s JOIN files f ON f.id = s.file_id
-      WHERE s.file_id = ? ORDER BY s.start_line, s.name, s.kind LIMIT ?
+      WHERE s.file_id = ? ORDER BY s.start_line, s.name, s.kind, s.signature, s.end_line, s.id LIMIT ?
     `).all(file.id, limit) as FileDetailSymbol[];
     const imports = db.prepare(`
       SELECT target.path, r.provenance, r.confidence, r.index_revision AS indexRevision
       FROM relations r JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
       WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
-      ORDER BY target.path LIMIT ?
+      ORDER BY target.path, target.id, r.provenance, r.confidence, r.index_revision LIMIT ?
     `).all(file.id, limit) as FileDetails["imports"];
     const unresolvedRows = db.prepare(`
       SELECT id, module_specifier AS specifier, status,
@@ -635,6 +638,9 @@ export function getFileDetails(
     `).all(file.id, limit) as Array<{
       id: number; specifier: string; status: string; candidatesTotal: number;
     }>;
+    const candidatePathsTotal = (db.prepare(
+      "SELECT COALESCE(SUM(json_array_length(candidates_json)), 0) AS total FROM unresolved_imports WHERE source_file_id = ?",
+    ).get(file.id) as { total: number }).total;
     const candidateRows = unresolvedRows.length === 0 ? [] : db.prepare(`
       SELECT unresolved.id AS unresolvedId, candidate.value AS candidatePath
       FROM unresolved_imports AS unresolved
@@ -662,12 +668,11 @@ export function getFileDetails(
         candidatesTruncated: candidates.length < row.candidatesTotal,
       };
     });
-    const candidatePathsTotal = unresolvedRows.reduce((total, row) => total + row.candidatesTotal, 0);
     const importDiagnostics = db.prepare(`
       SELECT module_specifier AS specifier, kind, diagnostic_code AS code, message, line,
         column_number AS "column", imported_name AS importedName
       FROM import_diagnostics WHERE source_file_id = ?
-      ORDER BY line, column_number, diagnostic_code LIMIT ?
+      ORDER BY line, column_number, diagnostic_code, module_specifier, kind, message LIMIT ?
     `).all(file.id, limit) as FileDetails["importDiagnostics"];
     const relations = db.prepare(`
       SELECT CASE WHEN source.file_id = ? THEN 'outgoing' ELSE 'incoming' END AS direction,
@@ -683,7 +688,8 @@ export function getFileDetails(
       JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
       JOIN files target_file ON target_file.id = target.file_id
       WHERE source.file_id = ? OR target.file_id = ?
-      ORDER BY relation, sourceFilePath, sourceStartLine, targetFilePath, targetStartLine
+      ORDER BY relation, sourceFilePath, sourceStartLine, sourceName, sourceKind,
+        targetFilePath, targetStartLine, targetName, targetKind, r.provenance, r.confidence, r.index_revision
       LIMIT ?
     `).all(file.id, file.id, file.id, limit) as FileDetailRelation[];
     return {
@@ -783,7 +789,9 @@ export function getSymbolRelations(location: ProjectLocation, name: string, limi
         JOIN files source_file ON source_file.id = source.file_id
         WHERE target.name = ?
       )
-      ORDER BY symbolFilePath, direction, relation, relatedFilePath, relatedSymbolName
+      ORDER BY symbolFilePath, direction, relation, relatedFilePath, relatedSymbolName,
+        relatedSymbolKind, relatedStartLine, relatedEndLine, symbolStartLine, symbolEndLine,
+        provenance, confidence, indexRevision
       LIMIT ?
     `).all(name, name, limit) as SymbolRelationHit[];
   } finally {
@@ -972,7 +980,6 @@ export function getSourceExcerpt(
     const safeRead = readFileWithinRoot(location.rootPath, absolutePath, {
       maxBytes: MAX_INDEXED_SOURCE_BYTES,
       rejectFinalSymlink: true,
-      rejectHardLinks: true,
     });
     source = safeRead.content.toString("utf8");
   } catch (error) {
@@ -982,8 +989,7 @@ export function getSourceExcerpt(
     if (error instanceof Error && error.message === "File path resolves outside the project root.") {
       throw new Error("Source excerpt path resolves outside the project root.");
     }
-    if (error instanceof Error && (error.message === "Symlink file paths are not allowed." ||
-        error.message === "Hard-linked file paths are not allowed.")) {
+    if (error instanceof Error && error.message === "Symlink file paths are not allowed.") {
       throw new Error("Source excerpt path is a symlink or resolves outside the project root.");
     }
     if (error instanceof Error && error.message === "Path must reference a regular file.") {
@@ -1089,11 +1095,14 @@ export function findSymbolImpact(location: ProjectLocation, name: string, option
   if (options.startLine !== undefined && (!Number.isSafeInteger(options.startLine) || options.startLine < 1)) throw new Error("Symbol impact startLine must be a positive safe integer.");
 
   const allowedKinds: SymbolImpactRelationKind[] = ["CALLS", "EXTENDS", "IMPLEMENTS"];
-  const relationKinds = options.relationKinds ?? allowedKinds;
-  if (!Array.isArray(relationKinds) || relationKinds.length < 1 || relationKinds.length > allowedKinds.length
-    || relationKinds.some((relation) => !allowedKinds.includes(relation)) || new Set(relationKinds).size !== relationKinds.length) {
+  const requestedRelationKinds = options.relationKinds ?? allowedKinds;
+  if (!Array.isArray(requestedRelationKinds) || requestedRelationKinds.length < 1 || requestedRelationKinds.length > allowedKinds.length
+    || requestedRelationKinds.some((relation) => !allowedKinds.includes(relation)) ||
+    new Set(requestedRelationKinds).size !== requestedRelationKinds.length) {
     throw new Error("Symbol impact relationKinds must contain unique CALLS, EXTENDS, or IMPLEMENTS values.");
   }
+  const relationKinds = [...requestedRelationKinds]
+    .sort((left, right) => allowedKinds.indexOf(left) - allowedKinds.indexOf(right));
 
   const db = openDatabase(location);
   try {
@@ -1147,7 +1156,9 @@ export function findSymbolImpact(location: ProjectLocation, name: string, option
       JOIN files target_file ON target_file.id = target.file_id
       WHERE ${direction === "incoming" ? "r.target_kind = 'symbol' AND r.target_id = ?" : "r.source_kind = 'symbol' AND r.source_id = ?"}
         AND r.kind IN (${relationPlaceholders})
-      ORDER BY r.kind, ${nextOrder}
+      ORDER BY r.kind, ${nextOrder}, source.kind, source.stable_id,
+        target_file.path, target.start_line, target.name, target.kind, target.stable_id,
+        r.provenance, r.confidence, r.index_revision
       LIMIT ?
     `);
     type EdgeRow = {
