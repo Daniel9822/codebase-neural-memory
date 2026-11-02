@@ -920,7 +920,7 @@ export function indexWithDatabase(
   const scoped = Boolean(options.paths?.length || options.include?.length ||
     options.maxFiles !== undefined || options.maxProcessed !== undefined);
   if (discovery.abortRequired) {
-    throw new Error("Index update aborted: deterministic discovery budget was exceeded; no index changes were committed.");
+    throw new Error("Index update aborted: discovery could not safely complete; no index changes were committed.");
   }
   if (options.requireCompleteSnapshot &&
       (discovery.failed > 0 || discovery.skipped > 0 || discovery.truncated || discovery.protectedDirectories.size > 0)) {
