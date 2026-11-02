@@ -432,6 +432,38 @@ describe("indexWithDatabase", () => {
     expect(freshness.errors.some((error) => error.includes("tsconfig.json"))).toBe(true);
   });
 
+  it("marks malformed package metadata for an extended config as incomplete", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "node_modules", "shared-config"), { recursive: true });
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "shared-config" }));
+    writeFileSync(join(location.rootPath, "node_modules", "shared-config", "package.json"), '{"tsconfig": ');
+    writeFileSync(join(location.rootPath, "node_modules", "shared-config", "tsconfig.json"),
+      JSON.stringify({ compilerOptions: { strict: true } }));
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("node_modules/shared-config/package.json"))).toBe(true);
+  });
+
+  it("marks non-string package tsconfig metadata for an extended config as incomplete", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "node_modules", "shared-config"), { recursive: true });
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "shared-config" }));
+    writeFileSync(join(location.rootPath, "node_modules", "shared-config", "package.json"), JSON.stringify({ tsconfig: 42 }));
+    writeFileSync(join(location.rootPath, "node_modules", "shared-config", "tsconfig.json"),
+      JSON.stringify({ compilerOptions: { strict: true } }));
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("node_modules/shared-config/package.json"))).toBe(true);
+  });
+
   it("does not consume an extended TypeScript config through a final symlink", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
