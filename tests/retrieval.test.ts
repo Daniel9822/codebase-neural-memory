@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 import { getIndexFreshness, indexWithDatabase } from "../src/core/indexer.js";
-import { explainSymbol, getComponentMap, findDependencies, findImpact, findSymbolImpact, getFileDetails, getSourceExcerpt, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
+import { explainSymbol, getComponentMap, findDependencies, findImpact, findSymbolImpact, getFileDetails, getProjectMap, getSourceExcerpt, getSymbolRelations, searchSymbols } from "../src/core/retrieval.js";
 import { retrievalRelevanceCases } from "./fixtures/retrieval-relevance.js";
 
 let temporaryDirectory = "";
@@ -55,6 +55,22 @@ describe("symbol retrieval contracts", () => {
     expect(searchSymbols(location, "calculateTotal")[0]).toMatchObject({
       name: "calculateTotal", rankingSignals: expect.arrayContaining(["exact-name", "exported-symbol"]),
     });
+  });
+
+  it("keeps the legacy project map API within the shared bounded report contract", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "entry.ts"), 'import "./missing";');
+    indexWithDatabase(database!, location);
+    const unresolved = database!.prepare(
+      "SELECT id FROM unresolved_imports WHERE source_file_id = (SELECT id FROM files WHERE path = 'entry.ts')",
+    ).get() as { id: number };
+    const candidates = Array.from({ length: 500 }, (_, index) => `candidate/${String(index).padStart(4, "0")}.ts`);
+    database!.prepare("UPDATE unresolved_imports SET status = 'ambiguous', candidates_json = ? WHERE id = ?")
+      .run(JSON.stringify(candidates), unresolved.id);
+
+    const rows = getProjectMap(location, 200);
+    expect(rows[0]?.unresolvedImports[0]?.candidates).toHaveLength(200);
+    expect(() => getProjectMap(location, 201)).toThrow("Project map limit must be a positive safe integer no greater than 200");
   });
 
   it("orders equally ranked symbols by locale-independent code-unit path order", () => {
