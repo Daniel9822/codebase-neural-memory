@@ -158,7 +158,7 @@ export function searchSymbols(
       const combined = new Map<string, SearchHit & { ftsRank?: number }>();
       for (const row of rows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}:${row.signature}:${row.endLine}:${Number(row.exported)}`, row);
       for (const row of fallbackRows) {
-        const key = `${row.filePath}:${row.startLine}:${row.name}:${row.kind}`;
+        const key = `${row.filePath}:${row.startLine}:${row.name}:${row.kind}:${row.signature}:${row.endLine}:${Number(row.exported)}`;
         if (!combined.has(key)) combined.set(key, row);
       }
       return rankSearchCandidates([...combined.values()], tokens, limit);
@@ -170,7 +170,7 @@ export function searchSymbols(
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
         WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
-        ORDER BY f.path, s.start_line, s.name, s.kind
+        ORDER BY f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.exported, s.id
         LIMIT ?
       `).all(...parameters, ...filterParameters, candidateLimit) as SearchHit[];
       return rankSearchCandidates(rows.map((row) => ({ ...row })), tokens, limit);
