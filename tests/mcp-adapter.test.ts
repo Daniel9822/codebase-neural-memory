@@ -316,7 +316,7 @@ describe("MCP adapter protocol contract", () => {
     const declarations = Array.from({ length: 1_001 }, (_, index) =>
       `const needleValue${String(index).padStart(4, "0")} = ${index};`);
     declarations.push("export function needleTarget() { return true; }");
-    writeFileSync(join(location.rootPath, "filtered.ts"), declarations.join("\\n"));
+    writeFileSync(join(location.rootPath, "filtered.ts"), declarations.join("\n"));
     indexWithDatabase(database!, location);
 
     const client = await connectClient();
