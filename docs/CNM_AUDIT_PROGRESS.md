@@ -81,7 +81,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] PR #122 removes path-following existence checks, uses `lstat` plus the verified reader, fingerprints package manifests consulted by bare-package `extends`, and adds missing/malformed/symlink regressions; CI 41460410372 passed and PR #122 is merged.
 - [x] Add directory identity checks before opening and after `opendirSync`, during enumeration, before entry processing, and after source reads; deterministic replacement injection proves fail-closed behavior. Node's path-based API still cannot bind these checks to the opened directory descriptor; retain that limitation.
 - [x] Confirmed `readFileWithinRoot` validates the opened file against the resolved path before reading and again after reading; no source change is claimed by this audit-only finding.
-- [x] PR #122 adds combined configuration/symlink/source-drift tests and pre/post fingerprint rollback coverage. External `node_modules` manifests used by semantic module resolution are addressed by the dedicated CNM-01 follow-up below; closure remains pending its CI evidence.
+- [x] PR #122 adds combined configuration/symlink/source-drift tests and pre/post fingerprint rollback coverage. External `node_modules` manifests used by semantic module resolution are covered by PR #123; its complete cross-platform CI run 41467736510 passed.
 
 
 
@@ -156,8 +156,8 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 
 ### CNM-01 follow-up — TypeScript semantic dependency manifest freshness (2026-11-02)
 
-- [ ] Track the `package.json` files actually consulted when TypeScript resolves imports from indexed source files, including resolver-observed missing candidates; do not scan all of `node_modules`.
-- [ ] Include deterministic path + content/missing-state fingerprints in the persisted relation-configuration fingerprint so dependency metadata drift invalidates freshness and triggers relation/diagnostic rebuilding.
-- [ ] Read consulted manifests through the verified safe reader; reject final-component symlinks, classify malformed or unreadable manifests as `incomplete`, and fail closed on the manifest inspection budget.
-- [ ] Add regressions proving a used dependency manifest change marks freshness stale, an unused package manifest change does not, and unsafe/malformed consulted manifests block index updates.
-- [ ] Verify full typecheck, tests, build, smoke, and Ubuntu/Windows/macOS benchmark CI on the final PR head before marking CNM-01 complete.
+- [x] Track the `package.json` files actually consulted when TypeScript resolves imports from indexed source files, including resolver-observed missing candidates; do not scan all of `node_modules` (PR #123).
+- [x] Include deterministic path + content/missing-state fingerprints in the persisted relation-configuration fingerprint so dependency metadata drift invalidates freshness and triggers relation/diagnostic rebuilding (PR #123).
+- [x] Read consulted manifests through the verified safe reader; reject final-component symlinks, classify malformed or unreadable manifests as `incomplete`, and fail closed on the manifest inspection budget (PR #123).
+- [x] Add regressions proving a used dependency manifest change marks freshness stale, an unused package manifest change does not, and unsafe/malformed consulted manifests block index updates (`tests/integrity-combined.test.ts`; PR #123).
+- [x] Verify full typecheck, tests, build, smoke, and Ubuntu/Windows/macOS benchmark CI on the final code head: run 41467736510 passed every job (PR #123).
