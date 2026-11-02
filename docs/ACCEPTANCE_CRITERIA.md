@@ -428,3 +428,10 @@ The following capabilities remain open: signature-regex search, public-contract 
 - [ ] A different agent using the same initialized project can recall the same local memories.
 - [x] TypeScript semantic import diagnostics identify supported missing-package and missing-export cases during indexing; `project_map` exposes them, and `file_details` exposes bounded per-file diagnostics with totals/truncation. Compiler/build validation remains required because this is not a complete compiler run.
 - [ ] Full typecheck, tests, build, smoke, and cross-platform CI pass before merge.
+
+## CNM-06 — Deterministic bounded discovery
+
+- [ ] `maxFiles` candidate selection is deterministic across different directory-entry creation/enumeration orders (`tests/indexer.test.ts`).
+- [ ] When `maxProcessed` cannot cover the complete deterministic candidate set, indexing aborts before database writes instead of committing a filesystem-order-dependent partial selection.
+- [ ] A directory exceeding the deterministic sorting safety cap is treated as incomplete; no partial index mutation is committed.
+- [ ] Full-scope freshness reports incomplete discovery when deterministic enumeration cannot be completed.
