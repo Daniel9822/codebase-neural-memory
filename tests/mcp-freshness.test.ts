@@ -98,13 +98,13 @@ describe("post-read freshness validation", () => {
     const savedDirectory = join(temporaryDirectory, "saved-src");
     const outsideDirectory = join(temporaryDirectory, "outside-src");
     mkdirSync(sourceDirectory, { recursive: true });
-    writeFileSync(join(sourceDirectory, "nested.ts"), "export const nested = true;\\n");
+    writeFileSync(join(sourceDirectory, "nested.ts"), "export const nested = true;");
     indexWithDatabase(database!, location);
 
     const response = readResponse(location, { strictFreshness: true }, () => {
       renameSync(sourceDirectory, savedDirectory);
       mkdirSync(outsideDirectory, { recursive: true });
-      writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;\\n");
+      writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;");
       symlinkSync(outsideDirectory, sourceDirectory, "dir");
       return { result: "must not be served after discovery becomes incomplete" };
     });
