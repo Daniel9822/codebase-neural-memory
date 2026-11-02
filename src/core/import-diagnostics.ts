@@ -24,57 +24,61 @@ export interface ImportDiagnostic {
 const IMPORT_DIAGNOSTIC_CODES = new Set([2307, 2305, 2614, 2724, 1192]);
 const BUILTINS = new Set(builtinModules.flatMap((name) => [name, name.replace(/^node:/, "")]));
 
+function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buffer {
+  const root = realpathSync(projectRoot);
+  const absoluteCandidate = resolve(candidatePath);
+  const relativeCandidate = relative(root, absoluteCandidate).split(sep).join("/");
+  const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
+    isAbsolute(relativeCandidate);
+  if (!external) {
+    const relativeParent = relative(root, dirname(absoluteCandidate));
+    let current = root;
+    for (const segment of relativeParent.split(sep).filter(Boolean)) {
+      current = join(current, segment);
+      const identity = lstatSync(current);
+      const currentRelative = relative(root, current).split(sep).join("/");
+      if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
+        throw new Error("Configuration path traverses a symbolic-link directory.");
+      }
+      if (!identity.isDirectory() && !identity.isSymbolicLink()) {
+        throw new Error("Configuration parent is not a directory.");
+      }
+    }
+  }
+  const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
+  if (!external && !packageManagerPath) {
+    const read = readFileWithinRoot(root, absoluteCandidate, {
+      canonicalRoot: root,
+      rejectFinalSymlink: true,
+    });
+    const relativeParentAfterRead = relative(root, dirname(absoluteCandidate));
+    let currentAfterRead = root;
+    for (const segment of relativeParentAfterRead.split(sep).filter(Boolean)) {
+      currentAfterRead = join(currentAfterRead, segment);
+      const identity = lstatSync(currentAfterRead);
+      const currentRelative = relative(root, currentAfterRead).split(sep).join("/");
+      if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
+        throw new Error("Configuration path traverses a symbolic-link directory.");
+      }
+      if (!identity.isDirectory() && !identity.isSymbolicLink()) {
+        throw new Error("Configuration parent is not a directory.");
+      }
+    }
+    return read.content;
+  }
+  // Explicit external config targets and package-manager directory symlinks
+  // remain supported; the final manifest component itself must be a real file.
+  const canonicalParent = realpathSync(dirname(candidatePath));
+  const canonicalCandidate = join(canonicalParent, basename(candidatePath));
+  return readFileWithinRoot(canonicalParent, canonicalCandidate, {
+    canonicalRoot: canonicalParent,
+    rejectFinalSymlink: true,
+  }).content;
+}
+
 function readConfigTextSafely(candidatePath: string, projectRoot: string): string | undefined {
   try {
-    const root = realpathSync(projectRoot);
-    const absoluteCandidate = resolve(candidatePath);
-    const relativeCandidate = relative(root, absoluteCandidate).split(sep).join("/");
-    const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
-      isAbsolute(relativeCandidate);
-    if (!external) {
-      const relativeParent = relative(root, dirname(absoluteCandidate));
-      let current = root;
-      for (const segment of relativeParent.split(sep).filter(Boolean)) {
-        current = join(current, segment);
-        const identity = lstatSync(current);
-        const currentRelative = relative(root, current).split(sep).join("/");
-        if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
-          throw new Error("Configuration path traverses a symbolic-link directory.");
-        }
-        if (!identity.isDirectory() && !identity.isSymbolicLink()) {
-          throw new Error("Configuration parent is not a directory.");
-        }
-      }
-    }
-    const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
-    if (!external && !packageManagerPath) {
-      const read = readFileWithinRoot(root, absoluteCandidate, {
-        canonicalRoot: root,
-        rejectFinalSymlink: true,
-      });
-      const relativeParentAfterRead = relative(root, dirname(absoluteCandidate));
-      let currentAfterRead = root;
-      for (const segment of relativeParentAfterRead.split(sep).filter(Boolean)) {
-        currentAfterRead = join(currentAfterRead, segment);
-        const identity = lstatSync(currentAfterRead);
-        const currentRelative = relative(root, currentAfterRead).split(sep).join("/");
-        if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
-          throw new Error("Configuration path traverses a symbolic-link directory.");
-        }
-        if (!identity.isDirectory() && !identity.isSymbolicLink()) {
-          throw new Error("Configuration parent is not a directory.");
-        }
-      }
-      return read.content.toString("utf8");
-    }
-    // Explicit external "extends" targets and package-manager links under
-    // node_modules remain supported; final-component symlinks still fail closed.
-    const canonicalParent = realpathSync(dirname(candidatePath));
-    const canonicalCandidate = join(canonicalParent, basename(candidatePath));
-    return readFileWithinRoot(canonicalParent, canonicalCandidate, {
-      canonicalRoot: canonicalParent,
-      rejectFinalSymlink: true,
-    }).content.toString("utf8");
+    return readConfigBytesSafely(candidatePath, projectRoot).toString("utf8");
   } catch {
     return undefined;
   }
@@ -275,21 +279,7 @@ export function inspectSemanticPackageManifests(
     }
     let result: ManifestRead;
     try {
-      const text = readConfigTextSafely(absolute, root);
-      if (text !== undefined) {
-        result = { content: Buffer.from(text, "utf8"), failure: null };
-      } else {
-        // The shared safe reader intentionally hides filesystem details. Use
-        // lstat only to distinguish an ordinary missing resolver candidate
-        // from a present-but-unsafe manifest; never follow a final symlink.
-        try {
-          lstatSync(absolute);
-          result = { content: null, failure: "unsafe-or-unreadable" };
-        } catch (error) {
-          const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
-          result = { content: null, failure: code };
-        }
-      }
+      result = { content: readConfigBytesSafely(absolute, root), failure: null };
     } catch (error) {
       const code = error && typeof error === "object" && "code" in error ? String(error.code) : "unsafe-or-unreadable";
       result = { content: null, failure: code };
@@ -333,7 +323,11 @@ export function inspectSemanticPackageManifests(
     if (manifest.content) {
       hash.update("present\\0").update(manifest.content);
       try {
-        const parsed: unknown = JSON.parse(manifest.content.toString("utf8"));
+        const manifestText = manifest.content.toString("utf8");
+        if (!Buffer.from(manifestText, "utf8").equals(manifest.content)) {
+          errors.push(path + ": TypeScript package manifest is not valid UTF-8.");
+        }
+        const parsed: unknown = JSON.parse(manifestText);
         if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
           errors.push(path + ": TypeScript package manifest must contain a JSON object.");
         }
