@@ -384,3 +384,10 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Add regression coverage proving unrelated names containing the substring `test` cannot exhaust the test-path discovery window.
 - [x] Clarify the candidate definition in the MCP contract.
 
+
+
+### CNM-06 follow-up — bounded CLI project map
+
+- [x] Route `cnm map` through `getProjectMapReport` rather than the unbounded legacy projection.
+- [x] Enforce the same 1–200 file limit and per-file/global candidate budgets used by MCP, with explicit truncation output.
+- [ ] Verify CI and merge; continue the cross-surface output audit.
