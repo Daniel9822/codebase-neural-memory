@@ -242,6 +242,21 @@ describe("integrated CNM integrity regressions", () => {
       .toBe(beforeRevision);
   });
 
+  it("resolves declarations through an approved package-manager directory symlink", () => {
+    createProject();
+    const externalPackage = join(temporaryDirectory, "external-semantic-package");
+    const packageDirectory = join(location.rootPath, "node_modules", "linked-fixture");
+    mkdirSync(externalPackage, { recursive: true });
+    mkdirSync(join(location.rootPath, "node_modules"), { recursive: true });
+    writeFileSync(join(externalPackage, "package.json"), JSON.stringify({ types: "./index.d.ts" }));
+    writeFileSync(join(externalPackage, "index.d.ts"), "export declare const linkedValue: string;");
+    symlinkSync(externalPackage, packageDirectory, "dir");
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { linkedValue } from "linked-fixture";\nexport const result = linkedValue;');
+
+    const diagnostics = analyzeImportDiagnostics(location.rootPath, ["main.ts"]);
+    expect(diagnostics.some((diagnostic) => diagnostic.moduleSpecifier === "linked-fixture")).toBe(false);
+  });
+
   it("does not let TypeScript import diagnostics consume a symlinked dependency declaration", () => {
     createProject();
     const packageDirectory = join(location.rootPath, "node_modules", "unsafe-fixture");
