@@ -1,0 +1,76 @@
+import { afterEach, describe, expect, it } from "vitest";
+import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
+import type { ProjectLocation } from "../src/core/project.js";
+import { getIndexFreshness, indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
+
+let temporaryDirectory = "";
+let database: MemoryDatabase | undefined;
+let location: ProjectLocation;
+
+function createProject(): void {
+  temporaryDirectory = mkdtempSync(join(tmpdir(), "cnm-integrity-combined-"));
+  const rootPath = join(temporaryDirectory, "repository");
+  mkdirSync(rootPath, { recursive: true });
+  location = {
+    id: "integrity-combined-test",
+    rootPath,
+    dataDirectory: join(temporaryDirectory, "data"),
+    databasePath: join(temporaryDirectory, "data", "memory.sqlite"),
+  };
+  database = openDatabase(location);
+  ensureProject(database, location);
+}
+
+afterEach(() => {
+  database?.close();
+  database = undefined;
+  if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
+  temporaryDirectory = "";
+});
+
+describe("integrated CNM integrity regressions", () => {
+  it("does not destructively reconcile when symlink replacement, source drift, and relation-config drift coincide", () => {
+    createProject();
+    const nestedDirectory = join(location.rootPath, "z-scope");
+    const savedDirectory = join(temporaryDirectory, "saved-scope");
+    const outsideDirectory = join(temporaryDirectory, "outside-scope");
+
+    mkdirSync(nestedDirectory, { recursive: true });
+    writeFileSync(join(location.rootPath, "a-source.ts"), "export const original = true;\n");
+    writeFileSync(join(nestedDirectory, "nested.ts"), "export const retained = true;\n");
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["src/*"] } },
+    }));
+
+    const initial = indexWithDatabase(database!, location);
+    expect(initial.added).toBe(2);
+
+    writeFileSync(join(location.rootPath, "a-source.ts"), "export const changed = true;\n");
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["different/*"] } },
+    }));
+    renameSync(nestedDirectory, savedDirectory);
+    mkdirSync(outsideDirectory, { recursive: true });
+    writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;\n");
+    symlinkSync(outsideDirectory, nestedDirectory, "dir");
+
+    expect(() => updateProjectIndex(location)).toThrow(/discovery is incomplete/i);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.relationsConfigChanged).toBe(true);
+    expect(freshness.changedFiles).toBe(1);
+    expect(freshness.deletedFiles).toBe(0);
+
+    const indexedPaths = (database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>)
+      .map((row) => row.path);
+    expect(indexedPaths).toEqual(["a-source.ts", "z-scope/nested.ts"]);
+    expect(database!.prepare("SELECT name FROM symbols ORDER BY name").all()).toEqual([
+      { name: "original" },
+      { name: "retained" },
+    ]);
+  });
+});
