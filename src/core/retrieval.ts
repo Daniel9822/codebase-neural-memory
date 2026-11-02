@@ -15,6 +15,10 @@ const MAX_DEPENDENCY_DEPTH = 100;
 const DEFAULT_FILE_DETAIL_LIMIT = 100;
 const MAX_FILE_DETAIL_LIMIT = 500;
 
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 interface RankedSearchHit extends SearchHit {
   score: number;
   rankingSignals: string[];
@@ -79,10 +83,10 @@ function rankSearchCandidates(
     return { ...row, exported: Boolean(row.exported), score, rankingSignals: signals, searchMethod: (row.ftsRank === undefined ? "like-fallback" : "fts5") as RankedSearchHit["searchMethod"] };
   }).sort((a, b) =>
     b.score - a.score ||
-    a.filePath.localeCompare(b.filePath) ||
+    compareCodeUnits(a.filePath, b.filePath) ||
     a.startLine - b.startLine ||
-    a.name.localeCompare(b.name) ||
-    a.kind.localeCompare(b.kind),
+    compareCodeUnits(a.name, b.name) ||
+    compareCodeUnits(a.kind, b.kind),
   ).slice(0, limit);
 }
 

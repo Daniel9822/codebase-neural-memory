@@ -11,6 +11,10 @@ import type { IndexSummary } from "../shared/types.js";
 import { readFileWithinRoot } from "./safe-file.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
 
+function compareCodeUnits(left: string, right: string): number {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 function readConfigBytesSafely(candidatePath: string): Buffer {
   // Resolve the containing directory first, then address the final component
   // under that canonical directory. This permits intentional external
@@ -325,8 +329,8 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
   return {
     files: output.sort((a, b) => a.relativePath < b.relativePath ? -1 : a.relativePath > b.relativePath ? 1 : 0),
     presentPaths, protectedDirectories, scanned, skipped, failed, truncated, abortRequired,
-    errors: errors.sort((a, b) => a.localeCompare(b)),
-    skippedFiles: skippedFiles.sort((a, b) => a.localeCompare(b)),
+    errors: errors.sort((a, b) => compareCodeUnits(a, b)),
+    skippedFiles: skippedFiles.sort((a, b) => compareCodeUnits(a, b)),
   };
 }
 function stableIdentifier(value: unknown): string {
@@ -403,7 +407,7 @@ function readLocalPackages(rootPath: string, files: Array<{ id: number; path: st
     }
   }
   const packages = new Map<string, LocalPackage[]>();
-  for (const packageRoot of [...packageRoots].sort((a, b) => a.localeCompare(b))) {
+  for (const packageRoot of [...packageRoots].sort((a, b) => compareCodeUnits(a, b))) {
     try {
       const manifest = JSON.parse(readConfigBytesSafely(join(packageRoot, "package.json")).toString("utf8")) as { name?: unknown; exports?: unknown };
       if (typeof manifest.name !== "string" || !manifest.name) continue;
@@ -562,7 +566,7 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
     }
   };
   visit(rootConfig);
-  return [...visited].sort((a, b) => a.localeCompare(b));
+  return [...visited].sort((a, b) => compareCodeUnits(a, b));
 }
 
 function computeRelationsConfigHash(rootPath: string, files: Array<{ path: string }>): string {
@@ -578,7 +582,7 @@ function computeRelationsConfigHash(rootPath: string, files: Array<{ path: strin
     ...[...packageDirectories].map((directory) =>
       directory ? resolve(rootPath, ...directory.split("/"), "package.json") : resolve(rootPath, "package.json")),
     ...collectExtendedConfigPaths(rootPath),
-  ].sort((a, b) => a.localeCompare(b));
+  ].sort((a, b) => compareCodeUnits(a, b));
   const hash = createHash("sha256");
   for (const absoluteConfigPath of configPaths) {
     const relativeConfigPath = relative(rootPath, absoluteConfigPath).replaceAll("\\", "/");
@@ -657,7 +661,7 @@ function rebuildRelations(db: MemoryDatabase, rootPath: string, indexRevision: n
         item.file_id,
         item.module_specifier,
         candidates.length === 0 ? "unresolved" : "ambiguous",
-        JSON.stringify(candidates.map((candidate) => candidate.path).sort((a, b) => a.localeCompare(b))),
+        JSON.stringify(candidates.map((candidate) => candidate.path).sort((a, b) => compareCodeUnits(a, b))),
       );
     }
   }
@@ -855,7 +859,7 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
         fileChanges.push({ path: file.path, status: "deleted", oldHash: file.content_hash, newHash: null });
       }
     }
-    fileChanges.sort((a, b) => a.path.localeCompare(b.path) || a.status.localeCompare(b.status));
+    fileChanges.sort((a, b) => compareCodeUnits(a.path, b.path) || compareCodeUnits(a.status, b.status));
     const gitMetadataUnavailable = git.status === "unavailable" && project.indexed_worktree_status_hash !== null;
     const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.truncated || discovery.abortRequired || discovery.protectedDirectories.size > 0 || gitMetadataUnavailable;
     const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0 || relationsConfigChanged || git.status === "changed" || git.status === "unrecorded";
