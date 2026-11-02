@@ -330,6 +330,24 @@ describe("indexWithDatabase", () => {
       .toEqual([{ name: "secondVersion" }]);
   });
 
+  it("refuses to consume a TypeScript config through a final symlink", () => {
+    createProject();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    writeFileSync(join(location.rootPath, "src", "main.ts"),
+      'import { helper } from "@/helper";\nexport function run() { return helper(); }');
+    writeFileSync(join(location.rootPath, "src", "helper.ts"), "export function helper() { return true; }");
+    const outsideConfig = join(temporaryDirectory, "outside-tsconfig.json");
+    writeFileSync(outsideConfig, JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["repository/src/*"] } },
+    }));
+    symlinkSync(outsideConfig, join(location.rootPath, "tsconfig.json"));
+
+    indexWithDatabase(database!, location);
+
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
+      .toEqual({ count: 0 });
+  });
+
   it("rebuilds graph relations when TypeScript/package configuration changes without source edits", () => {
     createProject();
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
