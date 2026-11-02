@@ -568,7 +568,7 @@ describe("indexWithDatabase", () => {
     indexProject(location);
     const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
     const beforeHash = (database!.prepare("SELECT content_hash FROM files WHERE path = 'src/main.ts'").get() as { content_hash: string }).content_hash;
-    const beforeRelations = database!.prepare("SELECT kind, source_file_id, target_file_id FROM relations ORDER BY kind, source_file_id, target_file_id").all();
+    const beforeRelations = database!.prepare("SELECT kind, source_id, target_id FROM relations ORDER BY kind, source_id, target_id").all();
 
     writeFileSync(join(location.rootPath, "src", "main.ts"),
       'import { helper } from "@/helper";\nexport function run() { return helper() ? false : true; }');
@@ -582,7 +582,7 @@ describe("indexWithDatabase", () => {
       .toBe(beforeRevision);
     expect((database!.prepare("SELECT content_hash FROM files WHERE path = 'src/main.ts'").get() as { content_hash: string }).content_hash)
       .toBe(beforeHash);
-    expect(database!.prepare("SELECT kind, source_file_id, target_file_id FROM relations ORDER BY kind, source_file_id, target_file_id").all())
+    expect(database!.prepare("SELECT kind, source_id, target_id FROM relations ORDER BY kind, source_id, target_id").all())
       .toEqual(beforeRelations);
     expect(getIndexFreshness(location).status).toBe("stale");
   });
