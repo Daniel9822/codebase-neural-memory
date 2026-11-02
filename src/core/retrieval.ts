@@ -756,7 +756,7 @@ export function getSymbolRelations(location: ProjectLocation, name: string, limi
   }
   const db = openDatabase(location);
   try {
-    return db.prepare(`
+    const rows = db.prepare(`
       SELECT * FROM (
         SELECT
           'outgoing' AS direction,
