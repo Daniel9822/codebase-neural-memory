@@ -729,9 +729,11 @@ export interface SymbolRelationHit {
   indexRevision: number;
 }
 
+const MAX_SYMBOL_RELATIONS = 500;
+
 export function getSymbolRelations(location: ProjectLocation, name: string, limit = 50): SymbolRelationHit[] {
-  if (!Number.isSafeInteger(limit) || limit < 1) {
-    throw new Error("Relation limit must be a positive safe integer.");
+  if (!Number.isSafeInteger(limit) || limit < 1 || limit > MAX_SYMBOL_RELATIONS) {
+    throw new Error(`Relation limit must be a positive safe integer no greater than ${MAX_SYMBOL_RELATIONS}.`);
   }
   const db = openDatabase(location);
   try {
