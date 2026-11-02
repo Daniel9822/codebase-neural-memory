@@ -283,6 +283,7 @@ Blocks 1–5 are complete. Phase 6 is formally closed: the validated VS Code ins
 - [x] The index records the source commit, branch, dirty flag, working-tree status hash, and changed-path count when Git metadata is available (migration v10; `tests/git-awareness.test.ts`).
 - [x] Dirty working-tree changes are detected by the Git porcelain snapshot and supported-file content hashes.
 - [x] Commit and branch changes are reported as stale even when supported source-file hashes are unchanged (`tests/git-awareness.test.ts`).
+- [x] Relation-resolution configuration drift, including transitive `tsconfig` extends files and relevant package manifests, marks the index stale until a successful relation rebuild updates its fingerprint (`tests/indexer.test.ts`; PR #78).
 - [x] Git renames reconcile as one added and one deleted path; existing deletion tests verify stale symbols, FTS rows, and graph relations are removed.
 - [x] Freshness uses a deterministic full scan rather than relying on file-watcher events; therefore missed watcher notifications cannot suppress reconciliation. A watcher is not implemented.
 - [x] A clean reindex and incremental reconciliation converge to equivalent logical state across branch switches, renames, deletions, symbols, imports, calls, heritage, relations, unresolved imports, and FTS (`tests/git-awareness.test.ts`).
@@ -389,7 +390,7 @@ The following capabilities remain open: signature-regex search, public-contract 
 
 ## 16. Agent-trust and context-quality follow-up
 
-- [x] Every indexed MCP read checks source/index freshness and appends a warning when the index is stale or incomplete.
+- [x] Every indexed MCP read checks source/index freshness before and after the operation; strict mode refuses a changed snapshot and non-strict mode emits an explicit warning (PR #77; `tests/mcp-freshness.test.ts`).
 - [x] Freshness warnings include changed/added/deleted counts and affected paths while preserving the original JSON payload as the first text block.
 - [x] Strict freshness mode refuses indexed reads unless freshness is current and returns an actionable refusal.
 - [x] Auto-update mode performs at most one incremental refresh before a read, only when discovery is complete and no more than 50 source files changed.
