@@ -190,10 +190,10 @@ describe("MCP bounded output and project isolation", () => {
     expect(firstMap.files.map((file: { path: string }) => file.path)).not.toContain("second-only.ts");
     expect(secondMap.files.map((file: { path: string }) => file.path)).toContain("second-only.ts");
     expect(secondMap.files.map((file: { path: string }) => file.path)).not.toContain("first-only.ts");
-    expect(firstMemory.map((memory: { title: string }) => memory.title)).toContain("First secret label");
-    expect(firstMemory.map((memory: { title: string }) => memory.title)).not.toContain("Second secret label");
-    expect(secondMemory.map((memory: { title: string }) => memory.title)).toContain("Second secret label");
-    expect(secondMemory.map((memory: { title: string }) => memory.title)).not.toContain("First secret label");
+    expect(firstMemory.records.map((memory: { title: string }) => memory.title)).toContain("First secret label");
+    expect(firstMemory.records.map((memory: { title: string }) => memory.title)).not.toContain("Second secret label");
+    expect(secondMemory.records.map((memory: { title: string }) => memory.title)).toContain("Second secret label");
+    expect(secondMemory.records.map((memory: { title: string }) => memory.title)).not.toContain("First secret label");
   });
 
   it("returns controlled MCP errors for missing, unindexed, traversal, and outside-root paths", async () => {
