@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, fstatSync, lstatSync, openSync, opendirSync, readdirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { basename, extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -363,7 +363,21 @@ export function discoverFiles(
       // before trusting absence/presence for destructive reconciliation. If a
       // directory was swapped while opening and then restored, the two views
       // differ and this scope is protected rather than treated as deleted.
-      const pathEntries = readdirSync(directory, { withFileTypes: true });
+      const pathHandle = openDirectory(directory);
+      const pathEntries: Dirent[] = [];
+      try {
+        let pathEntry: Dirent | null;
+        while ((pathEntry = pathHandle.readSync()) !== null) {
+          // The second view is bounded by the first view plus one sentinel.
+          // Never let this integrity check bypass maxProcessed/the sort cap.
+          if (pathEntries.length >= entries.length + 1) {
+            throw new Error("Directory contents changed between handle and path enumeration; retry indexing.");
+          }
+          pathEntries.push(pathEntry);
+        }
+      } finally {
+        try { pathHandle.closeSync(); } catch { /* The handle may already be closed. */ }
+      }
       assertDirectoryIdentity(directory, canonicalRoot, directoryIdentity);
       const openedSnapshot = entries
         .map((entry) => entry.name + "\\0" + directoryEntryKind(entry))
