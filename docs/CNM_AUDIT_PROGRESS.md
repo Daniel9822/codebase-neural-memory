@@ -202,3 +202,17 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [ ] Revisit whether a small native/platform-specific helper is justified for descriptor-bound traversal; if not, document the supported threat boundary and residual race explicitly rather than claiming complete TOCTOU elimination.
 
 **Audit conclusion:** PR #128 closes the direct TypeScript file-content read bypass for the covered compiler-host methods. It does not yet close directory discovery/resolution as a whole, nor the indexer's directory-handle identity race. CNM-05 remains open.
+
+
+### CNM-05 follow-up — bounded TypeScript compiler-host directory resolution (2026-11-02)
+
+- [x] Override compiler-host `directoryExists`, `getDirectories`, `readDirectory`, and `realpath` instead of inheriting the unrestricted `ts.sys` path behavior.
+- [x] Restrict project traversal to real directories; permit directory symlinks only when their lexical path is beneath this project's `node_modules`; register their canonical physical targets as approved package roots.
+- [x] Admit TypeScript standard-library paths only beneath the canonical compiler library directory; reject unrelated external physical paths.
+- [x] Filter directory-listing results and reject final-component symlink files before source reads; retain descriptor-verified content reads.
+- [x] Add a positive regression for a valid declaration package reached through an external npm/pnpm-style directory symlink, alongside the existing final-file symlink rejection regression.
+- [ ] Review whether TypeScript's underlying `readDirectory` implementation can still enumerate metadata beneath nested symlink directories before the returned paths are filtered. The host now rejects unapproved results, but this wrapper is not a descriptor-relative recursive enumerator and must not be described as a complete filesystem isolation boundary.
+- [ ] Add a deterministic race-injection seam around directory discovery and realpath registration; the current path checks reduce exposure but do not eliminate filesystem races between individual checks.
+- [ ] Retain the indexer directory-handle identity limitation: Node's portable `opendirSync(path)` interface does not expose a documented descriptor-relative open primitive. Existing repeated identity checks and dual enumeration remain detection/mitigation, not proof of race freedom.
+
+**Scope note:** this change closes the inherited compiler-host directory API gap for candidate admission and rejects paths outside the project, approved package-manager targets, and the TypeScript library root. It does not claim that TypeScript's internal recursive directory enumeration is descriptor-bound or race-free.
