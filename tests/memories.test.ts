@@ -222,7 +222,22 @@ describe("explicit memory lifecycle", () => {
     );
   });
 
-  it("reports when memory recall exceeds its bounded candidate window", () => {\n    createProject();\n    const insert = database!.prepare(`INSERT INTO memories\n      (id, category, title, content, status, source_path, commit_sha, source_hash, author, updated_by, created_at, updated_at)\n      VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`);\n    for (let index = 0; index < 5_000; index += 1) {\n      const timestamp = new Date(Date.UTC(2025, 0, 1, 0, 0, index % 60)).toISOString();\n      insert.run(`bulk-${String(index).padStart(4, "0")}`, "note", `Unrelated note ${index}`, "No matching terms here.", "confirmed", timestamp, timestamp);\n    }\n    insert.run("old-match", "decision", "Legacy deployment invariant", "The deployment invariant must remain stable.", "confirmed", "2020-01-01T00:00:00.000Z", "2020-01-01T00:00:00.000Z");\n\n    const report = recallMemoriesReport(location, "deployment invariant", 20);\n    expect(report.records).toEqual([]);\n    expect(report).toMatchObject({ totalEligible: 5_001, processedCandidates: 5_000, limit: 20, truncated: true });\n  });\n  it("validates recall limits", () => {
+  it("reports when memory recall exceeds its bounded candidate window", () => {
+    createProject();
+    const insert = database!.prepare(`INSERT INTO memories
+      (id, category, title, content, status, source_path, commit_sha, source_hash, author, updated_by, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`);
+    for (let index = 0; index < 5_000; index += 1) {
+      const timestamp = new Date(Date.UTC(2025, 0, 1, 0, 0, index % 60)).toISOString();
+      insert.run(`bulk-${String(index).padStart(4, "0")}`, "note", `Unrelated note ${index}`, "No matching terms here.", "confirmed", timestamp, timestamp);
+    }
+    insert.run("old-match", "decision", "Legacy deployment invariant", "The deployment invariant must remain stable.", "confirmed", "2020-01-01T00:00:00.000Z", "2020-01-01T00:00:00.000Z");
+
+    const report = recallMemoriesReport(location, "deployment invariant", 20);
+    expect(report.records).toEqual([]);
+    expect(report).toMatchObject({ totalEligible: 5_001, processedCandidates: 5_000, limit: 20, truncated: true });
+  });
+  it("validates recall limits", () => {
     createProject();
     expect(() => recallMemories(location, "", 0)).toThrow("Memory limit");
     expect(() => recallMemories(location, "", 501)).toThrow("Memory limit");
