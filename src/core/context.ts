@@ -148,8 +148,8 @@ export function buildTaskContext(
   const anchorPaths = [...new Set((options.anchors?.paths ?? []).map((path) => {
     const normalized = path.trim().replaceAll("\\", "/");
     return normalized.startsWith("./") ? normalized.slice(2) : normalized;
-  }))];
-  const anchorSymbols = [...new Set((options.anchors?.symbols ?? []).map((symbol) => symbol.trim()).filter(Boolean))];
+  }))].sort(compareCodeUnits);
+  const anchorSymbols = [...new Set((options.anchors?.symbols ?? []).map((symbol) => symbol.trim()).filter(Boolean))].sort(compareCodeUnits);
   if (explicitAnchorMode && anchorPaths.length + anchorSymbols.length === 0) throw new Error("anchors must include at least one path or symbol.");
   if (anchorPaths.length > 20 || anchorSymbols.length > 20 || anchorPaths.some((path) => !path || path.startsWith("/") || path.split("/").some((part) => part === ".." || part === ""))) {
     throw new Error("anchors accepts up to 20 normalized project-relative paths and 20 non-empty symbol names.");
@@ -223,18 +223,18 @@ export function buildTaskContext(
         warnings.push(`Import "${unresolved.specifier}" in ${symbol.filePath} is ${ambiguous ? "ambiguous" : "unresolved"}; candidates: ${unresolved.candidates.length ? unresolved.candidates.join(", ") : "none"}.`);
       }
       const dependencies = findDependencies(location, symbol.filePath, 1, 20, 100);
-        for (const dependency of dependencies.dependencies) {
-          addDependencyCandidate({
-            kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
-            score: Math.max(1, symbol.score - 10 - dependency.depth),
-            signals: ["direct-import", "dependency-of-matching-file"],
-            detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
-          });
-        }
-        if (dependencies.truncated) {
-          dependencyCandidatesTruncated = true;
-          warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
-        }
+      for (const dependency of dependencies.dependencies) {
+        addDependencyCandidate({
+          kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
+          score: Math.max(1, symbol.score - 10 - dependency.depth),
+          signals: ["direct-import", "dependency-of-matching-file"],
+          detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
+        });
+      }
+      if (dependencies.truncated) {
+        dependencyCandidatesTruncated = true;
+        warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
+      }
       // Map the indexed source file back to tests through actual reverse-import
       // relations, rather than relying only on test filenames containing task words.
       if (!seenImpactFiles.has(symbol.filePath)) {
@@ -270,17 +270,17 @@ export function buildTaskContext(
       },
     });
     const dependencies = findDependencies(location, path, 1, 20, 100);
-      for (const dependency of dependencies.dependencies) {
-        addDependencyCandidate({
-          kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
-          score: Math.max(1, 90 - dependency.depth), signals: ["direct-import", "dependency-of-explicit-path-anchor"],
-          detail: { from: path, chain: dependency.chain, evidence: dependency.evidence },
-        });
-      }
-      if (dependencies.truncated) {
-        dependencyCandidatesTruncated = true;
-        warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
-      }
+    for (const dependency of dependencies.dependencies) {
+      addDependencyCandidate({
+        kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
+        score: Math.max(1, 90 - dependency.depth), signals: ["direct-import", "dependency-of-explicit-path-anchor"],
+        detail: { from: path, chain: dependency.chain, evidence: dependency.evidence },
+      });
+    }
+    if (dependencies.truncated) {
+      dependencyCandidatesTruncated = true;
+      warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
+    }
   }
 
   const testDb = openDatabase(location);
@@ -326,7 +326,7 @@ export function buildTaskContext(
     });
   }
   testCandidatesTruncated = seenTestPaths.size > testLimit;
-  dependencyCandidatesTruncated = seenDependencyPaths.size > dependencyLimit;
+  dependencyCandidatesTruncated = dependencyCandidatesTruncated || seenDependencyPaths.size > dependencyLimit;
   if (testPathDiscoveryTruncated) warnings.push("Test-path discovery was truncated at 500 indexed candidates; matching tests may be missing.");
   if (testCandidatesTruncated) warnings.push(`Test candidates were truncated at the configured testLimit of ${testLimit}.`);
   if (dependencyCandidatesTruncated) warnings.push(`Dependency candidates were truncated at the configured dependencyLimit of ${dependencyLimit}.`);
