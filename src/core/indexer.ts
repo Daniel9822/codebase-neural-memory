@@ -69,9 +69,22 @@ function assertNoSymlinkedConfigParents(candidatePath: string, projectRoot: stri
 
 function readConfigBytesSafely(candidatePath: string, projectRoot: string): Buffer {
   assertNoSymlinkedConfigParents(candidatePath, projectRoot);
-  // Resolve the containing directory first, then address the final component
-  // under that canonical directory. Explicit external "extends" paths and
-  // package-manager links under node_modules remain supported.
+  const root = realpathSync(projectRoot);
+  const absoluteCandidate = resolve(candidatePath);
+  const relativeCandidate = relative(root, absoluteCandidate).replaceAll("\\\\", "/");
+  const external = relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
+    isAbsolute(relativeCandidate);
+  const packageManagerPath = relativeCandidate.split("/").includes("node_modules");
+  if (!external && !packageManagerPath) {
+    // Keep project-local config reads rooted at the canonical project. This
+    // makes a parent-directory substitution fail containment during open/read.
+    return readFileWithinRoot(root, absoluteCandidate, {
+      canonicalRoot: root,
+      rejectFinalSymlink: true,
+    }).content;
+  }
+  // Explicit external "extends" paths and package-manager links under
+  // node_modules remain supported as separate, intentional trust boundaries.
   const canonicalParent = realpathSync(dirname(candidatePath));
   const canonicalCandidate = join(canonicalParent, basename(candidatePath));
   return readFileWithinRoot(canonicalParent, canonicalCandidate, {
