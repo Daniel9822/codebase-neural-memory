@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
+import { closeSync, constants, fstatSync, lstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { basename, extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -103,6 +103,7 @@ function readConfigTextSafely(candidatePath: string, projectRoot: string): strin
 
 function isExtendedConfigCandidate(candidatePath: string, projectRoot: string): boolean {
   try {
+    assertNoSymlinkedConfigParents(candidatePath, projectRoot);
     const candidateStat = lstatSync(candidatePath);
     // Preserve unsafe candidates for the diagnostic pass; never follow a
     // final-component symlink merely to decide which config path to inspect.
@@ -637,7 +638,7 @@ function resolveExtendedConfigPath(configPath: string, specifier: string, projec
           : [join(packageRoot, subpath), join(packageRoot, subpath + ".json"), join(packageRoot, subpath, "tsconfig.json")])
       : [join(packageRoot, "tsconfig.json")];
     try {
-      if (!subpath && existsSync(packageJson)) {
+      if (!subpath) {
         const manifestValue: unknown = JSON.parse(readConfigBytesSafely(packageJson, projectRoot).toString("utf8"));
         if (!manifestValue || typeof manifestValue !== "object" || Array.isArray(manifestValue)) {
           // Keep malformed metadata in the traversal so freshness can report it.
