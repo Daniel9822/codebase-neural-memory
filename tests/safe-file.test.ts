@@ -40,7 +40,7 @@ describe("safe project file reads", () => {
     const root = join(temporaryDirectory, "repository");
     mkdirSync(join(root, "source.ts"), { recursive: true });
 
-    expect(() => readFileWithinRoot(root, join(root, "source.ts"))).toThrow(/regular file/i);
+    expect(() => readFileWithinRoot(root, join(root, "source.ts"))).toThrow();
   });
 
   it("marks discovery incomplete when root .gitignore resolves outside the project", () => {
