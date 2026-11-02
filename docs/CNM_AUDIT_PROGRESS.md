@@ -128,6 +128,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Add targeted memory-ID freshness inspection (maximum 50 IDs) so `task_context` hashes only the memory candidates it actually returns.
 - [x] Change `cnm memory freshness` to use the bounded report, expose `--limit` (1–500), and return total/truncation metadata.
 - [x] Add a synthetic 100,001-entry directory regression proving the deterministic sorting cap aborts discovery, marks the root protected, and returns no partial candidate set.
+- [x] Inject the discovery provider into freshness evaluation for deterministic testing; assert the sorting cap reports `incomplete`, preserves all indexed records, emits no false deletions, and leaves the index revision unchanged.
 - [x] Update README, architecture, and product-contract documentation to match the CLI and context budgets.
 - [ ] Verify the memory freshness and task-context tests plus the final cross-platform CI matrix on the latest PR head; the final matrix must include the 100,001-entry sorting-cap regression, bounded source/Git inspection, selected-ID freshness for task context, and the CLI report/limit contract.
 
