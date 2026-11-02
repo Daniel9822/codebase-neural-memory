@@ -128,6 +128,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Assert the destructive reconciliation is refused and previously indexed file/symbol records remain intact.
 - [x] Add a regression ensuring a symlinked package manifest encountered during TypeScript `extends` resolution is surfaced as an incomplete freshness diagnostic.
 - [x] Make complete-snapshot indexing reject malformed/unsafe relation configuration before database writes and verify the relation-config fingerprint again before commit; roll back on drift.
+- [x] Reject project-local relative `extends` paths that traverse symlinked parent directories; preserve explicitly external `extends` and package-manager symlinks under `node_modules`, and add a regression for the rejected local path.
 - [x] Document the full-snapshot configuration fail-closed behavior in the README, distinguishing it from selective/bounded updates.
 - [x] Add a strict MCP freshness regression where a second independent SQLite connection advances the index revision during a read; the first handler must refuse the mixed-snapshot result.
 - [x] Add a strict MCP freshness regression where a directory is replaced by an outside-root symlink during the read; post-read discovery becomes incomplete and the result is refused.
