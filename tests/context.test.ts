@@ -149,6 +149,18 @@ describe("task-oriented context builder", () => {
     expect(reversed.budget.truncatedKinds).toContain("dependency");
   });
 
+  it("normalizes follow-up path candidates before applying their limit", () => {
+    setup();
+    const context = buildTaskContext(location, "auth token files", {
+      anchors: { paths: ["src/token.ts", "src/auth.ts"] },
+    });
+    const forward = lookupTaskContextDetails(location, context, ["src/token.ts", "src/auth.ts"], { limit: 1 });
+    const reversed = lookupTaskContextDetails(location, context, ["src/auth.ts", "src/token.ts"], { limit: 1 });
+
+    expect(forward.map((item) => item.source)).toEqual(["src/auth.ts"]);
+    expect(reversed.map((item) => item.source)).toEqual(forward.map((item) => item.source));
+  });
+
   it("enforces independent per-kind context budgets and reports their usage", () => {
     setup();
     remember(location, "Refresh auth token", "Rotate the refresh token safely.", "decision", "src/auth.ts");
