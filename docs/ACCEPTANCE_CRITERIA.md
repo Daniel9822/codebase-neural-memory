@@ -372,7 +372,7 @@ Never say a build, test, push, or integration succeeded unless it was actually e
 - [x] TypeScript compiler-host source reads, module resolution, semantic manifests, and recursive directory discovery use the safe host. Nested symlink directories below approved package roots are rejected before recursion.
 - [x] Deterministic regressions cover file symlinks, dangling links, traversal/absolute paths, hard links, nested package symlinks, and persistent directory replacement during TypeScript enumeration.
 - [x] Managed `AGENTS.md` reads/writes reject unsafe symlink/hardlink targets, verify file identity, and use exclusive creation for new files.
-- [x] PR #131 merge `bc590d4dec32f4c30b8e68175320baffd6a05e12` CI 41540709649 passed; PR #132 merge `de71a13c905e8a0d8ae5c075208bd343b2cc6459` CI 41541563914 passed.
+- [x] PR #131 merge `bc590d4dec32f4c30b8e68175320baffd6a05e12` CI 41540709649 passed; PR #132 merge `de71a13c905e8a0d8ae5c075208bd343b2cc6459` CI 41541563914 passed; PR #133 merge `5b024794bf96ff102cdbbd298b2f2c1464ccbeb7` CI 41542394157 passed all five jobs.
 
 **Accepted residual:** Node's portable path-based directory APIs do not bind all identity checks to an opened directory descriptor. Persistent substitutions are detected; a swap-and-restore completed entirely between checks is not proven impossible. The implementation does not claim descriptor-bound traversal or universal TOCTOU elimination.
 ## CNM-02 — destructive reconciliation and symlink preservation
