@@ -787,7 +787,9 @@ export function getSymbolRelations(location: ProjectLocation, name: string, limi
         JOIN files source_file ON source_file.id = source.file_id
         WHERE target.name = ?
       )
-      ORDER BY symbolFilePath, direction, relation, relatedFilePath, relatedSymbolName
+      ORDER BY symbolFilePath, direction, relation, relatedFilePath, relatedSymbolName,
+        relatedSymbolKind, relatedStartLine, relatedEndLine, symbolStartLine, symbolEndLine,
+        provenance, confidence, indexRevision
       LIMIT ?
     `).all(name, name, limit) as SymbolRelationHit[];
   } finally {
@@ -1149,7 +1151,9 @@ export function findSymbolImpact(location: ProjectLocation, name: string, option
       JOIN files target_file ON target_file.id = target.file_id
       WHERE ${direction === "incoming" ? "r.target_kind = 'symbol' AND r.target_id = ?" : "r.source_kind = 'symbol' AND r.source_id = ?"}
         AND r.kind IN (${relationPlaceholders})
-      ORDER BY r.kind, ${nextOrder}
+      ORDER BY r.kind, ${nextOrder}, source.kind, source.stable_id,
+        target_file.path, target.start_line, target.name, target.kind, target.stable_id,
+        r.provenance, r.confidence, r.index_revision
       LIMIT ?
     `);
     type EdgeRow = {
