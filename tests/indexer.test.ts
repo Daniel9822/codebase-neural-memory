@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
-import { indexProject, indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
+import { discoverFiles, indexProject, indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
 import { getProjectMapReport } from "../src/core/retrieval.js";
 
 let temporaryDirectory = "";
@@ -108,16 +108,32 @@ describe("indexWithDatabase", () => {
     expect(database!.prepare("SELECT path FROM files").all()).toEqual([{ path: "a.ts" }]);
   });
 
-  it("stops directory traversal at maxProcessed and marks the result incomplete", () => {
+  it("aborts without writes when maxProcessed cannot enumerate a complete deterministic candidate set", () => {
     createProject();
     writeFileSync(join(location.rootPath, "a.ts"), "export const a = true;");
     writeFileSync(join(location.rootPath, "b.ts"), "export const b = true;");
 
-    const summary = indexWithDatabase(database!, location, false, [], { maxProcessed: 1 });
+    expect(() => indexWithDatabase(database!, location, false, [], { maxProcessed: 1 }))
+      .toThrow(/deterministic discovery budget was exceeded/i);
+    expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([]);
+  });
 
-    expect(summary.truncated).toBe(true);
-    expect(summary.deleted).toBe(0);
-    expect(summary.scanned).toBeLessThanOrEqual(1);
+  it("selects the same maxFiles subset regardless of directory insertion order", () => {
+    createProject();
+    for (const name of ["z.ts", "m.ts", "a.ts"]) {
+      writeFileSync(join(location.rootPath, name), `export const ${name.replace(".ts", "")} = true;`);
+    }
+    const first = discoverFiles(location.rootPath, [], { maxFiles: 2 }).files.map((file) => file.relativePath);
+
+    const secondRoot = join(temporaryDirectory, "second-repository");
+    mkdirSync(secondRoot, { recursive: true });
+    for (const name of ["a.ts", "z.ts", "m.ts"]) {
+      writeFileSync(join(secondRoot, name), `export const ${name.replace(".ts", "")} = true;`);
+    }
+    const second = discoverFiles(secondRoot, [], { maxFiles: 2 }).files.map((file) => file.relativePath);
+
+    expect(first).toEqual(["a.ts", "m.ts"]);
+    expect(second).toEqual(first);
   });
 
   it("rejects traversal paths and invalid processing limits", () => {
