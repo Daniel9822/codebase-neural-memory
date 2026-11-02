@@ -93,7 +93,7 @@ The server uses stdio and exposes eighteen tools: thirteen read/retrieval tools 
 - `symbol_impact` — bounded symbol-level traversal over `CALLS`, `EXTENDS`, and `IMPLEMENTS`, returning shortest relation distances, source locations, and per-edge evidence. Incoming traversal finds callers, subclasses, implementors, and indexed test-case callbacks that may be affected; outgoing traversal finds dependencies. Recognized `it`/`test`/`specify`-style callbacks in test files are indexed as `test-case` symbols, with imported calls linked to their concrete source symbols. This is static syntax evidence, not runtime test coverage. Ambiguous symbol names return candidates and require a path/kind/line filter.
 - `task_context` — deterministic, bounded task context from indexed facts and memories; optional exact path/symbol anchors disable broad lexical symbol fallback and label each item origin.
 - `memory_freshness` — source-file fingerprints and Git commit ancestry for linked or commit-referenced memories.
-- `memory_recall` — bounded retrieval of non-rejected memories with lifecycle labels.
+- `memory_recall` — bounded lexical retrieval with lifecycle labels, filters, and explicit candidate-window truncation metadata.
 - `memory_propose` — persist an agent suggestion with `proposed` status; a person must explicitly confirm it.
 - `memory_transition` — explicitly transition a memory lifecycle state; agent confirmation requires clear user authorization.
 
