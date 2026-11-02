@@ -121,6 +121,23 @@ describe("indexWithDatabase", () => {
     expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([]);
   });
 
+  it("aborts deterministic discovery when a directory exceeds the sorting safety cap", () => {
+    createProject();
+    const entries = Array.from({ length: 100_001 }, (_, index) => ({
+      name: `entry-${String(index).padStart(6, "0")}.ts`,
+    }));
+    let cursor = 0;
+    const discovery = discoverFiles(location.rootPath, [], {}, () => ({
+      readSync: () => entries[cursor++] ?? null,
+      closeSync: () => undefined,
+    } as unknown as ReturnType<typeof opendirSync>));
+
+    expect(discovery.truncated).toBe(true);
+    expect(discovery.abortRequired).toBe(true);
+    expect(discovery.protectedDirectories.has("")).toBe(true);
+    expect(discovery.files).toEqual([]);
+  });
+
   it("selects the same maxFiles subset regardless of directory insertion order", () => {
     createProject();
     for (const name of ["z.ts", "m.ts", "a.ts"]) {
