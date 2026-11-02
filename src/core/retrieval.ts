@@ -145,10 +145,10 @@ export function searchSymbols(
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
-        WHERE ${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")}
-        ORDER BY f.path, s.start_line, s.name
+        WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
+        ORDER BY f.path, s.start_line, s.name, s.kind
         LIMIT ?
-      `).all(...fallbackParameters, candidateLimit) as SearchHit[];
+      `).all(...fallbackParameters, ...filterParameters, candidateLimit) as SearchHit[];
       const combined = new Map<string, SearchHit & { ftsRank?: number }>();
       for (const row of rows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}`, row);
       for (const row of fallbackRows) {
@@ -163,10 +163,10 @@ export function searchSymbols(
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
           s.start_line AS startLine, s.end_line AS endLine, s.exported AS exported
         FROM symbols s JOIN files f ON f.id = s.file_id
-        WHERE ${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")}
-        ORDER BY f.path, s.start_line, s.name
+        WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
+        ORDER BY f.path, s.start_line, s.name, s.kind
         LIMIT ?
-      `).all(...parameters, candidateLimit) as SearchHit[];
+      `).all(...parameters, ...filterParameters, candidateLimit) as SearchHit[];
       return rankSearchCandidates(rows.map((row) => ({ ...row })), tokens, limit);
     }
   } finally {
