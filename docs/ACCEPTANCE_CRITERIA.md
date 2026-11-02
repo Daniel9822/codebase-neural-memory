@@ -450,7 +450,18 @@ The following capabilities remain open: signature-regex search, public-contract 
 - [x] TypeScript semantic import diagnostics identify supported missing-package and missing-export cases during indexing; `project_map` exposes them, and `file_details` exposes bounded per-file diagnostics with totals/truncation. Compiler/build validation remains required because this is not a complete compiler run.
 - [ ] Full typecheck, tests, build, smoke, and cross-platform CI pass before merge.
 
-## CNM-06 — Deterministic bounded discovery
+## CNM-06 — Deterministic bounded discovery and retrieval — PASS pending final PR verification
+
+- [x] `maxFiles` candidate selection is deterministic across directory-entry creation/enumeration orders (`tests/indexer.test.ts`; PR #84).
+- [x] When `maxProcessed` cannot cover the complete deterministic candidate set, indexing aborts before database writes instead of committing an order-dependent partial selection (`tests/indexer.test.ts`; PR #84).
+- [x] PR #122 adds a 100,001-entry sorting-cap regression; it verifies incomplete discovery and no partial candidate set. The separate `maxProcessed` regression verifies abort-before-write behavior. (PR #122 merged as `8790bf71aad57c74bbb120ba1c2b8feb707803dc`; CI 41460410372 passed).
+- [x] Memory freshness inspection has a default 100-record budget, a hard maximum of 500, explicit total/truncation metadata in the CLI report, and targeted-ID evaluation for task context (PR #122; CI 41460410372).
+- [x] Retrieval tie-breakers are stable across symbol search, exact symbol lookup, symbol relations, file details, graph traversals, and context ranking; set-valued relation filters and explicit context paths are normalized before truncation.
+- [x] Task context applies per-kind/global/character limits after deterministic candidate ranking and reports all omitted kinds; bounded memory recall truncation is propagated.
+- [x] `file_details` reports exact nested candidate totals across all unresolved imports, including imports omitted by its parent collection limit.
+- [x] Bounded symbol search, exact symbol lookup, and symbol relations expose result/candidate-window truncation signals.
+- [ ] Verify PR #135's final cross-platform CI and merge before changing this heading to PASS.
+
 
 - [x] `maxFiles` candidate selection is deterministic across different directory-entry creation/enumeration orders (`tests/indexer.test.ts`; PR #84).
 - [x] When `maxProcessed` cannot cover the complete deterministic candidate set, indexing aborts before database writes instead of committing a filesystem-order-dependent partial selection (`tests/indexer.test.ts`; PR #84).
