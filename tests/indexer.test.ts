@@ -121,21 +121,30 @@ describe("indexWithDatabase", () => {
     expect(database!.prepare("SELECT path FROM files ORDER BY path").all()).toEqual([]);
   });
 
-  it("aborts deterministic discovery when a directory exceeds the sorting safety cap", () => {
+  it("reports incomplete freshness without deleting indexed paths when a directory exceeds the sorting cap", () => {
     createProject();
+    writeFileSync(join(location.rootPath, "main.ts"), "export function main() { return true; }");
+    indexWithDatabase(database!, location);
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
     const entries = Array.from({ length: 100_001 }, (_, index) => ({
       name: `entry-${String(index).padStart(6, "0")}.ts`,
     }));
-    let cursor = 0;
-    const discovery = discoverFiles(location.rootPath, [], {}, () => ({
-      readSync: () => entries[cursor++] ?? null,
-      closeSync: () => undefined,
-    } as unknown as ReturnType<typeof opendirSync>));
+    const openDirectory = () => {
+      let cursor = 0;
+      return {
+        readSync: () => entries[cursor++] ?? null,
+        closeSync: () => undefined,
+      } as unknown as ReturnType<typeof opendirSync>;
+    };
+    const freshness = getIndexFreshness(location, (rootPath, excludes) =>
+      discoverFiles(rootPath, excludes, {}, openDirectory));
 
-    expect(discovery.truncated).toBe(true);
-    expect(discovery.abortRequired).toBe(true);
-    expect(discovery.protectedDirectories.has("")).toBe(true);
-    expect(discovery.files).toEqual([]);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.checkedFiles).toBe(0);
+    expect(freshness.deletedFiles).toBe(0);
+    expect(freshness.fileChanges).toEqual([]);
+    expect((database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision)
+      .toBe(beforeRevision);
   });
 
   it("selects the same maxFiles subset regardless of directory insertion order", () => {
