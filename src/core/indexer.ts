@@ -711,21 +711,22 @@ function gitFreshness(project: IndexedGitMetadata, current: ReturnType<typeof ge
 export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
   const db = openDatabase(location);
   try {
-    const project = db.prepare("SELECT last_indexed_at, index_revision, index_excludes_json, indexed_commit, indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths FROM projects WHERE id = ?").get(location.id) as ({
-      last_indexed_at: string | null; index_revision: number; index_excludes_json: string;
+    const project = db.prepare("SELECT last_indexed_at, index_revision, index_excludes_json, relations_config_hash, indexed_commit, indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths FROM projects WHERE id = ?").get(location.id) as ({
+      last_indexed_at: string | null; index_revision: number; index_excludes_json: string; relations_config_hash: string | null;
     } & IndexedGitMetadata) | undefined;
     if (!project) throw new Error("This repository has not been initialized. Run `cnm init` first.");
     const currentGit = getGitSnapshot(location.rootPath);
     const git = gitFreshness(project, currentGit);
     if (!project.last_indexed_at) {
       return { status: "not-indexed", indexRevision: project.index_revision, checkedFiles: 0, addedFiles: 0,
-        changedFiles: 0, deletedFiles: 0, fileChanges: [], fileChangesTotal: 0, fileChangesTruncated: false,
+        changedFiles: 0, deletedFiles: 0, relationsConfigChanged: false, fileChanges: [], fileChangesTotal: 0, fileChangesTruncated: false,
         skippedFiles: [], errors: [], limits: { detailItems: MAX_FRESHNESS_DETAIL_ITEMS }, totals: { skippedFiles: 0, errors: 0 }, truncated: { skippedFiles: false, errors: false }, git };
     }
     const excludes = JSON.parse(project.index_excludes_json) as string[];
     const discovery = discoverFiles(location.rootPath, excludes);
     const indexed = db.prepare("SELECT path, content_hash FROM files ORDER BY path").all() as Array<{ path: string; content_hash: string }>;
     const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
+    const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed) !== project.relations_config_hash;
     let addedFiles = 0;
     let changedFiles = 0;
     let deletedFiles = 0;
@@ -752,12 +753,12 @@ export function getIndexFreshness(location: ProjectLocation): IndexFreshness {
     fileChanges.sort((a, b) => a.path.localeCompare(b.path) || a.status.localeCompare(b.status));
     const gitMetadataUnavailable = git.status === "unavailable" && project.indexed_worktree_status_hash !== null;
     const incomplete = discovery.failed > 0 || discovery.skipped > 0 || discovery.protectedDirectories.size > 0 || gitMetadataUnavailable;
-    const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0 || git.status === "changed" || git.status === "unrecorded";
+    const stale = addedFiles > 0 || changedFiles > 0 || deletedFiles > 0 || relationsConfigChanged || git.status === "changed" || git.status === "unrecorded";
     return {
       status: incomplete ? "incomplete" : stale ? "stale" : "current",
       indexRevision: project.index_revision,
       checkedFiles: discovery.scanned,
-      addedFiles, changedFiles, deletedFiles,
+      addedFiles, changedFiles, deletedFiles, relationsConfigChanged,
       fileChanges: fileChanges.slice(0, MAX_FRESHNESS_DETAIL_ITEMS),
       fileChangesTotal: fileChanges.length,
       fileChangesTruncated: fileChanges.length > MAX_FRESHNESS_DETAIL_ITEMS,
