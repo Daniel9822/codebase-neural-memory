@@ -208,6 +208,27 @@ describe("indexWithDatabase", () => {
     expect(indexedPaths).toEqual(["src/visible.ts"]);
   });
 
+  it("preserves indexed files when the root .gitignore is replaced by a symlink", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, ".gitignore"), "");
+    writeFileSync(join(location.rootPath, "a.ts"), "export const a = true;");
+    writeFileSync(join(location.rootPath, "b.ts"), "export const b = true;");
+    updateProjectIndex(location);
+
+    const before = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
+    expect(before).toEqual([{ path: "a.ts" }, { path: "b.ts" }]);
+
+    const savedIgnore = join(temporaryDirectory, "saved.gitignore");
+    const outsideIgnore = join(temporaryDirectory, "outside.gitignore");
+    renameSync(join(location.rootPath, ".gitignore"), savedIgnore);
+    writeFileSync(outsideIgnore, "*.ts\n");
+    symlinkSync(outsideIgnore, join(location.rootPath, ".gitignore"));
+
+    expect(() => updateProjectIndex(location)).toThrow(/discovery could not safely complete/i);
+    const after = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
+    expect(after).toEqual(before);
+  });
+
   it("supports additive custom exclusions without disabling mandatory safety exclusions", () => {
     createProject();
     mkdirSync(join(location.rootPath, "generated"), { recursive: true });
