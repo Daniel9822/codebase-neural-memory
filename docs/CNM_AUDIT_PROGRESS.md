@@ -129,7 +129,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Change `cnm memory freshness` to use the bounded report, expose `--limit` (1–500), and return total/truncation metadata.
 - [x] Verify the CLI report's default budget of 100 as well as explicit limit/truncation behavior in `tests/memories.test.ts`.
 - [x] Add a synthetic 100,001-entry directory regression proving the deterministic sorting cap aborts discovery, marks the root protected, and returns no partial candidate set.
-- [x] Inject the discovery provider into freshness evaluation for deterministic testing; assert the sorting cap reports `incomplete`, preserves all indexed records, emits no false deletions, and leaves the index revision unchanged.
+- [x] Inject the discovery provider into freshness evaluation for deterministic testing; assert the sorting cap reports `incomplete`, preserves all indexed records, emits no false deletions, and leaves the index revision unchanged. The 100,001-entry fixture uses a 30-second timeout for cross-platform filesystem overhead.
 - [x] Update README, architecture, and product-contract documentation to match the CLI and context budgets.
 - [ ] Verify the final cross-platform CI matrix on the latest PR head after adding ignored-symlink protection, all-scope config fail-closed behavior, deterministic config-drift rollback, the 100,001-entry sorting-cap freshness regression, and bounded memory freshness.
 
