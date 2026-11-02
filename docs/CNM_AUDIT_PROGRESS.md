@@ -25,3 +25,11 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - A checked item means the cited PR is merged and the referenced CI passed for that PR head.
 - A partially addressed risk remains open under the broader close-out list above.
 - No local test execution is claimed; validation evidence is from GitHub Actions run records.
+
+
+### CNM-06 follow-up — index_update response details (2026-11-02)
+
+- [x] Confirmed `index_update` could return unbounded `errors` and `skippedFiles` arrays even though discovery is capped at 100,000 examined entries.
+- [x] Cap each diagnostic detail collection at 200 sorted entries, preserving exact counters and adding `totals`, `limits.detailItems`, and `detailsTruncated` metadata.
+- [x] Add an MCP regression with 205 skipped symlink paths to prove exact totals, deterministic details, and explicit truncation.
+- [ ] Verify CI and merge the change before closing the broader MCP output-contract audit.
