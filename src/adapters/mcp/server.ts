@@ -210,11 +210,18 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     }),
   }, async ({ query, limit, kind, filePath, exported, includeSource }) => readResponse(location, options, () => {
     const normalizedPath = filePath?.replaceAll("\\", "/").replace(/^\.\//, "");
-    const results = searchSymbols(location, query, 1000, {
+    const candidates = searchSymbols(location, query, 1000, {
       ...(kind === undefined ? {} : { kind }),
       ...(normalizedPath === undefined ? {} : { filePathPrefix: normalizedPath }),
       ...(exported === undefined ? {} : { exported }),
-    }).slice(0, limit ?? 20);
+    });
+    const outputLimit = limit ?? 20;
+    const resultsTruncated = candidates.length > outputLimit ||
+      candidates.some((item) => item.resultsTruncated || item.candidateWindowTruncated);
+    const results = candidates.slice(0, outputLimit).map((item) => ({
+      ...item,
+      resultsTruncated: resultsTruncated || item.resultsTruncated,
+    }));
     if (!includeSource) return results;
     const maxLines = includeSource.maxLines ?? 60;
     return results.map((item) => ({
