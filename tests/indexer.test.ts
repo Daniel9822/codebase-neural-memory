@@ -247,7 +247,7 @@ describe("indexWithDatabase", () => {
     symlinkSync(outsideIgnore, join(location.rootPath, "src", ".gitignore"));
     writeFileSync(join(location.rootPath, "new-root.ts"), "export const added = true;");
 
-    const summary = updateProjectIndex(location);
+    const summary = updateProjectIndex(location, { requireCompleteSnapshot: false });
     const after = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
 
     expect(after.map((row) => row.path)).toContain("src/nested/keep.ts");
