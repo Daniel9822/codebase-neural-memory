@@ -37,6 +37,7 @@ function readConfigTextSafely(candidatePath: string): string | undefined {
 
 
 const MAX_FILE_BYTES = 1_000_000;
+const MAX_INDEX_DETAIL_ITEMS = 200;
 const MAX_DIRECTORY_ENTRIES_FOR_SORT = 100_000;
 const DEFAULT_EXCLUDES = [
   ".git", ".hg", ".svn", "node_modules", "bower_components", "vendor",
@@ -1085,6 +1086,16 @@ export function indexWithDatabase(
       .run(now, gitAfter.available ? gitAfter.commit : null, gitAfter.available ? gitAfter.branch : null,
         gitAfter.available && gitAfter.dirty !== null ? (gitAfter.dirty ? 1 : 0) : null,
         gitAfter.available ? gitAfter.statusHash : null, gitAfter.available ? gitAfter.changedPathCount : null, location.id);
+    summary.errors.sort((a, b) => compareCodeUnits(a, b));
+    summary.skippedFiles.sort((a, b) => compareCodeUnits(a, b));
+    summary.totals = { errors: summary.failed, skippedFiles: summary.skipped };
+    summary.limits = { detailItems: MAX_INDEX_DETAIL_ITEMS };
+    summary.detailsTruncated = {
+      errors: summary.errors.length > MAX_INDEX_DETAIL_ITEMS,
+      skippedFiles: summary.skippedFiles.length > MAX_INDEX_DETAIL_ITEMS,
+    };
+    summary.errors = summary.errors.slice(0, MAX_INDEX_DETAIL_ITEMS);
+    summary.skippedFiles = summary.skippedFiles.slice(0, MAX_INDEX_DETAIL_ITEMS);
     return summary;
   })();
 }
