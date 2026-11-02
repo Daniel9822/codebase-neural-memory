@@ -132,8 +132,8 @@ function createSafeTypeScriptHost(options: ts.CompilerOptions, projectRoot: stri
   const root = realpathSync(projectRoot);
   const host = ts.createCompilerHost(options);
   const trustedExternalDirectories = new Set<string>();
-  const defaultGetDirectories = host.getDirectories.bind(host);
-  const defaultReadDirectory = host.readDirectory.bind(host);
+  const defaultGetDirectories = (host.getDirectories ?? ts.sys.getDirectories).bind(host);
+  const defaultReadDirectory = (host.readDirectory ?? ts.sys.readDirectory).bind(host);
 
   // TypeScript's own standard library is a fixed, installation-derived root.
   try {
