@@ -128,17 +128,17 @@ describe("task-oriented context builder", () => {
 
   it("selects the same highest-ranked dependency when explicit anchors arrive in a different order", () => {
     setup();
-    writeFileSync(join(location.rootPath, "a-anchor.ts"), "import './z-dependency';\\nexport const a = true;");
-    writeFileSync(join(location.rootPath, "b-anchor.ts"), "import './y-dependency';\\nexport const b = true;");
-    writeFileSync(join(location.rootPath, "z-dependency.ts"), "export const z = true;");
-    writeFileSync(join(location.rootPath, "y-dependency.ts"), "export const y = true;");
+    writeFileSync(join(location.rootPath, "src", "a-anchor.ts"), "import './z-dependency';\\nexport const a = true;");
+    writeFileSync(join(location.rootPath, "src", "b-anchor.ts"), "import './y-dependency';\\nexport const b = true;");
+    writeFileSync(join(location.rootPath, "src", "z-dependency.ts"), "export const z = true;");
+    writeFileSync(join(location.rootPath, "src", "y-dependency.ts"), "export const y = true;");
     indexWithDatabase(db!, location);
 
     const forward = buildTaskContext(location, "dependency selection", {
-      anchors: { paths: ["b-anchor.ts", "a-anchor.ts"] }, dependencyLimit: 1,
+      anchors: { paths: ["src/b-anchor.ts", "src/a-anchor.ts"] }, dependencyLimit: 1,
     });
     const reversed = buildTaskContext(location, "dependency selection", {
-      anchors: { paths: ["a-anchor.ts", "b-anchor.ts"] }, dependencyLimit: 1,
+      anchors: { paths: ["src/a-anchor.ts", "src/b-anchor.ts"] }, dependencyLimit: 1,
     });
 
     const selected = (result: ReturnType<typeof buildTaskContext>) =>
