@@ -172,6 +172,10 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
           break;
         }
         if (entry.isSymbolicLink()) {
+          // A directory symlink can hide previously indexed descendants. Protect
+          // its lexical scope so a full reconciliation cannot mistake those
+          // records for deleted files. Never follow the link to classify it.
+          protectedDirectories.add(relativePath);
           if (selected && isSupportedSourceFile(relativePath)) {
             scanned += 1;
             skipped += 1;
