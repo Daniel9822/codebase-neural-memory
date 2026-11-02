@@ -257,6 +257,24 @@ describe("integrated CNM integrity regressions", () => {
     expect(diagnostics.some((diagnostic) => diagnostic.moduleSpecifier === "linked-fixture")).toBe(false);
   });
 
+  it("rejects nested symlink traversal below an approved package-manager root", () => {
+    createProject();
+    const externalPackage = join(temporaryDirectory, "external-semantic-package");
+    const outsideDirectory = join(temporaryDirectory, "outside-semantic-declarations");
+    const packageDirectory = join(location.rootPath, "node_modules", "linked-fixture");
+    mkdirSync(externalPackage, { recursive: true });
+    mkdirSync(outsideDirectory, { recursive: true });
+    mkdirSync(join(location.rootPath, "node_modules"), { recursive: true });
+    writeFileSync(join(externalPackage, "package.json"), JSON.stringify({ types: "./linked/index.d.ts" }));
+    writeFileSync(join(outsideDirectory, "index.d.ts"), "export declare const escapedValue: string;");
+    symlinkSync(externalPackage, packageDirectory, "dir");
+    symlinkSync(outsideDirectory, join(externalPackage, "linked"), "dir");
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { escapedValue } from "linked-fixture";\\nexport const result = escapedValue;');
+
+    const diagnostics = analyzeImportDiagnostics(location.rootPath, ["main.ts"]);
+    expect(diagnostics.some((diagnostic) => diagnostic.moduleSpecifier === "linked-fixture")).toBe(true);
+  });
+
   it("does not let TypeScript import diagnostics consume a symlinked dependency declaration", () => {
     createProject();
     const packageDirectory = join(location.rootPath, "node_modules", "unsafe-fixture");
