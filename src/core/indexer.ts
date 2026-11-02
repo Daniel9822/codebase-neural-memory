@@ -45,19 +45,19 @@ function compareCodeUnits(left: string, right: string): number {
 function assertNoSymlinkedConfigParents(candidatePath: string, projectRoot: string): void {
   const root = resolve(projectRoot);
   const absoluteCandidate = resolve(candidatePath);
-  const relativeCandidate = relative(root, absoluteCandidate).replaceAll("\\\\", "/");
+  const relativeCandidate = relative(root, absoluteCandidate).replaceAll("\\", "/");
   // Explicit external TypeScript "extends" targets remain supported. For
   // project-local config paths, do not let a directory symlink redirect the
   // final safe read outside the lexical project tree. Package-manager links
   // under node_modules are an intentional dependency-resolution boundary.
   if (relativeCandidate === ".." || relativeCandidate.startsWith("../") ||
       isAbsolute(relativeCandidate)) return;
-  const relativeParent = relative(root, dirname(absoluteCandidate)).replaceAll("\\\\", "/");
+  const relativeParent = relative(root, dirname(absoluteCandidate)).replaceAll("\\", "/");
   let current = root;
   for (const segment of relativeParent.split("/").filter(Boolean)) {
     current = join(current, segment);
     const identity = lstatSync(current);
-    const currentRelative = relative(root, current).replaceAll("\\\\", "/");
+    const currentRelative = relative(root, current).replaceAll("\\", "/");
     if (identity.isSymbolicLink() && !currentRelative.split("/").includes("node_modules")) {
       throw new Error("Configuration path traverses a symbolic-link directory.");
     }
@@ -712,7 +712,7 @@ function inspectRelationsConfig(rootPath: string, files: Array<{ path: string }>
   for (const path of collectExtendedConfigPaths(rootPath)) {
     let text: string;
     try {
-      text = readConfigBytesSafely(path).toString("utf8");
+      text = readConfigBytesSafely(path, rootPath).toString("utf8");
     } catch (error) {
       reportReadFailure(path, error);
       continue;
