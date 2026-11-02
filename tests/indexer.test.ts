@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import * as fs from "node:fs";
 import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -313,6 +314,38 @@ describe("indexWithDatabase", () => {
     expect(() => indexProject(location)).toThrow(/discovery is incomplete/i);
     const after = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
     expect(after).toEqual([{ path: "src/nested.ts" }]);
+  });
+
+  it("fails closed when a directory is replaced between classification and open", () => {
+    createProject();
+    const sourceDirectory = join(location.rootPath, "src");
+    const movedDirectory = join(temporaryDirectory, "saved-src");
+    const outsideDirectory = join(temporaryDirectory, "outside-src");
+    mkdirSync(sourceDirectory, { recursive: true });
+    writeFileSync(join(sourceDirectory, "inside.ts"), "export const inside = true;");
+    mkdirSync(outsideDirectory, { recursive: true });
+    writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;");
+
+    const originalOpen = fs.opendirSync.bind(fs);
+    let replaced = false;
+    const openSpy = vi.spyOn(fs, "opendirSync").mockImplementation(((path: fs.PathLike, ...args: unknown[]) => {
+      if (!replaced && String(path) === sourceDirectory) {
+        replaced = true;
+        renameSync(sourceDirectory, movedDirectory);
+        symlinkSync(outsideDirectory, sourceDirectory, "dir");
+      }
+      return (originalOpen as (...values: unknown[]) => ReturnType<typeof fs.opendirSync>)(path, ...args);
+    }) as typeof fs.opendirSync);
+
+    try {
+      const discovery = discoverFiles(location.rootPath);
+      expect(replaced).toBe(true);
+      expect(discovery.failed).toBeGreaterThan(0);
+      expect(discovery.protectedDirectories.has("src")).toBe(true);
+      expect(discovery.files).toEqual([]);
+    } finally {
+      openSpy.mockRestore();
+    }
   });
 
   it("removes stale symbols, FTS entries, and graph relations when a file is deleted", () => {
