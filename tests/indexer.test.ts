@@ -380,6 +380,9 @@ describe("indexWithDatabase", () => {
     const beforeSymbols = database!.prepare("SELECT f.path, s.name, s.signature FROM symbols s JOIN files f ON f.id = s.file_id ORDER BY f.path, s.name").all();
     const beforeFts = database!.prepare("SELECT file_path, name, signature FROM symbols_fts ORDER BY file_path, name").all();
     const beforeRelations = database!.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance FROM relations ORDER BY kind, source_id, target_id").all();
+    expect(beforeSymbols.length).toBeGreaterThan(0);
+    expect(beforeFts.length).toBeGreaterThan(0);
+    expect(beforeRelations.length).toBeGreaterThan(0);
 
     rmSync(sourcePath);
     writeFileSync(outsidePath, "export function outside() { return false; }");
