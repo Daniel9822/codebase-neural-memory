@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { readFileSync, realpathSync, statSync } from "node:fs";
+import { constants, closeSync, fstatSync, openSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
@@ -868,13 +868,34 @@ export function getSourceExcerpt(
   if (canonicalRelative === ".." || canonicalRelative.startsWith(".." + sep) || isAbsolute(canonicalRelative)) {
     throw new Error("Source excerpt path resolves outside the project root.");
   }
-  const fileStat = statSync(canonicalPath);
-  if (!fileStat.isFile()) throw new Error("Source excerpt path must reference a regular file.");
-  if (fileStat.size > MAX_INDEXED_SOURCE_BYTES) {
-    throw new Error(`Source file exceeds the ${MAX_INDEXED_SOURCE_BYTES}-byte read limit.`);
-  }
+  // Open once and read through the descriptor so a later path substitution
+  // cannot redirect the read to a different object. O_NOFOLLOW protects the
+  // final path component where the platform supports it; post-open canonical
+  // containment and identity checks provide the fail-closed fallback elsewhere.
+  const noFollow = constants.O_NOFOLLOW ?? 0;
+  const descriptor = openSync(canonicalPath, constants.O_RDONLY | noFollow);
+  let source: string;
+  try {
+    const openedStat = fstatSync(descriptor);
+    if (!openedStat.isFile()) throw new Error("Source excerpt path must reference a regular file.");
+    if (openedStat.size > MAX_INDEXED_SOURCE_BYTES) {
+      throw new Error(`Source file exceeds the ${MAX_INDEXED_SOURCE_BYTES}-byte read limit.`);
+    }
 
-  const source = readFileSync(canonicalPath, "utf8");
+    const verifiedPath = realpathSync(canonicalPath);
+    const verifiedRelative = relative(canonicalRoot, verifiedPath);
+    if (verifiedRelative === ".." || verifiedRelative.startsWith(".." + sep) || isAbsolute(verifiedRelative)) {
+      throw new Error("Source excerpt path resolves outside the project root.");
+    }
+    const pathStat = statSync(verifiedPath);
+    if (openedStat.dev !== pathStat.dev || openedStat.ino !== pathStat.ino) {
+      throw new Error("Source file changed during safe open; retry the read.");
+    }
+
+    source = readFileSync(descriptor, "utf8");
+  } finally {
+    closeSync(descriptor);
+  }
   const contentHash = createHash("sha256").update(source).digest("hex");
   const sourceLines = source.split(/\r?\n/);
   if (startLine > sourceLines.length) {
