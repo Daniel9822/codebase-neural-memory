@@ -1,7 +1,7 @@
 import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
-import { getMemoryFreshnessReport, recallMemories, proposeMemory, transitionMemory, type MemoryStatus } from "../../core/memories.js";
+import { getMemoryFreshnessReport, recallMemoriesReport, proposeMemory, transitionMemory, type MemoryStatus } from "../../core/memories.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -413,7 +413,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }, async ({ limit }) => readResponse(location, options, () => getMemoryFreshnessReport(location, limit ?? 100)));
 
   server.registerTool("memory_recall", {
-    description: "Retrieve project memories using natural-language lexical relevance or list mode. Proposed, confirmed, and obsolete entries are discoverable by default; always respect each result's lifecycle status. Optional status/category filters narrow the results.",
+    description: "Retrieve project memories using natural-language lexical relevance or list mode. Returns candidate counts and an explicit truncation flag when the bounded recall window may omit eligible memories. Proposed, confirmed, and obsolete entries are discoverable by default; always respect each result's lifecycle status. Optional status/category filters narrow the results.",
     inputSchema: z.object({
       query: z.string().max(1000).optional(),
       limit: z.number().int().min(1).max(50).optional(),
@@ -422,7 +422,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       list: z.boolean().optional(),
     }),
   }, async ({ query, limit, status, category, list }) => readResponse(location, options, () =>
-    recallMemories(location, query ?? "", limit ?? 20, {
+    recallMemoriesReport(location, query ?? "", limit ?? 20, {
       ...(status === undefined ? {} : { statuses: [status] }),
       ...(category === undefined ? {} : { category }),
       ...(list === undefined ? {} : { list }),
