@@ -44,10 +44,15 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
   try {
     const source = readFileWithinRoot(location.rootPath, absolutePath);
     return createHash("sha256").update(source.content).digest("hex");
-  } catch {
-    // Missing, replaced, or unsafe source references are not verifiable.
-    // The caller converts null into a review-required freshness state.
-    return null;
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
+    if (error instanceof Error && error.message === "File path resolves outside the project root.") {
+      throw new Error("Memory source path must resolve inside the project root");
+    }
+    if (error instanceof Error && (error.message === "Path must reference a regular file." || error.message.includes("ELOOP"))) {
+      throw new Error("Memory source path must reference a file");
+    }
+    throw error;
   }
 }
 
