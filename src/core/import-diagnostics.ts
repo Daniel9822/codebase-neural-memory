@@ -216,7 +216,7 @@ export interface SemanticPackageManifestSnapshot {
 const MAX_SEMANTIC_PACKAGE_MANIFESTS = 10_000;
 
 function isNodeModulesPackageManifest(path: string): boolean {
-  const normalized = resolve(path).replaceAll("\\\\", "/");
+  const normalized = resolve(path).replaceAll("\\", "/");
   const segments = normalized.split("/");
   return segments.at(-1) === "package.json" && segments.includes("node_modules");
 }
@@ -231,7 +231,7 @@ export function inspectSemanticPackageManifests(
   indexedPaths: string[],
 ): SemanticPackageManifestSnapshot {
   const root = resolve(rootPath);
-  const rootConfigPath = join(root, "tsconfig.json").replaceAll("\\\\", "/");
+  const rootConfigPath = join(root, "tsconfig.json").replaceAll("\\", "/");
   let options: ts.CompilerOptions = {
     module: ts.ModuleKind.NodeNext,
     moduleResolution: ts.ModuleResolutionKind.NodeNext,
@@ -264,7 +264,7 @@ export function inspectSemanticPackageManifests(
   const errors: string[] = [];
   const readManifest = (candidate: string): ManifestRead => {
     const absolute = resolve(candidate);
-    const key = absolute.replaceAll("\\\\", "/");
+    const key = absolute.replaceAll("\\", "/");
     const previous = consulted.get(key);
     if (previous) return previous;
     if (consulted.size >= MAX_SEMANTIC_PACKAGE_MANIFESTS) {
@@ -294,7 +294,7 @@ export function inspectSemanticPackageManifests(
       result = { content: null, failure: code };
     }
     if (result.failure && result.failure !== "ENOENT" && result.failure !== "ENOTDIR") {
-      const relativePath = relative(root, absolute).replaceAll("\\\\", "/");
+      const relativePath = relative(root, absolute).replaceAll("\\", "/");
       const displayPath = relativePath === ".." || relativePath.startsWith("../") || isAbsolute(relativePath)
         ? absolute
         : relativePath;
