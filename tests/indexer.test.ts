@@ -379,7 +379,7 @@ describe("indexWithDatabase", () => {
     const beforeFiles = database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all();
     const beforeSymbols = database!.prepare("SELECT f.path, s.name, s.signature FROM symbols s JOIN files f ON f.id = s.file_id ORDER BY f.path, s.name").all();
     const beforeFts = database!.prepare("SELECT file_path, name, signature FROM symbols_fts ORDER BY file_path, name").all();
-    const beforeRelations = database!.prepare("SELECT source_file_id, target_file_id, kind, symbol_name FROM relations ORDER BY kind, symbol_name").all();
+    const beforeRelations = database!.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance FROM relations ORDER BY kind, source_id, target_id").all();
 
     rmSync(sourcePath);
     writeFileSync(outsidePath, "export function outside() { return false; }");
