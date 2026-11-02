@@ -184,6 +184,30 @@ describe("integrated CNM integrity regressions", () => {
     expect(freshness.relationsConfigChanged).toBe(true);
   });
 
+  it("fingerprints only node_modules manifests consulted by semantic TypeScript resolution", () => {
+    createProject();
+    const packageDirectory = join(location.rootPath, "node_modules", "semantic-fixture");
+    const unusedPackageDirectory = join(location.rootPath, "node_modules", "unused-fixture");
+    mkdirSync(packageDirectory, { recursive: true });
+    mkdirSync(unusedPackageDirectory, { recursive: true });
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ types: "./index-a.d.ts" }));
+    writeFileSync(join(packageDirectory, "index-a.d.ts"), "export declare const onlyA: string;");
+    writeFileSync(join(packageDirectory, "index-b.d.ts"), "export declare const onlyB: string;");
+    writeFileSync(join(unusedPackageDirectory, "package.json"), JSON.stringify({ name: "unused-fixture", version: "1.0.0" }));
+    writeFileSync(join(location.rootPath, "main.ts"), 'import { onlyA } from "semantic-fixture";\\nexport const value = onlyA;');
+
+    indexWithDatabase(database!, location);
+    expect(getIndexFreshness(location).status).toBe("current");
+
+    writeFileSync(join(unusedPackageDirectory, "package.json"), JSON.stringify({ name: "unused-fixture", version: "2.0.0" }));
+    expect(getIndexFreshness(location).status).toBe("current");
+
+    writeFileSync(join(packageDirectory, "package.json"), JSON.stringify({ types: "./index-b.d.ts" }));
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("stale");
+    expect(freshness.relationsConfigChanged).toBe(true);
+  });
+
   it("continues to support an explicitly external TypeScript extends target", () => {
     createProject();
     const externalConfig = join(temporaryDirectory, "outside-tsconfig.json");
