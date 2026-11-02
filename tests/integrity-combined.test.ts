@@ -242,7 +242,7 @@ describe("integrated CNM integrity regressions", () => {
       .toBe(beforeRevision);
   });
 
-  it("does not let TypeScript import diagnostics consume a symlinked project source or dependency file", () => {
+  it("does not let TypeScript import diagnostics consume a symlinked dependency declaration", () => {
     createProject();
     const packageDirectory = join(location.rootPath, "node_modules", "unsafe-fixture");
     const outsideSource = join(temporaryDirectory, "outside.ts");
