@@ -120,3 +120,12 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] PR #118 merged as `d10bc6e9f5a05ca78766477bf93640ca92cf54bf`; inherited TypeScript config parsing uses the verified reader and final-component symlink regression is in `main`.
 - [x] Reconciled stale audit entries that incorrectly described #117/#118 as unmerged or validation-pending.
 - [ ] Keep descriptor-relative directory traversal and extended package-manifest race semantics open until stronger guarantees and broader regression coverage are established.
+
+
+### Integrated CNM close-out regression — PR #122 (2026-11-02)
+
+- [x] Add a combined regression for directory-to-symlink replacement, incomplete discovery, simultaneous source-file drift, and relation-configuration drift.
+- [x] Assert the destructive reconciliation is refused and previously indexed file/symbol records remain intact.
+- [x] Add a regression ensuring a symlinked package manifest encountered during TypeScript `extends` resolution is surfaced as an incomplete freshness diagnostic.
+- [ ] Verify the new tests on the latest PR head with GitHub Actions (typecheck, full tests, build, smoke, and benchmark matrix).
+- [ ] Continue the cross-process/MCP-handler race audit and remaining destructive reconciliation call-site review; this PR does not close CNM-01–CNM-06 globally.
