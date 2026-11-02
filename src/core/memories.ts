@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
 import { compareGitCommits, getGitSnapshot, type GitCommitRelationship } from "./git.js";
+import { readFileWithinRoot } from "./safe-file.js";
 
 export type MemoryStatus = "proposed" | "confirmed" | "obsolete" | "rejected";
 
@@ -41,15 +41,13 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
   if (relativePath === ".." || relativePath.startsWith(".." + sep) || isAbsolute(relativePath)) {
     throw new Error("Memory source path must stay inside the project root");
   }
-  if (!existsSync(absolutePath)) return null;
-  const canonicalRoot = realpathSync(location.rootPath);
-  const canonicalPath = realpathSync(absolutePath);
-  const canonicalRelative = relative(canonicalRoot, canonicalPath);
-  if (canonicalRelative === ".." || canonicalRelative.startsWith(".." + sep) || isAbsolute(canonicalRelative)) {
-    throw new Error("Memory source path must resolve inside the project root");
+  try {
+    const source = readFileWithinRoot(location.rootPath, absolutePath);
+    return createHash("sha256").update(source.content).digest("hex");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
+    throw error;
   }
-  if (!statSync(canonicalPath).isFile()) throw new Error("Memory source path must reference a file");
-  return createHash("sha256").update(readFileSync(canonicalPath)).digest("hex");
 }
 
 function requireText(value: string, field: string): string {
