@@ -727,7 +727,8 @@ function collectSemanticResolutionInputs(
   for (const file of discovered) {
     if (!includedPaths.has(file.relativePath)) continue;
     try {
-      byFile.set(file.relativePath, new Set(parseTypeScriptFile(file.relativePath, file.source).imports));
+      const preprocessed = ts.preProcessFile(file.source, true, true);
+      byFile.set(file.relativePath, new Set(preprocessed.importedFiles.map((item) => item.fileName)));
     } catch {
       // Malformed files are handled by the normal per-file indexing path.
       // Preserve their last committed import set during preflight so a
