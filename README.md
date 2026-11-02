@@ -77,7 +77,7 @@ cnm index
 cnm mcp
 ```
 
-The server uses stdio and exposes sixteen tools: thirteen read/retrieval tools and three explicit local write operations (`index_update`, `memory_propose`, and `memory_transition`). The memory transition tool can confirm a proposal only after the user clearly authorizes it.
+The server uses stdio and exposes eighteen tools: thirteen read/retrieval tools and three explicit local write operations (`index_update`, `memory_propose`, and `memory_transition`). The memory transition tool can confirm a proposal only after the user clearly authorizes it.
 
 - `project_overview` — local repository/index summary.
 - `index_freshness` — source-file and Git commit/branch/working-tree freshness versus the index.
