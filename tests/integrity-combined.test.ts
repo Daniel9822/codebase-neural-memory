@@ -101,4 +101,24 @@ describe("integrated CNM integrity regressions", () => {
     expect(database!.prepare("SELECT COUNT(*) AS count FROM relations").get()).toEqual({ count: 0 });
   });
 
+  it("rejects a project-local extends path whose parent directory is a symlink", () => {
+    createProject();
+    const linkedConfigDirectory = join(location.rootPath, "configs");
+    const outsideConfigDirectory = join(temporaryDirectory, "outside-configs");
+    mkdirSync(outsideConfigDirectory, { recursive: true });
+    writeFileSync(join(outsideConfigDirectory, "base.json"), JSON.stringify({
+      compilerOptions: { baseUrl: ".", paths: { "@/*": ["outside/*"] } },
+    }));
+    symlinkSync(outsideConfigDirectory, linkedConfigDirectory, "dir");
+    writeFileSync(join(location.rootPath, "tsconfig.json"), JSON.stringify({ extends: "./configs/base.json" }));
+    writeFileSync(join(location.rootPath, "main.ts"), "export function main() { return true; }");
+
+    indexWithDatabase(database!, location);
+
+    const freshness = getIndexFreshness(location);
+    expect(freshness.status).toBe("incomplete");
+    expect(freshness.errors.some((error) => error.includes("configs/base.json"))).toBe(true);
+    expect(() => indexProject(location)).toThrow(/relation configuration is incomplete/i);
+  });
+
 });
