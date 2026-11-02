@@ -485,7 +485,7 @@ export function third() {}
     const details = getFileDetails(location, "many.ts", 1);
     expect(details.symbols).toHaveLength(1);
     expect(details.totals.symbols).toBe(3);
-    expect(details.limits).toEqual({ perCollection: 1 });
+    expect(details.limits).toEqual({ perCollection: 1, candidatesPerImport: 200, candidateBudget: 2_000 });
     expect(details.truncated).toMatchObject({ symbols: true, imports: false, unresolvedImports: false, relations: false });
     expect(() => getFileDetails(location, "many.ts", 0)).toThrow("File detail limit must be a positive safe integer");
     expect(() => getFileDetails(location, "many.ts", 501)).toThrow("File detail limit must be a positive safe integer");
