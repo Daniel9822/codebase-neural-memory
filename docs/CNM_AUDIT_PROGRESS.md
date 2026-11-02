@@ -39,5 +39,5 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 
 - [x] Confirmed `getFileDetails` parsed each unresolved import's complete `candidates_json` array into JavaScript, bypassing the outer per-collection limit.
 - [x] Bound candidates to 200 per import and 2,000 globally per selected file; expose per-import and aggregate totals/truncation metadata.
-- [x] Add regression coverage for 11 imports with 1,000 candidates each.
+- [x] Add regression coverage for 11 imports with 1,000 candidates each and the bounded `task_context` projection.
 - [ ] Verify CI and merge before closing the broader MCP output-contract audit.
