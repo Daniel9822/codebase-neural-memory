@@ -394,6 +394,10 @@ describe("indexWithDatabase", () => {
 
     expect(database!.prepare("SELECT COUNT(*) AS count FROM relations WHERE kind = 'IMPORTS'").get())
       .toEqual({ count: 0 });
+    // The diagnostic pass must not bypass the verified config reader and
+    // follow the same final-component symlink through TypeScript's default host.
+    expect(database!.prepare("SELECT module_specifier, kind FROM import_diagnostics").all())
+      .toEqual([{ module_specifier: "@/helper", kind: "missing-package" }]);
   });
 
   it("rebuilds graph relations when TypeScript/package configuration changes without source edits", () => {

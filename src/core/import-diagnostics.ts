@@ -1,6 +1,7 @@
 import { builtinModules } from "node:module";
-import { existsSync } from "node:fs";
-import { join, relative, resolve, sep } from "node:path";
+import { existsSync, realpathSync } from "node:fs";
+import { basename, dirname, join, relative, resolve, sep } from "node:path";
+import { readFileWithinRoot } from "./safe-file.js";
 import ts from "typescript";
 
 function compareCodeUnits(left: string, right: string): number {
@@ -21,6 +22,22 @@ export interface ImportDiagnostic {
 
 const IMPORT_DIAGNOSTIC_CODES = new Set([2307, 2305, 2614, 2724, 1192]);
 const BUILTINS = new Set(builtinModules.flatMap((name) => [name, name.replace(/^node:/, "")]));
+
+function readConfigTextSafely(candidatePath: string): string | undefined {
+  try {
+    // Keep TypeScript config loading on the same verified-descriptor path as
+    // relation indexing. Explicit external "extends" targets remain supported,
+    // but final-component symlinks and path substitutions fail closed.
+    const canonicalParent = realpathSync(dirname(candidatePath));
+    const canonicalCandidate = join(canonicalParent, basename(candidatePath));
+    return readFileWithinRoot(canonicalParent, canonicalCandidate, {
+      canonicalRoot: canonicalParent,
+      rejectFinalSymlink: true,
+    }).content.toString("utf8");
+  } catch {
+    return undefined;
+  }
+}
 
 function nodeAtPosition(sourceFile: ts.SourceFile, position: number): ts.Node {
   let best: ts.Node = sourceFile;
@@ -97,9 +114,10 @@ export function analyzeImportDiagnostics(
     noEmit: true,
   };
   if (existsSync(configPath)) {
-    const config = ts.readConfigFile(configPath, ts.sys.readFile);
+    const config = ts.readConfigFile(configPath, readConfigTextSafely);
     if (!config.error) {
-      const parsed = ts.parseJsonConfigFileContent(config.config, ts.sys, root, undefined, configPath);
+      const configHost: ts.ParseConfigHost = { ...ts.sys, readFile: readConfigTextSafely };
+      const parsed = ts.parseJsonConfigFileContent(config.config, configHost, root, undefined, configPath);
       options = { ...options, ...parsed.options, allowJs: parsed.options.allowJs ?? true, checkJs: false, skipLibCheck: true, noEmit: true };
     }
   }
