@@ -92,6 +92,19 @@ describe("symbol retrieval contracts", () => {
     expect(hits.map((hit) => hit.filePath)).toEqual(["Z.ts", "a.ts", "ä.ts"]);
   });
 
+  it("reports when the bounded symbol candidate window omits additional matches", () => {
+    createProject();
+    for (let index = 0; index < 205; index += 1) {
+      writeFileSync(join(location.rootPath, `candidate-${String(index).padStart(3, "0")}.ts`),
+        "export function findThing() { return true; }");
+    }
+    indexWithDatabase(database!, location);
+
+    const hits = searchSymbols(location, "findThing", 1);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.candidateWindowTruncated).toBe(true);
+  });
+
   it("escapes SQL LIKE wildcards in literal symbol-name queries", () => {
     createProject();
     writeFileSync(join(location.rootPath, "names.ts"), `
