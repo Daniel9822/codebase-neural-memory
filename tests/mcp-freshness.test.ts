@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { ProjectLocation } from "../src/core/project.js";
@@ -90,6 +90,33 @@ describe("post-read freshness validation", () => {
     } finally {
       secondHandlerDatabase.close();
     }
+  });
+
+  it("refuses a strict read when discovery becomes incomplete during the operation", () => {
+    createProject();
+    const sourceDirectory = join(location.rootPath, "src");
+    const savedDirectory = join(temporaryDirectory, "saved-src");
+    const outsideDirectory = join(temporaryDirectory, "outside-src");
+    mkdirSync(sourceDirectory, { recursive: true });
+    writeFileSync(join(sourceDirectory, "nested.ts"), "export const nested = true;\\n");
+    indexWithDatabase(database!, location);
+
+    const response = readResponse(location, { strictFreshness: true }, () => {
+      renameSync(sourceDirectory, savedDirectory);
+      mkdirSync(outsideDirectory, { recursive: true });
+      writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;\\n");
+      symlinkSync(outsideDirectory, sourceDirectory, "dir");
+      return { result: "must not be served after discovery becomes incomplete" };
+    });
+
+    expect(response.isError).toBe(true);
+    const refusal = JSON.parse(response.content[0]!.text) as {
+      status: string;
+      staleness: { status: string };
+    };
+    expect(refusal.status).toBe("refused");
+    expect(refusal.staleness.status).toBe("incomplete");
+    expect(response.content[0]!.text).not.toContain("must not be served after discovery becomes incomplete");
   });
 
 });
