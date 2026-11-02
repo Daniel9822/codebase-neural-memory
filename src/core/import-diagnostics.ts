@@ -321,10 +321,10 @@ export function inspectSemanticPackageManifests(
   const rootNames = indexedPaths.map((path) => resolve(root, path));
   // Creating the program exercises the same TypeScript module-resolution
   // path used by semantic diagnostics and records package metadata reads.
-  const program = ts.createProgram({ rootNames, options, host });
   // Materialize the program's source graph. Module resolution consults package
   // manifests while TypeScript constructs this graph; semantic diagnostics are
   // deliberately not run here because they are handled by the normal pass.
+  ts.createProgram({ rootNames, options, host });
 
   const hash = createHash("sha256");
   for (const [path, manifest] of [...consulted].sort(([a], [b]) => compareCodeUnits(a, b))) {
