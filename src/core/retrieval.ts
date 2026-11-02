@@ -269,7 +269,7 @@ export function getProjectMapReport(location: ProjectLocation, limit = 80): Proj
           SELECT target.path AS path FROM relations r
           JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
           WHERE r.source_kind = 'file' AND r.source_id = f.id AND r.kind = 'IMPORTS'
-          ORDER BY target.path LIMIT ?
+          ORDER BY target.path, r.provenance, r.confidence, r.index_revision LIMIT ?
         )), '[]') AS imports,
         COALESCE((SELECT json_group_array(json_object(
           'id', id, 'specifier', specifier, 'status', status, 'candidatesTotal', candidatesTotal
@@ -430,7 +430,7 @@ export function findImpact(
         SELECT source.id, source.path FROM relations r
         JOIN files source ON r.source_kind = 'file' AND source.id = r.source_id
         WHERE r.target_kind = 'file' AND r.target_id = ? AND r.kind = 'IMPORTS'
-        ORDER BY source.path
+        ORDER BY source.path, source.id
         LIMIT ?
       `).all(current, Math.max(1, remaining + 1)) as Array<{ id: number; path: string }>;
       for (const item of dependents) {
@@ -517,7 +517,7 @@ export function findDependencies(
         FROM relations r
         JOIN files target ON r.target_kind = 'file' AND target.id = r.target_id
         WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
-        ORDER BY target.path
+        ORDER BY target.path, target.id, r.provenance, r.confidence, r.index_revision
         LIMIT ?
       `).all(current.id, Math.max(1, maxProcessed - processedRelations + 1)) as Array<{
         id: number; path: string; provenance: string; confidence: number; indexRevision: number;
@@ -1093,11 +1093,14 @@ export function findSymbolImpact(location: ProjectLocation, name: string, option
   if (options.startLine !== undefined && (!Number.isSafeInteger(options.startLine) || options.startLine < 1)) throw new Error("Symbol impact startLine must be a positive safe integer.");
 
   const allowedKinds: SymbolImpactRelationKind[] = ["CALLS", "EXTENDS", "IMPLEMENTS"];
-  const relationKinds = options.relationKinds ?? allowedKinds;
-  if (!Array.isArray(relationKinds) || relationKinds.length < 1 || relationKinds.length > allowedKinds.length
-    || relationKinds.some((relation) => !allowedKinds.includes(relation)) || new Set(relationKinds).size !== relationKinds.length) {
+  const requestedRelationKinds = options.relationKinds ?? allowedKinds;
+  if (!Array.isArray(requestedRelationKinds) || requestedRelationKinds.length < 1 || requestedRelationKinds.length > allowedKinds.length
+    || requestedRelationKinds.some((relation) => !allowedKinds.includes(relation)) ||
+    new Set(requestedRelationKinds).size !== requestedRelationKinds.length) {
     throw new Error("Symbol impact relationKinds must contain unique CALLS, EXTENDS, or IMPLEMENTS values.");
   }
+  const relationKinds = [...requestedRelationKinds]
+    .sort((left, right) => allowedKinds.indexOf(left) - allowedKinds.indexOf(right));
 
   const db = openDatabase(location);
   try {
