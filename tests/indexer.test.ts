@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdtempSync, mkdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { mkdtempSync, mkdirSync, renameSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
@@ -219,6 +219,28 @@ describe("indexWithDatabase", () => {
     expect(summary.skipped).toBe(1);
     expect(summary.skippedFiles).toEqual(["linked.ts: symbolic link"]);
     expect(indexedPaths).toEqual(["normal.ts"]);
+  });
+
+  it("preserves indexed descendants when a directory is replaced by a symlink", () => {
+    createProject();
+    const sourceDirectory = join(location.rootPath, "src");
+    const movedDirectory = join(temporaryDirectory, "saved-src");
+    const outsideDirectory = join(temporaryDirectory, "outside-src");
+    mkdirSync(sourceDirectory, { recursive: true });
+    writeFileSync(join(sourceDirectory, "nested.ts"), "export const nested = true;");
+    updateProjectIndex(location);
+
+    const before = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
+    expect(before).toEqual([{ path: "src/nested.ts" }]);
+
+    renameSync(sourceDirectory, movedDirectory);
+    mkdirSync(outsideDirectory, { recursive: true });
+    writeFileSync(join(outsideDirectory, "outside.ts"), "export const outside = true;");
+    symlinkSync(outsideDirectory, sourceDirectory, "dir");
+
+    expect(() => updateProjectIndex(location)).toThrow(/discovery is incomplete/i);
+    const after = database!.prepare("SELECT path FROM files ORDER BY path").all() as Array<{ path: string }>;
+    expect(after).toEqual([{ path: "src/nested.ts" }]);
   });
 
   it("removes stale symbols, FTS entries, and graph relations when a file is deleted", () => {
