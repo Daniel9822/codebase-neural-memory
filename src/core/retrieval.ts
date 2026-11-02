@@ -23,6 +23,7 @@ interface RankedSearchHit extends SearchHit {
   score: number;
   rankingSignals: string[];
   searchMethod: "fts5" | "like-fallback";
+  candidateWindowTruncated: boolean;
 }
 
 function tokenizeQuery(query: string): string[] {
@@ -42,6 +43,7 @@ function rankSearchCandidates(
   rows: Array<SearchHit & { ftsRank?: number }>,
   tokens: string[],
   limit: number,
+  candidateWindowTruncated = false,
 ): RankedSearchHit[] {
   const normalizedTokens = tokens.map((token) => token.toLowerCase());
   return rows.map((row) => {
@@ -80,7 +82,9 @@ function rankSearchCandidates(
     } else {
       signals.push("like-fallback");
     }
-    return { ...row, exported: Boolean(row.exported), score, rankingSignals: signals, searchMethod: (row.ftsRank === undefined ? "like-fallback" : "fts5") as RankedSearchHit["searchMethod"] };
+    return { ...row, exported: Boolean(row.exported), score, rankingSignals: signals,
+      searchMethod: (row.ftsRank === undefined ? "like-fallback" : "fts5") as RankedSearchHit["searchMethod"],
+      candidateWindowTruncated };
   }).sort((a, b) =>
     b.score - a.score ||
     compareCodeUnits(a.filePath, b.filePath) ||
@@ -145,7 +149,9 @@ export function searchSymbols(
         WHERE symbols_fts MATCH ?${filterSql}
         ORDER BY ftsRank, f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.exported, s.id
         LIMIT ?
-      `).all(ftsQuery, ...filterParameters, candidateLimit) as Array<SearchHit & { ftsRank: number }>;
+      `).all(ftsQuery, ...filterParameters, candidateLimit + 1) as Array<SearchHit & { ftsRank: number }>;
+      const ftsCandidatesTruncated = rows.length > candidateLimit;
+      const boundedFtsRows = rows.slice(0, candidateLimit);
       const fallbackParameters = tokens.flatMap((token) => [`%${escapeLikePattern(token)}%`, `%${escapeLikePattern(token)}%`]);
       const fallbackRows = db.prepare(`
         SELECT s.name, s.kind, s.signature, f.path AS filePath,
@@ -154,14 +160,16 @@ export function searchSymbols(
         WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
         ORDER BY f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.exported, s.id
         LIMIT ?
-      `).all(...fallbackParameters, ...filterParameters, candidateLimit) as SearchHit[];
+      `).all(...fallbackParameters, ...filterParameters, candidateLimit + 1) as SearchHit[];
+      const fallbackCandidatesTruncated = fallbackRows.length > candidateLimit;
+      const boundedFallbackRows = fallbackRows.slice(0, candidateLimit);
       const combined = new Map<string, SearchHit & { ftsRank?: number }>();
-      for (const row of rows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}:${row.signature}:${row.endLine}:${Number(row.exported)}`, row);
-      for (const row of fallbackRows) {
+      for (const row of boundedFtsRows) combined.set(`${row.filePath}:${row.startLine}:${row.name}:${row.kind}:${row.signature}:${row.endLine}:${Number(row.exported)}`, row);
+      for (const row of boundedFallbackRows) {
         const key = `${row.filePath}:${row.startLine}:${row.name}:${row.kind}:${row.signature}:${row.endLine}:${Number(row.exported)}`;
         if (!combined.has(key)) combined.set(key, row);
       }
-      return rankSearchCandidates([...combined.values()], tokens, limit);
+      return rankSearchCandidates([...combined.values()], tokens, limit, ftsCandidatesTruncated || fallbackCandidatesTruncated);
     } catch (error) {
       if (!isFtsUnavailable(error)) throw error;
       const parameters = tokens.flatMap((token) => [`%${escapeLikePattern(token)}%`, `%${escapeLikePattern(token)}%`]);
@@ -172,8 +180,9 @@ export function searchSymbols(
         WHERE (${tokens.map(() => "(s.name LIKE ? ESCAPE '\\' OR s.signature LIKE ? ESCAPE '\\')").join(" OR ")})${filterSql}
         ORDER BY f.path, s.start_line, s.name, s.kind, s.signature, s.end_line, s.exported, s.id
         LIMIT ?
-      `).all(...parameters, ...filterParameters, candidateLimit) as SearchHit[];
-      return rankSearchCandidates(rows.map((row) => ({ ...row })), tokens, limit);
+      `).all(...parameters, ...filterParameters, candidateLimit + 1) as SearchHit[];
+      const candidateWindowTruncated = rows.length > candidateLimit;
+      return rankSearchCandidates(rows.slice(0, candidateLimit), tokens, limit, candidateWindowTruncated);
     }
   } finally {
     db.close();
