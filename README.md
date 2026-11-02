@@ -58,14 +58,14 @@ cnm propose "Potential API rule" "Review this rule before adopting it." --author
 cnm memories
 cnm memory transition <memory-id> confirmed
 cnm memory update <memory-id> --content "Updated decision text" --author "Project Maintainer"
-cnm memory freshness
+cnm memory freshness --limit 100
 cnm memory transition <memory-id> obsolete
 cnm memory delete <memory-id>
 ```
 
 The lifecycle permits `proposed → confirmed` or `proposed → rejected`, `confirmed → obsolete`, and `obsolete → confirmed`. Rejected memories are terminal and excluded from recall by default. Updates and deletion are explicit and scoped to the current project. Optional source paths, Git commit identifiers, and explicit author identities can be stored with a memory. The original author is retained separately from the identity supplied for the latest update; CNM does not infer or transmit personal identity automatically.
 
-When a source path is supplied, CNM records a SHA-256 fingerprint of the referenced file. `cnm memory freshness` also compares an optional recorded Git commit with the current `HEAD`: `current`, `ancestor`, `ahead`, `diverged`, `unknown`, or `unavailable` commit relationships are reported separately from file status. Older, ahead-of-branch, divergent, unknown, or unavailable commit references require review. Commit-only memories are included even when no source path is attached. This inspection does not rewrite memory content or change lifecycle status; it never auto-confirms or auto-obsoletes a memory.
+When a source path is supplied, CNM records a SHA-256 fingerprint of the referenced file. `cnm memory freshness` also compares an optional recorded Git commit with the current `HEAD`: `current`, `ancestor`, `ahead`, `diverged`, `unknown`, or `unavailable` commit relationships are reported separately from file status. Older, ahead-of-branch, divergent, unknown, or unavailable commit references require review. Commit-only memories are included even when no source path is attached. The CLI inspects at most 100 records by default (`--limit` accepts 1–500) and reports the eligible total plus a truncation flag; task context checks freshness only for the selected memory candidates. This inspection does not rewrite memory content or change lifecycle status; it never auto-confirms or auto-obsoletes a memory.
 
 ## MCP integration
 
