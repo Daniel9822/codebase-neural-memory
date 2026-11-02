@@ -209,12 +209,12 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       includeSource: z.object({ maxLines: z.number().int().min(1).max(100).optional() }).optional(),
     }),
   }, async ({ query, limit, kind, filePath, exported, includeSource }) => readResponse(location, options, () => {
-    const normalizedPath = filePath?.replaceAll("\\", "/").replace(/^\.\//, "");
-    const results = searchSymbols(location, query, 1000).filter((item) =>
-      (kind === undefined || item.kind === kind) &&
-      (normalizedPath === undefined || item.filePath === normalizedPath || item.filePath.startsWith(normalizedPath.endsWith("/") ? normalizedPath : normalizedPath + "/")) &&
-      (exported === undefined || item.exported === exported),
-    ).slice(0, limit ?? 20);
+    const normalizedPath = filePath?.replaceAll("\\\\", "/").replace(/^\\.\\//, "");
+    const results = searchSymbols(location, query, 1000, {
+      ...(kind === undefined ? {} : { kind }),
+      ...(normalizedPath === undefined ? {} : { filePathPrefix: normalizedPath }),
+      ...(exported === undefined ? {} : { exported }),
+    }).slice(0, limit ?? 20);
     if (!includeSource) return results;
     const maxLines = includeSource.maxLines ?? 60;
     return results.map((item) => ({
