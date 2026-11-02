@@ -131,7 +131,7 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Add a synthetic 100,001-entry directory regression proving the deterministic sorting cap aborts discovery, marks the root protected, and returns no partial candidate set.
 - [x] Inject the discovery provider into freshness evaluation for deterministic testing; assert the sorting cap reports `incomplete`, preserves all indexed records, emits no false deletions, and leaves the index revision unchanged.
 - [x] Update README, architecture, and product-contract documentation to match the CLI and context budgets.
-- [ ] Verify the final cross-platform CI matrix on the latest PR head after extending config fail-closed behavior to selective updates and adding before/after config-fingerprint checks for every update scope; include the 100,001-entry sorting-cap and bounded memory-freshness regressions.
+- [ ] Verify the final cross-platform CI matrix on the latest PR head after adding ignored-symlink protection, all-scope config fail-closed behavior, deterministic config-drift rollback, the 100,001-entry sorting-cap freshness regression, and bounded memory freshness.
 
 ### Integrated CNM close-out regression — PR #122 (2026-11-02)
 
