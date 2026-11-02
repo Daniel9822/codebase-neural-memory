@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, opendirSync, readFileSync, statSync, type Dirent } from "node:fs";
+import { closeSync, constants, existsSync, fstatSync, lstatSync, openSync, opendirSync, readFileSync, realpathSync, statSync, type Dirent } from "node:fs";
 import { extname, join, relative, dirname, posix, resolve, isAbsolute } from "node:path";
 import ts from "typescript";
 import ignore from "ignore";
@@ -8,6 +8,7 @@ import { getGitSnapshot, sameGitSnapshot } from "./git.js";
 import { isSupportedSourceFile, parseTypeScriptFile } from "./typescript-parser.js";
 import { analyzeImportDiagnostics } from "./import-diagnostics.js";
 import type { IndexSummary } from "../shared/types.js";
+import { readFileWithinRoot } from "./safe-file.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
 
 const MAX_FILE_BYTES = 1_000_000;
@@ -31,6 +32,7 @@ interface IgnoreScope {
   directory: string;
   rules: ReturnType<typeof ignore>;
   mandatoryRules?: ReturnType<typeof ignore>;
+  error?: string;
 }
 
 interface DiscoveryResult {
@@ -94,9 +96,15 @@ function isWithinIndexScope(path: string, paths: string[], includeMatcher?: Retu
   return pathMatch && (includeMatcher === undefined || includeMatcher.ignores(path));
 }
 
-function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: string[] = []): IgnoreScope {
+function loadIgnoreRules(
+  directory: string,
+  isRoot = false,
+  extraExcludes: string[] = [],
+  canonicalRoot = realpathSync(directory),
+): IgnoreScope {
   const rules = ignore();
   let mandatoryRules: ReturnType<typeof ignore> | undefined;
+  let error: string | undefined;
   if (isRoot) {
     mandatoryRules = ignore().add(DEFAULT_EXCLUDES).add([".env", ".env.*", "*.pem", "*.key", "*.p12", "*.pfx"]);
     if (extraExcludes.some((pattern) => pattern.trimStart().startsWith("!"))) {
@@ -105,11 +113,17 @@ function loadIgnoreRules(directory: string, isRoot = false, extraExcludes: strin
     rules.add(extraExcludes);
   }
   try {
-    rules.add(readFileSync(join(directory, ".gitignore"), "utf8"));
-  } catch {
-    // A missing .gitignore is normal.
+    const ignoreFile = readFileWithinRoot(canonicalRoot, join(directory, ".gitignore"), { canonicalRoot, rejectFinalSymlink: true });
+    rules.add(ignoreFile.content.toString("utf8"));
+  } catch (cause) {
+    const code = cause && typeof cause === "object" && "code" in cause ? String(cause.code) : "";
+    if (code !== "ENOENT" && code !== "ENOTDIR") {
+      const directoryPath = relative(canonicalRoot, directory).replaceAll("\\", "/") || ".";
+      error = directoryPath + "/.gitignore: " + (cause instanceof Error ? cause.message : String(cause));
+    }
   }
-  return mandatoryRules === undefined ? { directory, rules } : { directory, rules, mandatoryRules };
+  const scope: IgnoreScope = mandatoryRules === undefined ? { directory, rules } : { directory, rules, mandatoryRules };
+  return error ? { ...scope, error } : scope;
 }
 
 function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
@@ -122,6 +136,8 @@ function isIgnored(absolutePath: string, scopes: IgnoreScope[]): boolean {
 
 export function discoverFiles(root: string, extraExcludes: string[] = [], options: IndexOptions = {}): DiscoveryResult {
   validateIndexOptions(options);
+  const canonicalRoot = realpathSync(root);
+  root = canonicalRoot;
   const selectedPaths = normalizeScopePaths(options.paths);
   const includePatterns = normalizeIncludePatterns(options.include);
   const includeMatcher = includePatterns.length ? ignore().add(includePatterns) : undefined;
@@ -137,11 +153,29 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
   let abortRequired = false;
   let truncated = false;
   let stopped = false;
-  const rootScope = loadIgnoreRules(root, true, extraExcludes);
+  const rootScope = loadIgnoreRules(root, true, extraExcludes, canonicalRoot);
+  if (rootScope.error) {
+    failed += 1;
+    errors.push(rootScope.error);
+    protectedDirectories.add("");
+    truncated = true;
+    abortRequired = true;
+    stopped = true;
+  }
   const walk = (directory: string, parentScopes: IgnoreScope[]): void => {
     if (stopped) return;
     const directoryPath = relative(root, directory).replaceAll("\\", "/");
-    const scopes = directory === root ? parentScopes : [...parentScopes, loadIgnoreRules(directory)];
+    let scopes = parentScopes;
+    if (directory !== root) {
+      const localScope = loadIgnoreRules(directory, false, [], canonicalRoot);
+      if (localScope.error) {
+        failed += 1;
+        errors.push(localScope.error);
+        protectedDirectories.add(directoryPath);
+        return;
+      }
+      scopes = [...parentScopes, localScope];
+    }
     let handle: ReturnType<typeof opendirSync>;
     try {
       handle = opendirSync(directory);
@@ -206,21 +240,56 @@ export function discoverFiles(root: string, extraExcludes: string[] = [], option
         presentPaths.add(relativePath);
         scanned += 1;
         try {
-          const stat = statSync(absolutePath);
-          if (stat.size > MAX_FILE_BYTES) { skipped += 1; skippedFiles.push(relativePath + ": exceeds " + MAX_FILE_BYTES + " bytes"); continue; }
-          const content = readFileSync(absolutePath);
-          if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
-          const source = content.toString("utf8");
-          output.push({
-            relativePath,
-            size: stat.size,
-            mtime: stat.mtime,
-            hash: createHash("sha256").update(content).digest("hex"),
-            source,
-          });
+          const canonicalPath = realpathSync(absolutePath);
+          const canonicalRelative = relative(canonicalRoot, canonicalPath).replaceAll("\\", "/");
+          if (canonicalRelative === ".." || canonicalRelative.startsWith("../") || isAbsolute(canonicalRelative)) {
+            throw new Error("Source path resolves outside the project root.");
+          }
+          const descriptor = openSync(canonicalPath, constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0));
+          try {
+            const stat = fstatSync(descriptor);
+            if (!stat.isFile()) throw new Error("Source path must reference a regular file.");
+            if (stat.size > MAX_FILE_BYTES) {
+              skipped += 1;
+              skippedFiles.push(relativePath + ": exceeds " + MAX_FILE_BYTES + " bytes");
+              continue;
+            }
+
+            const verifiedPath = realpathSync(canonicalPath);
+            const verifiedRelative = relative(canonicalRoot, verifiedPath).replaceAll("\\", "/");
+            if (verifiedRelative === ".." || verifiedRelative.startsWith("../") || isAbsolute(verifiedRelative)) {
+              throw new Error("Opened source path resolves outside the project root.");
+            }
+            const pathStat = statSync(verifiedPath);
+            if (stat.dev !== pathStat.dev || stat.ino !== pathStat.ino) {
+              throw new Error("Source file changed during safe open; retry indexing.");
+            }
+
+            const content = readFileSync(descriptor);
+            const afterRead = fstatSync(descriptor);
+            const pathAfterRead = lstatSync(absolutePath);
+            if (pathAfterRead.isSymbolicLink() || pathAfterRead.dev !== stat.dev || pathAfterRead.ino !== stat.ino ||
+                pathAfterRead.size !== stat.size || pathAfterRead.mtimeMs !== stat.mtimeMs ||
+                afterRead.dev !== stat.dev || afterRead.ino !== stat.ino ||
+                afterRead.size !== stat.size || afterRead.mtimeMs !== stat.mtimeMs) {
+              throw new Error("Source path or file changed while being read; retry indexing.");
+            }
+            if (content.includes(0)) { skipped += 1; skippedFiles.push(relativePath + ": binary content"); continue; }
+            const source = content.toString("utf8");
+            output.push({
+              relativePath,
+              size: stat.size,
+              mtime: stat.mtime,
+              hash: createHash("sha256").update(content).digest("hex"),
+              source,
+            });
+          } finally {
+            closeSync(descriptor);
+          }
         } catch (error) {
           failed += 1;
           errors.push(relativePath + ": " + (error instanceof Error ? error.message : String(error)));
+          protectedDirectories.add(relativePath);
         }
       }
     } catch (error) {
@@ -854,7 +923,7 @@ export function indexWithDatabase(
   const scoped = Boolean(options.paths?.length || options.include?.length ||
     options.maxFiles !== undefined || options.maxProcessed !== undefined);
   if (discovery.abortRequired) {
-    throw new Error("Index update aborted: deterministic discovery budget was exceeded; no index changes were committed.");
+    throw new Error("Index update aborted: discovery could not safely complete; no index changes were committed.");
   }
   if (options.requireCompleteSnapshot &&
       (discovery.failed > 0 || discovery.skipped > 0 || discovery.truncated || discovery.protectedDirectories.size > 0)) {

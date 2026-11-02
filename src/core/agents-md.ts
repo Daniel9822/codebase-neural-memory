@@ -1,20 +1,22 @@
 import { createHash } from "node:crypto";
-import { lstatSync, readFileSync, writeFileSync } from "node:fs";
+import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import type { ProjectLocation } from "./project.js";
+import { readFileWithinRoot } from "./safe-file.js";
 
 export type AgentTool = "opencode" | "claude" | "cursor" | "generic";
 
 const START = "<!-- cnm:agent-instructions:start -->";
 const END = "<!-- cnm:agent-instructions:end -->";
 
-function readAgentFile(path: string): string | null {
+function readAgentFile(rootPath: string, path: string): string | null {
   try {
-    const info = lstatSync(path);
-    if (!info.isFile()) throw new Error("AGENTS.md must be a regular file; CNM will not follow symlinks or overwrite directories.");
-    return readFileSync(path, "utf8");
+    return readFileWithinRoot(rootPath, path, { rejectFinalSymlink: true }).content.toString("utf8");
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return null;
+    if (error instanceof Error && error.message === "Symlink file paths are not allowed.") {
+      throw new Error("AGENTS.md must be a regular file; CNM will not follow symlinks or overwrite directories.");
+    }
     throw error;
   }
 }
@@ -107,7 +109,7 @@ function isIntactManagedBlock(block: string): boolean {
 export function ensureAgentInstructions(location: ProjectLocation, tool: AgentTool = "generic", force = false): AgentInstructionsResult {
   const path = join(location.rootPath, "AGENTS.md");
   const generated = managedBlock(tool);
-  const existingFile = readAgentFile(path);
+  const existingFile = readAgentFile(location.rootPath, path);
   const exists = existingFile !== null;
   const existing = existingFile ?? "";
   const start = existing.indexOf(START);
@@ -135,7 +137,7 @@ export function ensureAgentInstructions(location: ProjectLocation, tool: AgentTo
 
 export function checkAgentInstructions(location: ProjectLocation, tool: AgentTool = "generic"): AgentInstructionsResult {
   const path = join(location.rootPath, "AGENTS.md");
-  const existing = readAgentFile(path);
+  const existing = readAgentFile(location.rootPath, path);
   if (existing === null) return { path, status: "missing", content: "" };
   const start = existing.indexOf(START);
   const end = existing.indexOf(END);

@@ -1,9 +1,9 @@
 import { createHash, randomUUID } from "node:crypto";
-import { existsSync, readFileSync, realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
 import { compareGitCommits, getGitSnapshot, type GitCommitRelationship } from "./git.js";
+import { readFileWithinRoot } from "./safe-file.js";
 
 export type MemoryStatus = "proposed" | "confirmed" | "obsolete" | "rejected";
 
@@ -41,15 +41,26 @@ function sourceFingerprint(location: ProjectLocation, sourcePath: string | null 
   if (relativePath === ".." || relativePath.startsWith(".." + sep) || isAbsolute(relativePath)) {
     throw new Error("Memory source path must stay inside the project root");
   }
-  if (!existsSync(absolutePath)) return null;
-  const canonicalRoot = realpathSync(location.rootPath);
-  const canonicalPath = realpathSync(absolutePath);
-  const canonicalRelative = relative(canonicalRoot, canonicalPath);
-  if (canonicalRelative === ".." || canonicalRelative.startsWith(".." + sep) || isAbsolute(canonicalRelative)) {
-    throw new Error("Memory source path must resolve inside the project root");
+  try {
+    const source = readFileWithinRoot(location.rootPath, absolutePath, { rejectFinalSymlink: true });
+    return createHash("sha256").update(source.content).digest("hex");
+  } catch (error) {
+    if (error && typeof error === "object" && "code" in error && error.code === "ENOENT") return null;
+    if (error instanceof Error && error.message === "File path resolves outside the project root.") {
+      throw new Error("Memory source path must resolve inside the project root");
+    }
+    if (error instanceof Error && (
+      error.message === "Path must reference a regular file." ||
+      error.message === "Symlink file paths are not allowed." ||
+      error.message.includes("ELOOP") ||
+      error.message.includes("changed during safe open") ||
+      error.message.includes("changed while being read")
+    )) {
+      throw new Error("Memory source path must reference a file");
+    }
+    throw new Error("Memory source path could not be safely verified");
+
   }
-  if (!statSync(canonicalPath).isFile()) throw new Error("Memory source path must reference a file");
-  return createHash("sha256").update(readFileSync(canonicalPath)).digest("hex");
 }
 
 function requireText(value: string, field: string): string {
@@ -226,7 +237,7 @@ export function inspectMemoryFreshness(location: ProjectLocation, limit?: number
       try {
         currentHash = sourceFingerprint(location, row.sourcePath);
       } catch (error) {
-        if (error instanceof Error && (error.message === "Memory source path must resolve inside the project root" || error.message === "Memory source path must reference a file")) {
+        if (error instanceof Error && error.message.startsWith("Memory source path")) {
           return { ...base, status: "unsafe", requiresReview: true };
         }
         throw error;
