@@ -686,7 +686,8 @@ export function getFileDetails(
       JOIN symbols target ON r.target_kind = 'symbol' AND target.id = r.target_id
       JOIN files target_file ON target_file.id = target.file_id
       WHERE source.file_id = ? OR target.file_id = ?
-      ORDER BY relation, sourceFilePath, sourceStartLine, targetFilePath, targetStartLine
+      ORDER BY relation, sourceFilePath, sourceStartLine, sourceName, sourceKind,
+        targetFilePath, targetStartLine, targetName, targetKind, r.provenance, r.confidence, r.index_revision
       LIMIT ?
     `).all(file.id, file.id, file.id, limit) as FileDetailRelation[];
     return {
