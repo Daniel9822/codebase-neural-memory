@@ -367,7 +367,7 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Apply `symbol_lookup` kind, project-relative path-prefix, and export filters in SQL before the bounded candidate window.
 - [x] Add a regression fixture with more than 1,000 unfiltered candidates and a matching symbol beyond that window.
 - [ ] Complete the remaining MCP output-contract audit for ranking, deterministic tie-breaks, processing budgets, and order-before-truncation across all registered tools.
-- [x] Bound `index_update` diagnostic response collections to 200 sorted details each while preserving exact counters/totals and explicit truncation metadata (PR pending; regression in `tests/mcp-boundaries.test.ts`).
+- [x] Bound `index_update` diagnostic response collections to 200 sorted details each while preserving exact counters/totals and explicit truncation metadata (PR #110 merged; CI passed).
 
 
 ### CNM-06 follow-up — task-context test discovery (2026-11-02)
@@ -391,3 +391,9 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Route `cnm map` through `getProjectMapReport` rather than the unbounded legacy projection.
 - [x] Enforce the same 1–200 file limit and per-file/global candidate budgets used by MCP, with explicit truncation output.
 - [ ] Verify CI and merge; continue the cross-surface output audit.
+### CNM-06 follow-up — file_details candidate output budget (2026-11-02)
+
+- [x] Identified unbounded nested `candidates_json` decoding in `file_details`, despite its per-collection result limit.
+- [x] Add a 200-candidate-per-import cap and 2,000-candidate global budget per file, with exact candidate totals and truncation metadata.
+- [x] Add MCP regression coverage with 11 unresolved imports and 11,000 stored candidate paths, including the nested `task_context` presentation bound.
+- [ ] Verify CI and merge before closing this retrieval-output sub-audit.

@@ -586,12 +586,12 @@ export interface FileDetails {
   indexRevision: number;
   symbols: FileDetailSymbol[];
   imports: Array<{ path: string; provenance: string; confidence: number; indexRevision: number }>;
-  unresolvedImports: Array<{ specifier: string; status: string; candidates: string[] }>;
+  unresolvedImports: Array<{ specifier: string; status: string; candidates: string[]; candidatesTotal: number; candidatesTruncated: boolean }>;
   importDiagnostics: Array<{ specifier: string; kind: string; code: number; message: string; line: number; column: number; importedName: string | null }>;
   relations: FileDetailRelation[];
-  limits: { perCollection: number };
-  totals: { symbols: number; imports: number; unresolvedImports: number; importDiagnostics: number; relations: number };
-  truncated: { symbols: boolean; imports: boolean; unresolvedImports: boolean; importDiagnostics: boolean; relations: boolean };
+  limits: { perCollection: number; candidatesPerImport: number; candidateBudget: number };
+  totals: { symbols: number; imports: number; unresolvedImports: number; importDiagnostics: number; relations: number; candidatePaths: number };
+  truncated: { symbols: boolean; imports: boolean; unresolvedImports: boolean; importDiagnostics: boolean; relations: boolean; candidatePaths: boolean };
 }
 
 export function getFileDetails(
@@ -633,14 +633,41 @@ export function getFileDetails(
       WHERE r.source_kind = 'file' AND r.source_id = ? AND r.kind = 'IMPORTS'
       ORDER BY target.path LIMIT ?
     `).all(file.id, limit) as FileDetails["imports"];
-    const unresolvedImports = db.prepare(`
-      SELECT module_specifier AS specifier, status, candidates_json AS candidatesJson
+    const unresolvedRows = db.prepare(`
+      SELECT id, module_specifier AS specifier, status,
+        json_array_length(candidates_json) AS candidatesTotal
       FROM unresolved_imports WHERE source_file_id = ? ORDER BY module_specifier LIMIT ?
-    `).all(file.id, limit).map((row: any) => ({
-      specifier: row.specifier as string,
-      status: row.status as string,
-      candidates: JSON.parse(row.candidatesJson as string) as string[],
-    }));
+    `).all(file.id, limit) as Array<{
+      id: number; specifier: string; status: string; candidatesTotal: number;
+    }>;
+    const candidateRows = unresolvedRows.length === 0 ? [] : db.prepare(`
+      SELECT unresolved.id AS unresolvedId, candidate.value AS candidatePath
+      FROM unresolved_imports AS unresolved
+      JOIN json_each(unresolved.candidates_json) AS candidate
+      WHERE unresolved.id IN (${unresolvedRows.map(() => "?").join(",")})
+        AND CAST(candidate.key AS INTEGER) < 200
+      ORDER BY unresolved.module_specifier, CAST(candidate.key AS INTEGER)
+      LIMIT 2000
+    `).all(...unresolvedRows.map((row) => row.id)) as Array<{
+      unresolvedId: number; candidatePath: string;
+    }>;
+    const candidatesByImport = new Map<number, string[]>();
+    for (const candidate of candidateRows) {
+      const values = candidatesByImport.get(candidate.unresolvedId) ?? [];
+      values.push(candidate.candidatePath);
+      candidatesByImport.set(candidate.unresolvedId, values);
+    }
+    const unresolvedImports = unresolvedRows.map((row) => {
+      const candidates = candidatesByImport.get(row.id) ?? [];
+      return {
+        specifier: row.specifier,
+        status: row.status,
+        candidates,
+        candidatesTotal: row.candidatesTotal,
+        candidatesTruncated: candidates.length < row.candidatesTotal,
+      };
+    });
+    const candidatePathsTotal = unresolvedRows.reduce((total, row) => total + row.candidatesTotal, 0);
     const importDiagnostics = db.prepare(`
       SELECT module_specifier AS specifier, kind, diagnostic_code AS code, message, line,
         column_number AS "column", imported_name AS importedName
@@ -668,14 +695,15 @@ export function getFileDetails(
       path: file.path, stableId: file.stableId, language: file.language, extension: file.extension,
       contentHash: file.contentHash, indexedAt: file.indexedAt, indexRevision: project.index_revision,
       symbols, imports, unresolvedImports, importDiagnostics, relations,
-      limits: { perCollection: limit },
-      totals,
+      limits: { perCollection: limit, candidatesPerImport: 200, candidateBudget: 2_000 },
+      totals: { ...totals, candidatePaths: candidatePathsTotal },
       truncated: {
         symbols: totals.symbols > symbols.length,
         imports: totals.imports > imports.length,
         unresolvedImports: totals.unresolvedImports > unresolvedImports.length,
         importDiagnostics: totals.importDiagnostics > importDiagnostics.length,
         relations: totals.relations > relations.length,
+        candidatePaths: candidatePathsTotal > candidateRows.length,
       },
     };
   } finally {
