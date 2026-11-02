@@ -447,3 +447,15 @@ The following capabilities remain open: signature-regex search, public-contract 
 - [x] PR #122 adds a 100,001-entry sorting-cap regression; it verifies incomplete discovery and no partial candidate set. The separate `maxProcessed` regression already verifies abort-before-write behavior. Mark complete after final CI and merge. (PR #122 merged as `8790bf71aad57c74bbb120ba1c2b8feb707803dc`; CI 41460410372 passed).
 - [x] PR #122 adds direct full-scope freshness coverage for the 100,001-entry sorting cap, verifying `incomplete`, zero deletions, empty changes, and unchanged index revision. Mark complete after final CI and merge. (PR #122 merged as `8790bf71aad57c74bbb120ba1c2b8feb707803dc`; CI 41460410372 passed).
 - [x] Memory freshness inspection has a default 100-record budget, a hard maximum of 500, explicit total/truncation metadata in the CLI report, and targeted-ID evaluation for task context; validate the new tests and command contract in CI. (PR #122 merged as `8790bf71aad57c74bbb120ba1c2b8feb707803dc`; CI 41460410372 passed).
+
+
+## CNM-04 — Cross-process post-read freshness and SQLite contention
+
+- [x] Strict post-read validation refuses a result when an independent Node process advances the persisted index revision during the operation.
+- [x] The refusal reports the preflight and post-read revisions and does not expose the operation result as verified current.
+- [x] An independent writer contending with a held `BEGIN IMMEDIATE` receives `SQLITE_BUSY` within its configured timeout; the failed write leaves the revision unchanged.
+- [x] After the lock is released, a new independent writer succeeds and advances exactly one revision.
+- [ ] Review and test additional operation/transaction boundaries before claiming exhaustive concurrency coverage.
+- [ ] Final PR-head CI must pass typecheck, full tests, build, smoke, and the Linux/Windows/macOS benchmark matrix.
+
+**Concurrency claim boundary:** deterministic process-level tests cover representative writer/read and writer/writer interleavings. They do not prove every possible OS scheduler interleaving, power-loss scenario, or behavior on network filesystems.
