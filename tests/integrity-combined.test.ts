@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ensureProject, openDatabase, type MemoryDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
-import { getIndexFreshness, indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
+import { getIndexFreshness, indexProject, indexWithDatabase, updateProjectIndex } from "../src/core/indexer.js";
 
 let temporaryDirectory = "";
 let database: MemoryDatabase | undefined;
@@ -89,6 +89,16 @@ describe("integrated CNM integrity regressions", () => {
     const freshness = getIndexFreshness(location);
     expect(freshness.status).toBe("incomplete");
     expect(freshness.errors.some((error) => error.includes("node_modules/shared-config/package.json"))).toBe(true);
+  });
+
+  it("refuses a full index when relation configuration is malformed instead of committing an incomplete graph", () => {
+    createProject();
+    writeFileSync(join(location.rootPath, "tsconfig.json"), '{"compilerOptions": {');
+    writeFileSync(join(location.rootPath, "main.ts"), "export const value = true;");
+
+    expect(() => indexProject(location)).toThrow(/relation configuration is incomplete/i);
+    expect(database!.prepare("SELECT path FROM files").all()).toEqual([]);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM relations").get()).toEqual({ count: 0 });
   });
 
 });
