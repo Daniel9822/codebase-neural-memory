@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { linkSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { discoverFiles } from "../src/core/indexer.js";
@@ -41,6 +41,31 @@ describe("safe project file reads", () => {
     mkdirSync(join(root, "source.ts"), { recursive: true });
 
     expect(() => readFileWithinRoot(root, join(root, "source.ts"))).toThrow();
+  });
+
+  it("rejects dangling symlinks and paths outside the project root", () => {
+    temporaryDirectory = mkdtempSync(join(tmpdir(), "cnm-safe-read-test-"));
+    const root = join(temporaryDirectory, "repository");
+    mkdirSync(root, { recursive: true });
+    symlinkSync(join(temporaryDirectory, "missing.ts"), join(root, "dangling.ts"));
+
+    expect(() => readFileWithinRoot(root, join(root, "dangling.ts"), { rejectFinalSymlink: true })).toThrow();
+    expect(() => readFileWithinRoot(root, join(temporaryDirectory, "outside.ts"))).toThrow(/outside the project root/i);
+    expect(() => readFileWithinRoot(root, join(root, "..", "outside.ts"))).toThrow(/outside the project root/i);
+  });
+
+  it("can reject hard-linked project files without changing package-store read behavior", () => {
+    temporaryDirectory = mkdtempSync(join(tmpdir(), "cnm-safe-read-test-"));
+    const root = join(temporaryDirectory, "repository");
+    const outside = join(temporaryDirectory, "outside.ts");
+    const linked = join(root, "linked.ts");
+    mkdirSync(root, { recursive: true });
+    writeFileSync(outside, "export const privateValue = true;\\n");
+    linkSync(outside, linked);
+
+    expect(readFileWithinRoot(root, linked).content.toString("utf8")).toContain("privateValue");
+    expect(() => readFileWithinRoot(root, linked, { rejectHardLinks: true }))
+      .toThrow("Hard-linked file paths are not allowed.");
   });
 
   it("marks discovery incomplete when root .gitignore resolves outside the project", () => {
