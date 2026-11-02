@@ -164,7 +164,7 @@ describe("MCP bounded output and project isolation", () => {
   it("applies a deterministic global candidate budget before decoding candidate arrays", async () => {
     const { location, root } = createProject("candidate-budget");
     const imports = Array.from({ length: 11 }, (_, index) => `import "./ambiguous-${String(index).padStart(2, "0")}"; `);
-    writeFileSync(join(root, "entry.ts"), imports.join("\n"));
+    writeFileSync(join(root, "entry.ts"), `${imports.join("\n")}\nexport const entry = true;`);
     indexWithDatabase(databases[0]!, location);
     const unresolved = databases[0]!.prepare(
       "SELECT id, module_specifier FROM unresolved_imports WHERE source_file_id = (SELECT id FROM files WHERE path = 'entry.ts') ORDER BY module_specifier",
@@ -212,7 +212,7 @@ describe("MCP bounded output and project isolation", () => {
 
     const context = await client.call("task_context", {
       task: "inspect unresolved modules",
-      anchors: { paths: ["entry.ts"] },
+      anchors: { paths: ["entry.ts"], symbols: ["entry"] },
     });
     const contextFile = context.items.find((item: { kind: string }) => item.kind === "file");
     expect(contextFile.detail.unresolvedImports.every((item: { candidates: string[]; candidatesTruncated: boolean }) =>
