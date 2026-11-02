@@ -67,4 +67,29 @@ describe("post-read freshness validation", () => {
     expect(response.content[0]!.text).toContain("returned with warning");
     expect(response.content.some((item) => item.text.includes("CNM POST-READ FRESHNESS WARNING"))).toBe(true);
   });
+  it("refuses strict results when a separate database connection advances the index during the read", () => {
+    createProject();
+    const beforeRevision = (database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id) as { index_revision: number }).index_revision;
+    const secondHandlerDatabase = openDatabase(location);
+    try {
+      const response = readResponse(location, { strictFreshness: true }, () => {
+        indexWithDatabase(secondHandlerDatabase, location, true);
+        return { result: "must not span two index revisions" };
+      });
+
+      expect(response.isError).toBe(true);
+      const refusal = JSON.parse(response.content[0]!.text) as {
+        status: string;
+        readSnapshot: { preflightRevision: number; postReadRevision: number | null; revisionChanged: boolean };
+      };
+      expect(refusal.status).toBe("refused");
+      expect(refusal.readSnapshot.preflightRevision).toBe(beforeRevision);
+      expect(refusal.readSnapshot.postReadRevision).toBeGreaterThan(beforeRevision);
+      expect(refusal.readSnapshot.revisionChanged).toBe(true);
+      expect(response.content[0]!.text).not.toContain("must not span two index revisions");
+    } finally {
+      secondHandlerDatabase.close();
+    }
+  });
+
 });
