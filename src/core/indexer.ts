@@ -6,7 +6,7 @@ import ignore from "ignore";
 import type { ProjectLocation } from "./project.js";
 import { getGitSnapshot, sameGitSnapshot } from "./git.js";
 import { isSupportedSourceFile, parseTypeScriptFile } from "./typescript-parser.js";
-import { analyzeImportDiagnostics, inspectSemanticPackageManifests } from "./import-diagnostics.js";
+import { analyzeImportDiagnostics, inspectSemanticPackageManifests, type SemanticResolutionInput } from "./import-diagnostics.js";
 import type { IndexSummary } from "../shared/types.js";
 import { readFileWithinRoot } from "./safe-file.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
@@ -703,10 +703,40 @@ function collectExtendedConfigPaths(rootPath: string): string[] {
   return [...visited].sort((a, b) => compareCodeUnits(a, b));
 }
 
+function collectSemanticResolutionInputs(
+  db: MemoryDatabase,
+  files: Array<{ path: string }>,
+  discovered: DiscoveredFile[] = [],
+): SemanticResolutionInput[] {
+  const includedPaths = new Set(files.map((file) => file.path));
+  const byFile = new Map<string, Set<string>>();
+  const rows = db.prepare(`
+    SELECT files.path, file_imports.module_specifier
+    FROM files
+    JOIN file_imports ON file_imports.file_id = files.id
+    ORDER BY files.path, file_imports.module_specifier
+  `).all() as Array<{ path: string; module_specifier: string }>;
+  for (const row of rows) {
+    if (!includedPaths.has(row.path)) continue;
+    const specifiers = byFile.get(row.path) ?? new Set<string>();
+    specifiers.add(row.module_specifier);
+    byFile.set(row.path, specifiers);
+  }
+  // Freshly discovered source supersedes the persisted import list during
+  // preflight, so new/changed imports are covered before any database writes.
+  for (const file of discovered) {
+    if (!includedPaths.has(file.relativePath)) continue;
+    byFile.set(file.relativePath, new Set(parseTypeScriptFile(file.relativePath, file.source).imports));
+  }
+  return [...byFile.entries()].flatMap(([containingFile, specifiers]) =>
+    [...specifiers].map((specifier) => ({ containingFile, specifier })))
+    .sort((a, b) => compareCodeUnits(a.containingFile, b.containingFile) || compareCodeUnits(a.specifier, b.specifier));
+}
+
 function inspectRelationsConfig(
   rootPath: string,
   files: Array<{ path: string }>,
-  semanticManifests = inspectSemanticPackageManifests(rootPath, files.map((file) => file.path)),
+  semanticManifests: ReturnType<typeof inspectSemanticPackageManifests>,
 ): string[] {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
@@ -772,7 +802,7 @@ function inspectRelationsConfig(
 function computeRelationsConfigHash(
   rootPath: string,
   files: Array<{ path: string }>,
-  semanticManifests = inspectSemanticPackageManifests(rootPath, files.map((file) => file.path)),
+  semanticManifests: ReturnType<typeof inspectSemanticPackageManifests>,
 ): string {
   const packageDirectories = new Set<string>([""]);
   for (const file of files) {
@@ -1044,7 +1074,8 @@ export function getIndexFreshness(
     const discovery = discover(location.rootPath, excludes);
     const indexed = db.prepare("SELECT path, content_hash FROM files ORDER BY path").all() as Array<{ path: string; content_hash: string }>;
     const indexedByPath = new Map(indexed.map((file) => [file.path, file.content_hash]));
-    const semanticManifests = inspectSemanticPackageManifests(location.rootPath, indexed.map((file) => file.path));
+    const semanticInputs = collectSemanticResolutionInputs(db, indexed);
+    const semanticManifests = inspectSemanticPackageManifests(location.rootPath, semanticInputs);
     const relationsConfigChanged = computeRelationsConfigHash(location.rootPath, indexed, semanticManifests) !== project.relations_config_hash;
     const relationsConfigErrors = inspectRelationsConfig(location.rootPath, indexed, semanticManifests);
     let addedFiles = 0;
@@ -1176,7 +1207,8 @@ export function indexWithDatabase(
     ? [...new Set([...indexedConfigPaths, ...discovered.map((file) => file.relativePath)])]
         .sort(compareCodeUnits).map((path) => ({ path }))
     : discovered.map((file) => ({ path: file.relativePath }));
-  const initialSemanticManifests = inspectSemanticPackageManifests(location.rootPath, configScopeFiles.map((file) => file.path));
+  const initialSemanticInputs = collectSemanticResolutionInputs(db, configScopeFiles, discovered);
+  const initialSemanticManifests = inspectSemanticPackageManifests(location.rootPath, initialSemanticInputs);
   const initialRelationsConfigHash = computeRelationsConfigHash(location.rootPath, configScopeFiles, initialSemanticManifests);
   const configErrors = inspectRelationsConfig(location.rootPath, configScopeFiles, initialSemanticManifests);
   if (configErrors.length > 0) {
