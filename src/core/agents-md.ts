@@ -137,7 +137,7 @@ export function ensureAgentInstructions(location: ProjectLocation, tool: AgentTo
 
 export function checkAgentInstructions(location: ProjectLocation, tool: AgentTool = "generic"): AgentInstructionsResult {
   const path = join(location.rootPath, "AGENTS.md");
-  const existing = readAgentFile(path);
+  const existing = readAgentFile(location.rootPath, path);
   if (existing === null) return { path, status: "missing", content: "" };
   const start = existing.indexOf(START);
   const end = existing.indexOf(END);
