@@ -55,4 +55,5 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 
 - [x] Confirmed `getSymbolRelations` accepted any positive safe integer, allowing arbitrarily large relation result materialization from the core/CLI API.
 - [x] Enforce a 500-result ceiling in the core API and document the CLI limit.
+- [x] Route the deprecated legacy `getProjectMap` API through `getProjectMapReport`, so external core callers also receive bounded candidate arrays and the 1–200 file limit; add regression coverage for its legacy projection.
 - [ ] Verify CI and merge; continue auditing all remaining CLI result-limit inputs.
