@@ -413,7 +413,7 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Normalize task-context anchors and follow-up paths before limits; gather dependency/test candidates before applying per-kind result budgets.
 - [x] Make global item/character budget omissions visible in `truncatedKinds`; preserve exact nested candidate totals even when parent collections are limited.
 - [x] Surface result and candidate-window truncation on symbol search, exact symbol lookup, and symbol-relation lists.
-- [ ] PR #135 final CI and merge verification pending.
+- [x] PR #135 merged; CI run [41718023148](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41718023148) completed successfully.
 
 
 ## Autonomous memory v2 — new implementation workstream
