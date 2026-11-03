@@ -25,7 +25,7 @@ Observed from the current `main` documentation and package metadata on 2026-11-0
 - `docs/ROADMAP.md` records Phases 3–7 as closed, while the supplied master plan adds six integrity/freshness risks and a new autonomous-memory capability set. Historical phase closures must be preserved; the new work must be tracked as new requirements rather than silently rewriting history.
 - The product is explicitly local-first, source-of-truth-first, agent-agnostic, and has no mandatory cloud, LLM, embeddings, or remote service.
 
-These are documentation-level observations, not yet a complete source-level audit. All audit and implementation checkboxes below start unchecked until the corresponding evidence is gathered.
+These baseline observations were initially documentation-level. The source audit update below records the later source-level findings and evidence. Checkboxes are maintained per requirement; unchecked items are still open or not yet verified.
 
 ## Source audit update — 2026-11-03 after CNM-06 merge
 
