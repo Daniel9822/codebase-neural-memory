@@ -163,3 +163,7 @@ When changing `src/adapters/mcp/server.ts`, update this contract and the linked 
 ## Autonomous memory v2 transition
 
 The currently registered memory tools remain `memory_propose`, `memory_transition`, `memory_freshness`, and `memory_recall`. They retain their legacy semantics and are not autonomous capture/version-history APIs. The target memory contract and planned future operations are specified in [docs/AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md). New tools must be added only after the versioned core operations and compatibility behavior are implemented and tested. Do not infer that the proposed v2 tools are registered in the current server.
+
+## Autonomous Memory v2 transition note (2026-11-03)
+
+The v2 memory contract is specified separately in [AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md). Schema v13 is being added behind the existing legacy memory adapter. Until the versioned core operations and MCP handlers are implemented and merged, the registered memory tools continue to use the legacy `memories` table and retain their current confirmation/lifecycle semantics. No v2 tool names or behavior should be presented as available based solely on the schema migration.
