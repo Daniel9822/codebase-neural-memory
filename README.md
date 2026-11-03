@@ -203,3 +203,8 @@ Use `cnm components` or MCP `component_map` to aggregate the indexed import grap
 ## Autonomous memory development status
 
 Autonomous Memory Contract v2 and its staged implementation plan are documented in [docs/AUTONOMOUS_MEMORY_CONTRACT.md](docs/AUTONOMOUS_MEMORY_CONTRACT.md) and [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md). The schema-v13 migration is currently under development; existing memory commands and MCP tools remain on the legacy implementation until the versioned core and adapter are complete. Planned v2 capabilities must not be treated as released behavior.
+
+
+### Autonomous memory capture (transition)
+
+The versioned memory schema (v13) is merged. An initial `memory_capture` core/MCP implementation is under development on `feat/memory-capture-core`; the existing legacy memory tools remain the active compatibility surface until versioned update/correction and retrieval operations are completed and reviewed. Do not treat the schema migration alone as a completed autonomous-memory system.
