@@ -4,6 +4,7 @@ import * as z from "zod/v4";
 import { getMemoryFreshnessReport, recallMemoriesReport, proposeMemory, transitionMemory, type MemoryStatus } from "../../core/memories.js";
 import { captureMemories } from "../../core/memory-capture.js";
 import { updateMemoryVersion } from "../../core/memory-update.js";
+import { correctMemory } from "../../core/memory-correct.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -418,6 +419,33 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     }),
   }, async (input) => ({
     content: [{ type: "text", text: JSON.stringify(updateMemoryVersion(location, input), null, 2) }],
+  }));
+
+  server.registerTool("memory_correct", {
+    description: "Correct one fragment of the current knowledge version while preserving all other fragments and immutable history. Records correction source, actor, reason, prior version, and target fragment. User corrections remain user_asserted or pending_validation; agent corrections marked verified require evidence.",
+    inputSchema: z.object({
+      knowledgeId: z.string().trim().min(1).max(128),
+      expectedVersionId: z.string().trim().min(1).max(128),
+      targetFragmentId: z.string().trim().min(1).max(128),
+      replacementContent: z.string().trim().min(1).max(8000),
+      reason: z.string().trim().min(1).max(1000),
+      correctionSource: z.enum(["user", "agent"]),
+      epistemicState: z.enum(["observed", "verified", "inferred", "user_asserted", "planned", "hypothesis", "pending_validation"]),
+      actor: z.string().trim().min(1).max(200).optional(),
+      evidence: z.array(z.object({
+        evidenceType: z.string().trim().min(1).max(64),
+        sourcePath: z.string().max(1000).optional(),
+        sourceHash: z.string().max(256).optional(),
+        commitSha: z.string().max(128).optional(),
+        sourceSymbol: z.string().max(500).optional(),
+        testCommand: z.string().max(1000).optional(),
+        testResult: z.string().max(1000).optional(),
+        actor: z.string().max(200).optional(),
+        metadata: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+      })).max(10).optional(),
+    }),
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(correctMemory(location, input), null, 2) }],
   }));
 
   server.registerTool("memory_capture", {
