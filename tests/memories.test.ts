@@ -298,7 +298,12 @@ describe("versioned knowledge schema migration v13", () => {
     migrate(database!);
 
     const legacyRows = database!.prepare("SELECT id, title, content, status, author, updated_by FROM memories ORDER BY id").all();
-    expect(legacyRows).toHaveLength(4);
+    expect(legacyRows).toEqual([
+      { id: "legacy-confirmed", title: "Confirmed title", content: "Confirmed body", status: "confirmed", author: "Original author", updated_by: "Updater" },
+      { id: "legacy-obsolete", title: "Obsolete title", content: "Obsolete body", status: "obsolete", author: null, updated_by: null },
+      { id: "legacy-proposed", title: "Proposed title", content: "Proposed body", status: "proposed", author: "Agent", updated_by: "Agent" },
+      { id: "legacy-rejected", title: "Rejected title", content: "Rejected body", status: "rejected", author: null, updated_by: null },
+    ]);
     expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_items").get()).toEqual({ count: 4 });
     expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get()).toEqual({ count: 4 });
     expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_fragments").get()).toEqual({ count: 4 });
@@ -323,10 +328,16 @@ describe("versioned knowledge schema migration v13", () => {
       .toEqual({ lifecycle: "active" });
     expect(database!.prepare("SELECT epistemic_state FROM knowledge_versions WHERE knowledge_id = ?").get("legacy-proposed"))
       .toEqual({ epistemic_state: "pending_validation" });
-    expect(database!.prepare("SELECT lifecycle FROM knowledge_items WHERE id = ?").get("legacy-obsolete"))
-      .toEqual({ lifecycle: "superseded" });
-    expect(database!.prepare("SELECT lifecycle FROM knowledge_items WHERE id = ?").get("legacy-rejected"))
-      .toEqual({ lifecycle: "archived" });
+    expect(database!.prepare("SELECT lifecycle, legacy_status FROM knowledge_items WHERE id = ?").get("legacy-obsolete"))
+      .toEqual({ lifecycle: "superseded", legacy_status: "obsolete" });
+    expect(database!.prepare("SELECT epistemic_state FROM knowledge_versions WHERE knowledge_id = ?").get("legacy-obsolete"))
+      .toEqual({ epistemic_state: "pending_validation" });
+    expect(database!.prepare("SELECT lifecycle, legacy_status FROM knowledge_items WHERE id = ?").get("legacy-rejected"))
+      .toEqual({ lifecycle: "archived", legacy_status: "rejected" });
+    expect(database!.prepare("SELECT epistemic_state FROM knowledge_versions WHERE knowledge_id = ?").get("legacy-rejected"))
+      .toEqual({ epistemic_state: "pending_validation" });
+    expect(database!.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_evidence").get()).toEqual({ count: 1 });
     expect(database!.prepare("SELECT version FROM schema_migrations WHERE version = 13").get()).toEqual({ version: 13 });
 
     // Re-running migrate must not duplicate imported versions, fragments, evidence, or events.
@@ -334,5 +345,27 @@ describe("versioned knowledge schema migration v13", () => {
     expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get()).toEqual({ count: 4 });
     expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE event_type = 'legacy_import'").get())
       .toEqual({ count: 4 });
+  });
+});
+
+
+describe("empty database schema v13", () => {
+  it("creates the versioned knowledge tables without requiring legacy rows", () => {
+    createProject();
+    const tables = database!.prepare(`
+      SELECT name FROM sqlite_master
+      WHERE type = 'table' AND name IN (
+        'knowledge_items', 'knowledge_versions', 'knowledge_fragments',
+        'knowledge_evidence', 'knowledge_relations', 'knowledge_events',
+        'memory_idempotency'
+      ) ORDER BY name
+    `).all() as Array<{ name: string }>;
+    expect(tables.map((table) => table.name)).toEqual([
+      "knowledge_events", "knowledge_evidence", "knowledge_fragments",
+      "knowledge_items", "knowledge_relations", "knowledge_versions",
+      "memory_idempotency",
+    ]);
+    expect(database!.prepare("SELECT version FROM schema_migrations WHERE version = 13").get()).toEqual({ version: 13 });
+    expect(database!.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 });
