@@ -340,6 +340,16 @@ describe("versioned knowledge schema migration v13", () => {
     expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_evidence").get()).toEqual({ count: 1 });
     expect(database!.prepare("SELECT version FROM schema_migrations WHERE version = 13").get()).toEqual({ version: 13 });
 
+    expect(() => database!.prepare("UPDATE knowledge_versions SET title = 'tampered' WHERE id = ?")
+      .run("legacy-v1:legacy-confirmed")).toThrow("knowledge versions are immutable");
+    expect(() => database!.prepare("DELETE FROM knowledge_versions WHERE id = ?")
+      .run("legacy-v1:legacy-confirmed")).toThrow("knowledge versions are immutable");
+    expect(() => database!.prepare("UPDATE knowledge_fragments SET content = 'tampered' WHERE id = ?")
+      .run("legacy-fragment:legacy-confirmed:0")).toThrow("knowledge fragments are immutable");
+    expect(() => database!.prepare("DELETE FROM knowledge_events WHERE id = ?")
+      .run("legacy-event:legacy-confirmed:0")).toThrow("knowledge events are append-only");
+    expect(database!.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+
     // Re-running migrate must not duplicate imported versions, fragments, evidence, or events.
     migrate(database!);
     expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get()).toEqual({ count: 4 });
