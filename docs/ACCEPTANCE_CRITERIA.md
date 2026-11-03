@@ -504,6 +504,7 @@ The schema-v13 slice is not accepted until clean CI verifies at minimum:
 - Migration from a populated schema-v12 database preserves every legacy memory ID and its title, content, category, legacy status, source path/hash, commit SHA, author/updater, and timestamps.
 - Mapping is deterministic: confirmed → active/user_asserted; proposed → active/pending_validation; obsolete → superseded/pending_validation; rejected → archived/pending_validation.
 - Each imported row has exactly one initial immutable version, one ordered content fragment, and one import event; source evidence is preserved when source metadata exists.
+- The current-version pointer must reference a version owned by the same identity; database triggers reject mutation/deletion of versions/fragments and mutation/deletion of evidence/events.
 - Re-running migration does not duplicate imported versions, fragments, evidence, or events.
 - The original `memories` table remains unchanged and existing legacy APIs continue to pass their regression suite.
 - Empty databases, supported older-schema upgrade paths, foreign-key integrity, and interrupted/reopened migration are separately verified before declaring the migration complete.
