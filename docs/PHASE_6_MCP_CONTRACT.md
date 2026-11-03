@@ -158,3 +158,8 @@ When changing `src/adapters/mcp/server.ts`, update this contract and the linked 
 - `task_context` sorts explicit anchors and follow-up paths by code unit, gathers dependency/test candidates before per-kind selection, resolves equal-score duplicates deterministically, and reports all kinds omitted by per-kind, global item, or serialized-character limits.
 - `file_details.totals.candidatePaths` counts candidates across all unresolved imports in the file, not only the parent collection slice. Per-import candidate limits and the global 2,000-path budget retain explicit truncation signals.
 - Graph traversals use stable SQL edge ordering and explicit result/processing truncation metadata. Set-valued `symbol_impact.relationKinds` are normalized to canonical `CALLS`, `EXTENDS`, `IMPLEMENTS` order.
+
+
+## Autonomous memory v2 transition
+
+The currently registered memory tools remain `memory_propose`, `memory_transition`, `memory_freshness`, and `memory_recall`. They retain their legacy semantics and are not autonomous capture/version-history APIs. The target memory contract and planned future operations are specified in [docs/AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md). New tools must be added only after the versioned core operations and compatibility behavior are implemented and tested. Do not infer that the proposed v2 tools are registered in the current server.
