@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status (2026-11-03):** Contract v2, schema v13/migration, `memory_capture`, and optimistic `memory_update` are merged to `main` (PRs #136–#139). `memory_correct` is implemented on `feat/memory-correct-provenance` and awaits CI/review. History/retrieval, dependent-knowledge impact review, reconciliation, and broader agent integration remain open.
+**Status (2026-11-03):** Contract v2, schema v13/migration, `memory_capture`, optimistic `memory_update`, and selective `memory_correct` are merged to `main` (PRs #136–#140). PR #140 merge commit: `7ca7441059299a228c4889cb5ccbd542637cab58`; latest-head CI run `41738355370` passed all five jobs (Ubuntu/Windows verify including typecheck, tests, build, smoke; Ubuntu/Windows/macOS benchmarks). History/retrieval, dependent-knowledge impact review, reconciliation, broader agent integration, and remaining concurrency/rollback coverage remain open.
 
 ## How to use this checklist
 
@@ -248,7 +248,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 ## D3. `memory_correct` and user corrections
 
-- [x] Implement explicit correction API with expected-version concurrency and correction provenance (`src/core/memory-correct.ts`; current PR).
+- [x] Implement explicit correction API with expected-version concurrency and correction provenance (`src/core/memory-correct.ts`; PR #140, merge `7ca7441059299a228c4889cb5ccbd542637cab58`).
 - [x] Correct one selected current fragment while preserving every other fragment.
 - [x] Preserve prior immutable version, evidence snapshot, actor/reason, and append-only `corrected` event with prior version/target fragment references.
 - [ ] Represent desired future behavior as a separate linked `planned` decision (the correction API does not create that decision automatically).
@@ -449,10 +449,10 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Update semantics: optimistic `expectedVersionId`, structured stale conflict, immutable version append, full fragment/evidence snapshot, actor/reason event, conditional current-version pointer update, and no-op suppression. This branch is not merged and must not be treated as released until its latest-head CI passes.
 
 
-### 2026-11-03 — Optimistic update merged; selective correction implementation in review
+### 2026-11-03 — Optimistic update and selective correction merged
 
 - PR #139 merged to `main` as `f73e1a4022c8b61a6854af2e24c7405dabc3d24c`; `memory_update` is now part of the default branch. Post-merge CI run #2240 was started and must be confirmed independently.
-- Branch `feat/memory-correct-provenance` adds `src/core/memory-correct.ts`, MCP `memory_correct`, focused core tests, MCP protocol registration/integration coverage, and this checklist/contract/workflow update.
+- PR #140 merged to `main` as `7ca7441059299a228c4889cb5ccbd542637cab58`; `src/core/memory-correct.ts`, MCP `memory_correct`, focused core tests, MCP protocol registration/integration coverage, and documentation are now in the default branch.
 - Correction semantics: target one fragment in the expected current version; append a new immutable version; preserve other fragments and prior evidence; record correction source (`user`/`agent`), actor, reason, previous version and target fragment in an append-only `corrected` event. User corrections can only be `user_asserted` or `pending_validation`; agent corrections marked `verified` require evidence.
 - Not implemented by this slice: dependent-knowledge impact/review marking, automatic creation/linking of a separate planned decision, history retrieval, independent-connection race tests, and failure-injection rollback tests. Do not mark those complete.
-- No CI success is claimed for this branch until the latest-head workflow finishes.
+- Latest-head CI run `41738355370` passed all five jobs: verify Ubuntu/Windows (typecheck, tests, build, smoke) and benchmark Ubuntu/Windows/macOS. This confirms the PR head; combined status/workflow lookup against the merge commit returned no separate merge-commit run.
