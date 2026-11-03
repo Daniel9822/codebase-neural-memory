@@ -232,7 +232,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [x] Support small knowledge units and structured metadata without requiring an LLM (titles, summaries, fragments, tags, aliases, typed evidence; no LLM dependency).
 - [x] Record origin, timestamp, epistemic state, optional confidence with required rationale, actor, and bounded source/test evidence.
 - [x] Add project-scoped idempotency keys and request hashes; same-payload retries replay the original result, key reuse with a different payload is rejected.
-- [ ] Match by exact normalized title/type identity and aliases (implemented); broader lexical/source-symbol/path/relation matching remains open.
+- [x] Match by exact normalized title/type identity and aliases (`src/core/memory-capture.ts`); broader lexical/source-symbol/path/relation matching remains open.
 - [x] Classify create, duplicate, or conflict using conservative exact identity matching; ambiguous/different content is never auto-merged. Enrich remains deferred.
 - [x] Persist each batch transactionally and return stable knowledge IDs plus per-item outcome/reason.
 - [x] Agent capture does not require per-item human confirmation; epistemic state is explicit and confidence requires a rationale.
