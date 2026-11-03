@@ -181,6 +181,31 @@ Agent workflow:
 
 CNM cannot force an arbitrary agent to call its tools. The product can make the behavior explicit in generated `AGENTS.md`, tool descriptions, examples, and supported-client integration tests. Do not claim passive capture or automatic end-of-session hooks unless a client actually supplies those events.
 
+### 8.1 Proposed MCP input contracts
+
+The following are adapter-level bounds for the first implementation. They are deliberately conservative and may be tightened by implementation tests; they must not be widened without updating this contract and the acceptance criteria.
+
+| Operation | Required inputs | Optional inputs and limits |
+|---|---|---|
+| `memory_bootstrap` | none | `limit` 1–20 (default 10); `maxChars` 500–8,000 (default 4,000); optional knowledge types and include-pending flag |
+| `memory_search` | none; empty query means browse current high-value items | `query` up to 1,000 chars; `limit` 1–50 (default 10); `maxChars` up to 12,000; type/tag/path/symbol/epistemic/lifecycle/time filters; cursor |
+| `memory_get` | `id` (1–128 chars) | optional `versionId`; optional include-evidence flag |
+| `memory_expand` | `id` | `fragmentIds` 1–20 (each 1–128 chars), or a cursor; `limit` 1–20; `maxChars` up to 12,000 |
+| `memory_capture` | `idempotencyKey` (1–128 chars), `items` 1–20 | Each item: title 1–240 chars; summary up to 1,000; content 1–20,000; type 1–64; epistemic state enum; optional confidence 0–1 and basis up to 500; up to 20 tags/aliases (64 chars each); up to 10 evidence items; up to 20 fragments (heading 240, summary 1,000, body 8,000 chars each). Batch is atomic. |
+| `memory_update` | `id`, `expectedVersionId`, `reason` 1–1,000 chars | Partial version fields with the same per-field limits as capture; actor/origin metadata |
+| `memory_correct` | `id`, `targetVersionId`, `reason` 1–1,000 chars, `correctionSource` = user/agent | Corrected title/summary/content or fragment; epistemic state; evidence; expected current version |
+| `memory_history` | `id` | `limit` 1–100; cursor; optional event/version filters |
+| `memory_reconcile` | none | `dryRun` default true; selected IDs or scope; `limit` 1–100; explicit operation kinds |
+| `memory_health` | none | `limit` 1–100; include bounded source freshness/conflict samples |
+
+All string fields are trimmed and validated; required text cannot be blank. Paths must be project-relative and pass the existing safe-file/path policy. Evidence metadata must be structured and bounded; raw source contents, secrets, arbitrary binary data, and full conversation transcripts are not accepted. Batch capture is all-or-nothing and uses one idempotency key scoped to the project and operation.
+
+### 8.2 Response and error contract
+
+Every list/search/bootstrap/history/reconcile/health response includes a stable ordering rule, returned count, total when safely computable, applied limit, and an explicit truncation indicator. Character budgets apply to the serialized response, not only to individual content fields. Pagination cursors are opaque, deterministic for a stable database snapshot, and bound to the query/filter set.
+
+Structured errors use stable codes: `invalid_input`, `not_found`, `version_conflict`, `idempotency_conflict`, `limit_exceeded`, `stale_evidence`, and `integrity_error`. Error messages are actionable but must not expose absolute local paths, source contents, credentials, or database internals. A version conflict returns the current version identifier without overwriting either writer's data.
+
 ## 9. Implementation sequence and gates
 
 1. **Contract (this document):** settle semantics, authority, migration mapping, idempotency, bounds, and compatibility.
