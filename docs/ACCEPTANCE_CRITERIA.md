@@ -496,3 +496,16 @@ These criteria are a new workstream and do not alter the historical Phase 4 expl
 - [ ] Generated agent instructions guide bootstrap, lookup-before-exploration, capture during work, correction, and task close-out without claiming passive conversation interception.
 - [ ] Evaluation demonstrates measurable reuse/correction/continuity benefit against a control on reproducible fixtures.
 - [ ] No mandatory cloud, network, LLM, embeddings, vector database, or team synchronization is introduced.
+
+## Autonomous Memory v2 — schema migration acceptance (in progress)
+
+The schema-v13 slice is not accepted until clean CI verifies at minimum:
+
+- Migration from a populated schema-v12 database preserves every legacy memory ID and its title, content, category, legacy status, source path/hash, commit SHA, author/updater, and timestamps.
+- Mapping is deterministic: confirmed → active/user_asserted; proposed → active/pending_validation; obsolete → superseded/pending_validation; rejected → archived/pending_validation.
+- Each imported row has exactly one initial immutable version, one ordered content fragment, and one import event; source evidence is preserved when source metadata exists.
+- Re-running migration does not duplicate imported versions, fragments, evidence, or events.
+- The original `memories` table remains unchanged and existing legacy APIs continue to pass their regression suite.
+- Empty databases, supported older-schema upgrade paths, foreign-key integrity, and interrupted/reopened migration are separately verified before declaring the migration complete.
+
+Current evidence and remaining gates are tracked in [AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md).
