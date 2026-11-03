@@ -393,7 +393,7 @@ export function migrate(db: MemoryDatabase): void {
       VALUES (?, ?, 0, ?)
     `);
     const insertEvidence = db.prepare(`
-      INSERT INTO knowledge_evidence
+      INSERT OR IGNORE INTO knowledge_evidence
         (id, version_id, evidence_type, source_path, source_hash, commit_sha, actor, metadata_json, created_at)
       VALUES (?, ?, 'legacy_source_reference', ?, ?, ?, ?, ?, ?)
     `);
