@@ -8,17 +8,17 @@ export interface MemoryUpdateInput {
   knowledgeId: string;
   expectedVersionId: string;
   reason: string;
-  actor?: string;
-  title?: string;
-  summary?: string;
-  content?: string;
-  epistemicState?: KnowledgeEpistemicState;
-  confidence?: number | null;
-  confidenceReason?: string | null;
-  tags?: string[];
-  aliases?: string[];
-  fragments?: MemoryCaptureFragment[];
-  evidence?: MemoryCaptureEvidence[];
+  actor?: string | undefined;
+  title?: string | undefined;
+  summary?: string | undefined;
+  content?: string | undefined;
+  epistemicState?: KnowledgeEpistemicState | undefined;
+  confidence?: number | null | undefined;
+  confidenceReason?: string | null | undefined;
+  tags?: string[] | undefined;
+  aliases?: string[] | undefined;
+  fragments?: MemoryCaptureFragment[] | undefined;
+  evidence?: MemoryCaptureEvidence[] | undefined;
 }
 export interface MemoryUpdateResult {
   status: "updated" | "conflict" | "no_op";
@@ -57,7 +57,8 @@ export function updateMemoryVersion(location: ProjectLocation, input: MemoryUpda
   if (input.epistemicState !== undefined && !states.has(input.epistemicState)) throw new Error("Invalid epistemic state");
   if (input.confidence !== undefined && input.confidence !== null &&
     (!Number.isFinite(input.confidence) || input.confidence < 0 || input.confidence > 1)) throw new Error("Confidence must be between 0 and 1");
-  if (input.confidenceReason !== undefined && input.confidence === undefined) throw new Error("confidenceReason can only change together with confidence");\n  const confidenceReason = input.confidenceReason === null ? null : clean(input.confidenceReason, "confidenceReason", 500, true) ?? null;
+  if (input.confidenceReason !== undefined && input.confidence === undefined) throw new Error("confidenceReason can only change together with confidence");
+  const confidenceReason = input.confidenceReason === null ? null : clean(input.confidenceReason, "confidenceReason", 500, true) ?? null;
   if (input.confidence !== undefined && input.confidence !== null && !confidenceReason) throw new Error("Confidence reason is required");
   const title = clean(input.title, "title", 240, true);
   const summary = clean(input.summary, "summary", 1000, true);
@@ -72,7 +73,8 @@ export function updateMemoryVersion(location: ProjectLocation, input: MemoryUpda
   }
   if (input.evidence && input.evidence.length > 10) throw new Error("Evidence is limited to 10 entries");
   for (const [index, evidence] of (input.evidence ?? []).entries()) {
-    clean(evidence.evidenceType, `evidence[${index}].evidenceType`, 64);\n    clean(evidence.sourcePath, `evidence[${index}].sourcePath`, 1000, true);
+    clean(evidence.evidenceType, `evidence[${index}].evidenceType`, 64);
+    clean(evidence.sourcePath, `evidence[${index}].sourcePath`, 1000, true);
     clean(evidence.sourceHash, `evidence[${index}].sourceHash`, 256, true);
     clean(evidence.commitSha, `evidence[${index}].commitSha`, 128, true);
     clean(evidence.sourceSymbol, `evidence[${index}].sourceSymbol`, 500, true);
@@ -145,7 +147,8 @@ export function updateMemoryVersion(location: ProjectLocation, input: MemoryUpda
         if (fragments === undefined) next.fragments = [{heading:"",summary:next.summary,content}];
         else next.fragments = [{heading:"",summary:next.summary,content}, ...fragments];
       }
-      if (next.evidence.length > 20) throw new Error("A version may contain at most 20 evidence entries");\n      const current = {
+      if (next.evidence.length > 20) throw new Error("A version may contain at most 20 evidence entries");
+      const current = {
         title:item.title, summary:item.summary, epistemicState:item.epistemic_state,
         confidence:item.confidence, confidenceReason:item.confidence_reason,
         tags:JSON.parse(item.tags_json), aliases:JSON.parse(item.aliases_json),
