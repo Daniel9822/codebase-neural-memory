@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly twenty-one tools and publishes the expected input schemas", async () => {
+  it("discovers exactly twenty-two tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -131,6 +131,7 @@ describe("MCP adapter protocol contract", () => {
       "memory_capture",
       "memory_correct",
       "memory_freshness",
+      "memory_history",
       "memory_propose",
       "memory_recall",
       "memory_transition",
@@ -160,6 +161,7 @@ describe("MCP adapter protocol contract", () => {
       task_context: ["anchors", "dependencyLimit", "fileLimit", "maxCharacters", "maxItems", "memoryLimit", "symbolLimit", "task", "testLimit"],
       memory_capture: ["actor", "idempotencyKey", "items", "origin"],
       memory_correct: ["actor", "correctionSource", "epistemicState", "evidence", "expectedVersionId", "knowledgeId", "reason", "replacementContent", "targetFragmentId"],
+      memory_history: ["beforeEventCreatedAt", "beforeEventId", "beforeVersionNumber", "eventLimit", "knowledgeId", "versionLimit"],
       memory_update: ["actor", "aliases", "confidence", "confidenceReason", "content", "epistemicState", "evidence", "expectedVersionId", "fragments", "knowledgeId", "reason", "summary", "tags", "title"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
@@ -168,6 +170,47 @@ describe("MCP adapter protocol contract", () => {
     });
   });
 
+  it("returns bounded version and event history through MCP with stable cursors", async () => {
+    createProject();
+    const captured = await (async () => {
+      const client = await connectClient();
+      const result = await client.request("tools/call", { name: "memory_capture", arguments: {
+        idempotencyKey: "mcp-history-seed",
+        items: [{ title: "History fixture", content: "Initial history content", type: "behavior", epistemicState: "observed" }],
+      } });
+      const parsed = JSON.parse((result.result as { content: Array<{ text: string }> }).content[0]!.text) as { outcomes: Array<{ knowledgeId: string }> };
+      return { client, knowledgeId: parsed.outcomes[0]!.knowledgeId };
+    })();
+    const current = database!.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?")
+      .get(captured.knowledgeId) as { current_version_id: string };
+    const updated = await captured.client.request("tools/call", { name: "memory_update", arguments: {
+      knowledgeId: captured.knowledgeId, expectedVersionId: current.current_version_id,
+      reason: "Record verified behavior", content: "Updated history content", epistemicState: "verified",
+    } });
+    expect((updated.result as { isError?: boolean }).isError).not.toBe(true);
+    const history = await captured.client.request("tools/call", {
+      name: "memory_history", arguments: { knowledgeId: captured.knowledgeId, versionLimit: 1, eventLimit: 1 },
+    });
+    const data = JSON.parse((history.result as { content: Array<{ text: string }> }).content[0]!.text) as {
+      versions: Array<{ versionNumber: number; changeReason: string | null }>;
+      events: Array<{ eventType: string }>;
+      pagination: { hasMoreVersions: boolean; hasMoreEvents: boolean; nextBeforeVersionNumber: number | null; nextBeforeEvent: { createdAt: string; id: string } | null };
+    };
+    expect(data.versions).toHaveLength(1);
+    expect(data.versions[0]!.versionNumber).toBe(2);
+    expect(data.events).toHaveLength(1);
+    expect(data.pagination.hasMoreVersions).toBe(true);
+    expect(data.pagination.hasMoreEvents).toBe(true);
+    const older = await captured.client.request("tools/call", { name: "memory_history", arguments: {
+      knowledgeId: captured.knowledgeId, versionLimit: 1, eventLimit: 1,
+      beforeVersionNumber: data.pagination.nextBeforeVersionNumber,
+      beforeEventCreatedAt: data.pagination.nextBeforeEvent!.createdAt,
+      beforeEventId: data.pagination.nextBeforeEvent!.id,
+    } });
+    const olderData = JSON.parse((older.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(olderData.versions[0].versionNumber).toBe(1);
+    expect(olderData.events[0].eventType).toBe("captured");
+  });
   it("captures versioned knowledge through MCP without requiring human confirmation", async () => {
     createProject();
     const client = await connectClient();
