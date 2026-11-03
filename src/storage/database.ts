@@ -264,6 +264,8 @@ export function migrate(db: MemoryDatabase): void {
         lifecycle TEXT NOT NULL CHECK(lifecycle IN ('active', 'superseded', 'archived')),
         current_version_id TEXT,
         legacy_status TEXT,
+        tags_json TEXT NOT NULL DEFAULT '[]',
+        aliases_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL
       );
@@ -283,6 +285,7 @@ export function migrate(db: MemoryDatabase): void {
         confidence REAL CHECK(confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
         confidence_reason TEXT,
         title TEXT NOT NULL,
+        summary TEXT NOT NULL DEFAULT '',
         created_by TEXT,
         change_reason TEXT,
         created_at TEXT NOT NULL,
@@ -296,6 +299,8 @@ export function migrate(db: MemoryDatabase): void {
         id TEXT PRIMARY KEY,
         version_id TEXT NOT NULL REFERENCES knowledge_versions(id) ON DELETE CASCADE,
         ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+        heading TEXT NOT NULL DEFAULT '',
+        summary TEXT NOT NULL DEFAULT '',
         content TEXT NOT NULL,
         UNIQUE(version_id, ordinal)
       );
