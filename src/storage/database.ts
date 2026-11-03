@@ -252,6 +252,183 @@ export function migrate(db: MemoryDatabase): void {
     db.exec("ALTER TABLE projects ADD COLUMN relations_config_hash TEXT");
   }
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (12, ?)`).run(now);
+
+  // Version 13: introduce versioned knowledge while preserving the legacy memories table.
+  // DDL and backfill are one transaction so an interrupted migration can be safely retried.
+  const migrateKnowledgeV13 = db.transaction(() => {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS knowledge_items (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        knowledge_type TEXT NOT NULL,
+        lifecycle TEXT NOT NULL CHECK(lifecycle IN ('active', 'superseded', 'archived')),
+        current_version_id TEXT,
+        legacy_status TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_knowledge_items_project_lifecycle
+        ON knowledge_items(project_id, lifecycle, updated_at DESC);
+      CREATE INDEX IF NOT EXISTS idx_knowledge_items_project_type
+        ON knowledge_items(project_id, knowledge_type, lifecycle);
+
+      CREATE TABLE IF NOT EXISTS knowledge_versions (
+        id TEXT PRIMARY KEY,
+        knowledge_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+        version_number INTEGER NOT NULL CHECK(version_number > 0),
+        epistemic_state TEXT NOT NULL CHECK(epistemic_state IN (
+          'observed', 'verified', 'inferred', 'user_asserted', 'planned',
+          'hypothesis', 'pending_validation'
+        )),
+        confidence REAL CHECK(confidence IS NULL OR (confidence >= 0 AND confidence <= 1)),
+        confidence_reason TEXT,
+        title TEXT NOT NULL,
+        created_by TEXT,
+        change_reason TEXT,
+        created_at TEXT NOT NULL,
+        UNIQUE(knowledge_id, version_number),
+        UNIQUE(id, knowledge_id)
+      );
+      CREATE INDEX IF NOT EXISTS idx_knowledge_versions_item
+        ON knowledge_versions(knowledge_id, version_number DESC);
+
+      CREATE TABLE IF NOT EXISTS knowledge_fragments (
+        id TEXT PRIMARY KEY,
+        version_id TEXT NOT NULL REFERENCES knowledge_versions(id) ON DELETE CASCADE,
+        ordinal INTEGER NOT NULL CHECK(ordinal >= 0),
+        content TEXT NOT NULL,
+        UNIQUE(version_id, ordinal)
+      );
+      CREATE INDEX IF NOT EXISTS idx_knowledge_fragments_version
+        ON knowledge_fragments(version_id, ordinal);
+
+      CREATE TABLE IF NOT EXISTS knowledge_evidence (
+        id TEXT PRIMARY KEY,
+        version_id TEXT NOT NULL REFERENCES knowledge_versions(id) ON DELETE CASCADE,
+        evidence_type TEXT NOT NULL,
+        source_path TEXT,
+        source_hash TEXT,
+        commit_sha TEXT,
+        source_symbol TEXT,
+        test_command TEXT,
+        test_result TEXT,
+        actor TEXT,
+        metadata_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_knowledge_evidence_version
+        ON knowledge_evidence(version_id);
+      CREATE INDEX IF NOT EXISTS idx_knowledge_evidence_source
+        ON knowledge_evidence(source_path, source_hash);
+
+      CREATE TABLE IF NOT EXISTS knowledge_relations (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        source_knowledge_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+        target_knowledge_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+        relation_type TEXT NOT NULL CHECK(relation_type IN (
+          'supports', 'contradicts', 'supersedes', 'depends_on',
+          'related_to', 'derived_from', 'affects'
+        )),
+        created_by TEXT,
+        reason TEXT,
+        created_at TEXT NOT NULL,
+        CHECK(source_knowledge_id <> target_knowledge_id),
+        UNIQUE(source_knowledge_id, target_knowledge_id, relation_type)
+      );
+      CREATE INDEX IF NOT EXISTS idx_knowledge_relations_source
+        ON knowledge_relations(project_id, source_knowledge_id, relation_type);
+      CREATE INDEX IF NOT EXISTS idx_knowledge_relations_target
+        ON knowledge_relations(project_id, target_knowledge_id, relation_type);
+
+      CREATE TABLE IF NOT EXISTS knowledge_events (
+        id TEXT PRIMARY KEY,
+        project_id TEXT NOT NULL,
+        knowledge_id TEXT NOT NULL REFERENCES knowledge_items(id) ON DELETE CASCADE,
+        version_id TEXT REFERENCES knowledge_versions(id) ON DELETE SET NULL,
+        event_type TEXT NOT NULL,
+        actor TEXT,
+        reason TEXT,
+        payload_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL
+      );
+      CREATE INDEX IF NOT EXISTS idx_knowledge_events_item
+        ON knowledge_events(project_id, knowledge_id, created_at, id);
+
+      CREATE TABLE IF NOT EXISTS memory_idempotency (
+        project_id TEXT NOT NULL,
+        operation TEXT NOT NULL,
+        idempotency_key TEXT NOT NULL,
+        request_hash TEXT NOT NULL,
+        result_json TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        PRIMARY KEY(project_id, operation, idempotency_key)
+      );
+    `);
+
+    const legacyRows = db.prepare(`
+      SELECT id, category, title, content, status, source_path, commit_sha,
+             source_hash, author, updated_by, created_at, updated_at
+      FROM memories ORDER BY created_at, id
+    `).all() as Array<{
+      id: string; category: string; title: string; content: string; status: string;
+      source_path: string | null; commit_sha: string | null; source_hash: string | null;
+      author: string | null; updated_by: string | null; created_at: string; updated_at: string;
+    }>;
+    const project = db.prepare("SELECT id FROM projects ORDER BY created_at, id LIMIT 1").get() as { id: string } | undefined;
+    const projectId = project?.id ?? "legacy-unassigned";
+    const insertItem = db.prepare(`
+      INSERT OR IGNORE INTO knowledge_items
+        (id, project_id, knowledge_type, lifecycle, current_version_id, legacy_status, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    const insertVersion = db.prepare(`
+      INSERT OR IGNORE INTO knowledge_versions
+        (id, knowledge_id, version_number, epistemic_state, confidence, confidence_reason,
+         title, created_by, change_reason, created_at)
+      VALUES (?, ?, 1, ?, NULL, NULL, ?, ?, 'Imported from legacy memories without changing its meaning', ?)
+    `);
+    const insertFragment = db.prepare(`
+      INSERT OR IGNORE INTO knowledge_fragments(id, version_id, ordinal, content)
+      VALUES (?, ?, 0, ?)
+    `);
+    const insertEvidence = db.prepare(`
+      INSERT INTO knowledge_evidence
+        (id, version_id, evidence_type, source_path, source_hash, commit_sha, actor, metadata_json, created_at)
+      VALUES (?, ?, 'legacy_source_reference', ?, ?, ?, ?, ?, ?)
+    `);
+    const insertEvent = db.prepare(`
+      INSERT OR IGNORE INTO knowledge_events
+        (id, project_id, knowledge_id, version_id, event_type, actor, reason, payload_json, created_at)
+      VALUES (?, ?, ?, ?, 'legacy_import', ?, 'Preserved during schema v13 migration', ?, ?)
+    `);
+
+    for (const row of legacyRows) {
+      const lifecycle = row.status === "obsolete" ? "superseded"
+        : row.status === "rejected" ? "archived" : "active";
+      const epistemicState = row.status === "confirmed" ? "user_asserted" : "pending_validation";
+      const versionId = `legacy-v1:${row.id}`;
+      insertItem.run(row.id, projectId, row.category, lifecycle, versionId, row.status, row.created_at, row.updated_at);
+      insertVersion.run(versionId, row.id, epistemicState, row.title, row.author, row.created_at);
+      insertFragment.run(`legacy-fragment:${row.id}:0`, versionId, row.content);
+      if (row.source_path !== null || row.source_hash !== null || row.commit_sha !== null) {
+        insertEvidence.run(
+          `legacy-evidence:${row.id}:0`, versionId, row.source_path, row.source_hash,
+          row.commit_sha, row.updated_by ?? row.author,
+          JSON.stringify({ legacyStatus: row.status }), row.updated_at,
+        );
+      }
+      insertEvent.run(
+        `legacy-event:${row.id}:0`, projectId, row.id, versionId, row.updated_by ?? row.author,
+        JSON.stringify({ legacyStatus: row.status, originalId: row.id }), row.updated_at,
+      );
+    }
+  });
+
+  if (!(db.prepare("SELECT 1 FROM schema_migrations WHERE version = 13").get())) {
+    migrateKnowledgeV13();
+    db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES (13, ?)").run(now);
+  }
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {
