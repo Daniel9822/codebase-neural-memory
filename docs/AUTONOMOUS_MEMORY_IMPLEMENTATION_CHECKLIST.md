@@ -202,7 +202,8 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 - [ ] Map current schema and all foreign keys/indexes/triggers/FTS dependencies.
 - [x] Design normalized tables for knowledge identity, versions, fragments, evidence, typed relations, append-only events, and idempotency records (`src/storage/database.ts`, schema v13; implementation review/CI pending).
-- [x] Add initial project/type/lifecycle, version, fragment, evidence-source, relation traversal, and event indexes plus enum/range/uniqueness constraints (`src/storage/database.ts`, schema v13; current-version invariant and query-plan validation remain open).
+- [x] Add initial project/type/lifecycle, version, fragment, evidence-source, relation traversal, and event indexes plus enum/range/uniqueness constraints (`src/storage/database.ts`, schema v13; query-plan validation remains open).
+- [x] Constrain current-version ownership with a deferred composite foreign key and enforce immutable versions/fragments plus append-only evidence/events using SQLite triggers; regression assertions added (CI pending).
 - [x] Implement forward-only v12→v13 transactional DDL/backfill with deterministic legacy IDs and retry-safe inserts (`src/storage/database.ts`; CI/review pending).
 - [x] Preserve legacy IDs and exact title/content/category/status/source/hash/commit/author/updater/timestamps while retaining the old table (`src/storage/database.ts`; regression test added, CI pending).
 - [ ] Define downgrade/recovery policy; do not claim destructive downgrade support without implementation.
@@ -426,3 +427,5 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 - Initial run `41721857299`: TypeScript passed on Ubuntu and Windows; both test jobs failed only because `tests/migrations.test.ts` still asserted that the latest schema stopped at v12. The failure was an outdated migration expectation, not a runtime migration failure. Both benchmark jobs completed successfully; macOS benchmark was queued at inspection.
 - Fixed the migration fixture to expect schema v13 and assert v13 migration idempotency in `tests/migrations.test.ts` (commit `a6838ae7f2f1bc18430573b655852437868f22fb`). New CI run is required; no green result is claimed yet.
+
+- Follow-up integrity hardening commits: `fa6f80d7f40c730d0063ec09f673b15fb2173a56` (ownership FK and DB-level append-only triggers), `e58ed9ac9016d5a49daa17286474b84be103c3b0` (trigger regression tests).
