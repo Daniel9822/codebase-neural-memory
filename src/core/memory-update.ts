@@ -65,6 +65,26 @@ export function updateMemoryVersion(location: ProjectLocation, input: MemoryUpda
   const tags = input.tags?.map((v) => clean(v, "tag", 64)!);
   const aliases = input.aliases?.map((v) => clean(v, "alias", 64)!);
   if ((tags && tags.length > 20) || (aliases && aliases.length > 20)) throw new Error("Tags and aliases are limited to 20 entries");
+  for (const [name, values] of [["tags", tags], ["aliases", aliases]] as const) {
+    if (values && new Set(values.map((value) => value.normalize("NFKC").toLocaleLowerCase("en"))).size !== values.length) {
+      throw new Error(`Duplicate normalized ${name}`);
+    }
+  }
+  if (input.evidence && input.evidence.length > 10) throw new Error("Evidence is limited to 10 entries");
+  for (const [index, evidence] of (input.evidence ?? []).entries()) {
+    clean(evidence.evidenceType, `evidence[${index}].evidenceType`, 64);
+    clean(evidence.sourceHash, `evidence[${index}].sourceHash`, 256, true);
+    clean(evidence.commitSha, `evidence[${index}].commitSha`, 128, true);
+    clean(evidence.sourceSymbol, `evidence[${index}].sourceSymbol`, 500, true);
+    clean(evidence.testCommand, `evidence[${index}].testCommand`, 1000, true);
+    clean(evidence.testResult, `evidence[${index}].testResult`, 1000, true);
+    clean(evidence.actor, `evidence[${index}].actor`, 200, true);
+    if (evidence.metadata && (Object.keys(evidence.metadata).length > 20 || Object.entries(evidence.metadata).some(([key, value]) =>
+      key.length > 64 || !(value === null || typeof value === "string" && value.length <= 1000 ||
+        typeof value === "number" && Number.isFinite(value) || typeof value === "boolean")))) {
+      throw new Error(`Invalid bounded metadata for evidence[${index}]`);
+    }
+  }
   const fragments = input.fragments?.map((f) => ({
     heading: clean(f.heading, "fragment heading", 240, true) ?? "",
     summary: clean(f.summary, "fragment summary", 1000, true) ?? "",
@@ -172,6 +192,6 @@ export function updateMemoryVersion(location: ProjectLocation, input: MemoryUpda
         JSON.stringify({previousVersionId:expectedVersionId,versionNumber}),now);
       return {status:"updated",knowledgeId,previousVersionId:expectedVersionId,currentVersionId:versionId,
         versionNumber,reason:"A new immutable version was appended and made current."};
-    })();
+    }).immediate();
   } finally { db.close(); }
 }
