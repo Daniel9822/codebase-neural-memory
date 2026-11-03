@@ -1,6 +1,6 @@
 # Autonomous Memory Contract v2
 
-**Status:** Approved implementation contract. Schema v13 migration is under implementation; core operations, retrieval, MCP integration, and agent workflow remain unimplemented until their own tests and PRs pass.  
+**Status:** Approved implementation contract. Schema v13/migration and the versioned core/MCP operations `memory_capture`, `memory_update`, and `memory_correct` are merged to `main` (PRs #137–#140). Progressive retrieval/history, reconciliation, dependent-knowledge review, health, and broader agent integration remain unimplemented.  
 **Audit baseline:** `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53` (2026-11-03). Contract merged to `main` in PR #136 at `4f66aad688bd62bf6b480160584b5231b057b879`.  
 **Scope:** Project-local, persistent knowledge that can be captured, versioned, corrected, related, retrieved, and reviewed by compatible coding agents.
 
@@ -210,10 +210,10 @@ Structured errors use stable codes: `invalid_input`, `not_found`, `version_confl
 
 1. **Contract (this document):** settle semantics, authority, migration mapping, idempotency, bounds, and compatibility.
 2. **Schema/history:** add normalized identity/version/fragment/evidence/relation/event storage and transactional migration. v13 DDL/backfill is merged to main (PR #137, merge `c1abe4160ff7a5c9503e42901b2c6e4e21476778`). Current-version ownership is constrained by a composite foreign key; triggers enforce immutable versions/fragments and append-only evidence/events. Post-merge CI run `41729315788` passed all five jobs (verify Ubuntu/Windows; benchmark Ubuntu/Windows/macOS). The broader older-schema upgrade, crash/reopen, invalid-data, FTS-integrity, and query-plan matrix remains open.
-3. **Core operations:** initial bounded `memory_capture` core/MCP slice is implemented on branch `feat/memory-capture-core`; update, correction, history, reconciliation, broader matching, and concurrency control remain future steps.
-4. **Retrieval:** implement bootstrap/search/get/expand/health with bounded FTS5 retrieval and source freshness.
-5. **MCP/workflow:** expose tools, preserve compatibility, update generated instructions and documentation, and verify supported clients.
-6. **Evaluation:** run repeatable reuse, correction, source-change, broad retrieval, and cross-session scenarios against a control.
+3. **Core operations (partially implemented):** bounded `memory_capture` (PR #138), optimistic immutable `memory_update` (PR #139), and provenance-aware selective `memory_correct` (PR #140) are merged. Broader matching, full lifecycle transition policy, idempotent updates, independent-connection race tests, and failure-injection rollback tests remain open.
+4. **Retrieval:** implement bootstrap/search/get/expand/history/health with bounded FTS5 retrieval and source freshness.
+5. **Reconciliation and impact:** implement bounded duplicate/contradiction reconciliation and relationship-aware dependent-knowledge review; do not silently rewrite dependent items.
+6. **MCP/workflow and evaluation:** continue agent integration, preserve compatibility, and run repeatable reuse, correction, source-change, broad retrieval, and cross-session scenarios against a control.
 
 No phase is complete because a tool name or schema exists. Completion requires focused tests, migration evidence, clean-checkout CI, reviewed diffs, and measured acceptance results.
 
