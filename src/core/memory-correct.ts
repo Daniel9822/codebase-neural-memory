@@ -12,8 +12,8 @@ export interface MemoryCorrectInput {
   reason: string;
   correctionSource: "user" | "agent";
   epistemicState: KnowledgeEpistemicState;
-  actor?: string;
-  evidence?: MemoryCaptureEvidence[];
+  actor?: string | undefined;
+  evidence?: MemoryCaptureEvidence[] | undefined;
 }
 export interface MemoryCorrectResult {
   status: "corrected" | "conflict" | "no_op";
