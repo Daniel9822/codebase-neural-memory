@@ -415,6 +415,8 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 ### 2026-11-03 — Schema v13 implementation in progress
 
 - Branch: `feat/autonomous-memory-schema-v13`.
-- Migration commit: `659228bac38b66cefab16c44fde4758be25213ca`; retry-safety fix: `1daef6622cabce8f687fffc7b4c767123db47b17`; metadata columns: `edf28202d2ebf343727617beeec8b968a328e0ae`.
+- Migration commits: `659228bac38b66cefab16c44fde4758be25213ca`, retry-safe evidence `1daef6622cabce8f687fffc7b4c767123db47b17`, metadata columns `edf28202d2ebf343727617beeec8b968a328e0ae`, atomic migration marker `8bb786dc90b7dd1e5b707111ce5515c07e4585ac`.
 - Migration regression test commit: `d32ab7e37aa6d963874387e2d74aca9851d3e435`.
 - Current state: implementation and focused test authored; no passing CI result yet. Do not mark Workstream C complete. The compatibility CRUD APIs still operate on the legacy table until the versioned core layer is implemented.
+
+| 2026-11-03 | Autonomous memory v2 contract | PR #136 merged; merge commit `4f66aad688bd62bf6b480160584b5231b057b879`; CI run `41719670579` had four successful jobs and the macOS benchmark remained queued at merge time | Contract and cross-document baseline are now on main. The implementation PR #137 is stacked on that contract and awaits CI/review. |
