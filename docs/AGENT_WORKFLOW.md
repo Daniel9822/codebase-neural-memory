@@ -74,3 +74,5 @@ After a durable verified discovery:
 ## Scope boundary
 
 This is a workflow recommendation, not a guarantee of complete program understanding. CNM indexes supported JavaScript/TypeScript structures. Runtime behavior, dynamic imports, framework magic, generated code, reflection, external package validity, and unindexed files still require direct inspection and tests.
+
+> **Schema v13 implementation note (2026-11-03):** the versioned knowledge tables and legacy backfill are being implemented on `feat/autonomous-memory-schema-v13`. This does not change the current agent-facing workflow: the existing legacy MCP memory tools remain active until the versioned core and adapter are implemented, tested, and merged. Continue following the legacy behavior described above; do not call planned v2 tools.

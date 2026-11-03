@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 describe("database migrations", () => {
-  it("upgrades a version 6 database to version 7 and preserves existing project data", () => {
+  it("upgrades a version 6 database through the latest schema and preserves existing project data", () => {
     database = new Database(":memory:") as MemoryDatabase;
     database.exec(`
       CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
@@ -41,7 +41,7 @@ describe("database migrations", () => {
       id: "legacy-project", index_revision: 6, index_excludes_json: "[]",
     });
     expect(database.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
-      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 },
+      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }, { version: 13 },
     ]);
   });
 
@@ -49,7 +49,7 @@ describe("database migrations", () => {
     database = new Database(":memory:") as MemoryDatabase;
     migrate(database);
     migrate(database);
-    for (const version of [8, 9, 10, 11, 12]) expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = ?").get(version)).toEqual({ count: 1 });
+    for (const version of [8, 9, 10, 11, 12, 13]) expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = ?").get(version)).toEqual({ count: 1 });
     expect(database.prepare("PRAGMA table_info(projects)").all()
       .filter((column: any) => column.name === "index_excludes_json")).toHaveLength(1);
     const memoryColumns = database.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
@@ -63,5 +63,42 @@ describe("database migrations", () => {
       expect(projectColumns.some((column) => column.name === name)).toBe(true);
     }
     expect(projectColumns.some((column) => column.name === "relations_config_hash")).toBe(true);
+  });
+
+  it("assigns legacy backfill to the database project when projects is still empty", () => {
+    database = new Database(":memory:") as MemoryDatabase;
+    const databaseProjectId = "project-derived-from-database-location";
+    migrate(database, databaseProjectId);
+
+    database.prepare(`
+      INSERT INTO memories
+        (id, category, title, content, status, created_at, updated_at)
+      VALUES ('legacy-without-project-row', 'decision', 'Legacy title', 'Legacy content',
+        'confirmed', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')
+    `).run();
+
+    // Recreate the pre-v13 state with no projects row, as on first open of an
+    // older per-project database before ensureProject has run.
+    database.exec(`
+      DROP TABLE knowledge_events;
+      DROP TABLE knowledge_relations;
+      DROP TABLE knowledge_evidence;
+      DROP TABLE knowledge_fragments;
+      DROP TABLE knowledge_versions;
+      DROP TABLE knowledge_items;
+      DROP TABLE memory_idempotency;
+      DELETE FROM schema_migrations WHERE version = 13;
+    `);
+
+    migrate(database, databaseProjectId);
+
+    expect(database.prepare(
+      "SELECT project_id FROM knowledge_items WHERE id = 'legacy-without-project-row'"
+    ).get()).toEqual({ project_id: databaseProjectId });
+    expect(database.prepare(
+      "SELECT project_id FROM knowledge_events WHERE knowledge_id = 'legacy-without-project-row'"
+    ).get()).toEqual({ project_id: databaseProjectId });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM projects").get()).toEqual({ count: 0 });
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
 });

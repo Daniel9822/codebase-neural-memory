@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status:** Source audit refreshed on 2026-11-03; autonomous-memory contract v2 defined; schema/core/MCP implementation not started.
+**Status:** Source audit and contract v2 defined. Schema v13 code and populated-v12 migration regression are in progress on `feat/autonomous-memory-schema-v13`; CI/review pending. Core operations, retrieval, MCP integration, and agent workflow are not implemented.
 
 ## How to use this checklist
 
@@ -201,13 +201,14 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 ## C1. Schema design and migration
 
 - [ ] Map current schema and all foreign keys/indexes/triggers/FTS dependencies.
-- [ ] Design normalized tables or equivalent structures for knowledge identity, versions, fragments, sources/evidence, relations, and append-only history events.
-- [ ] Add indexes and constraints for project scope, active/current version, source lookup, relation traversal, and temporal queries.
-- [ ] Specify migration from the current schema with forward-only, transactional/recoverable steps.
-- [ ] Preserve old IDs/references and existing memory content/status/author/source metadata.
+- [x] Design normalized tables for knowledge identity, versions, fragments, evidence, typed relations, append-only events, and idempotency records (`src/storage/database.ts`, schema v13; implementation review/CI pending).
+- [x] Add initial project/type/lifecycle, version, fragment, evidence-source, relation traversal, and event indexes plus enum/range/uniqueness constraints (`src/storage/database.ts`, schema v13; query-plan validation remains open).
+- [x] Constrain current-version ownership with a deferred composite foreign key and enforce immutable versions/fragments plus append-only evidence/events using SQLite triggers; regression assertions added (CI pending).
+- [x] Implement forward-only v12→v13 transactional DDL/backfill with deterministic legacy IDs and retry-safe inserts (`src/storage/database.ts`; CI/review pending).
+- [x] Preserve legacy IDs and exact title/content/category/status/source/hash/commit/author/updater/timestamps while retaining the old table (`src/storage/database.ts`; regression test added, CI pending).
 - [ ] Define downgrade/recovery policy; do not claim destructive downgrade support without implementation.
-- [ ] Test migration from every supported prior schema version, including empty and populated databases.
-- [ ] Test interrupted migration/reopen, duplicate IDs, invalid legacy data, FTS consistency, and foreign-key integrity.
+- [ ] Test migration from every supported prior schema version, including empty and populated databases. A populated-v12 regression has been added; it still needs CI and explicit empty/older-version coverage.
+- [ ] Test interrupted migration/reopen, duplicate IDs, invalid legacy data, FTS consistency, and foreign-key integrity. Retry/idempotency is partially covered by the populated-v12 test; crash-boundary and full integrity checks remain open.
 - [ ] Add schema version and data-integrity checks to health/status reporting where appropriate.
 
 **Acceptance:** existing user memories survive migration unchanged in meaning and remain retrievable; migration is repeatable/safe under supported recovery conditions.
@@ -410,3 +411,21 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 | 2026-11-02 | CNM-06 deterministic bounded discovery | PR #84 and PR #87; CI 41407210746 and 41407851656; merge `14b9d59ad397cd4357759da8b48ba7b91f4dac37` and root-scope follow-up | `maxFiles` selection is deterministic; over-budget discovery aborts without writes and protects unvisited paths. Broader retrieval-limit audit remains open. |
 | 2026-11-02 | CNM-01/CNM-05 config metadata diagnostics | PR #120; merge `5c73896dc1e3833b58c333240bb756db5e9d3be9`; CI 41448646334 passed | Malformed package manifests and non-string/blank `tsconfig` metadata are surfaced through freshness diagnostics; symlink/unreadable manifest race cases remain open. |
 | 2026-11-02 | Autonomous memory source audit | `src/core/memories.ts`, `src/core/context.ts`, `src/adapters/mcp/server.ts`, `tests/memories.test.ts`, `tests/context.test.ts` on `main` | Confirmed existing lifecycle-only CRUD and per-item confirmation gap; no version/event history or autonomous capture API in audited surface. Contract and schema design are next.
+
+
+### 2026-11-03 — Schema v13 implementation in progress
+
+- Branch: `feat/autonomous-memory-schema-v13`.
+- Migration commits: `659228bac38b66cefab16c44fde4758be25213ca`, retry-safe evidence `1daef6622cabce8f687fffc7b4c767123db47b17`, metadata columns `edf28202d2ebf343727617beeec8b968a328e0ae`, atomic migration marker `8bb786dc90b7dd1e5b707111ce5515c07e4585ac`.
+- Migration regression test commit: `d32ab7e37aa6d963874387e2d74aca9851d3e435`.
+- Current state: implementation and focused test authored; no passing CI result yet. Do not mark Workstream C complete. The compatibility CRUD APIs still operate on the legacy table until the versioned core layer is implemented.
+
+| 2026-11-03 | Autonomous memory v2 contract | PR #136 merged; merge commit `4f66aad688bd62bf6b480160584b5231b057b879`; CI run `41719670579` had four successful jobs and the macOS benchmark remained queued at merge time | Contract and cross-document baseline are now on main. The implementation PR #137 is stacked on that contract and awaits CI/review. |
+
+
+### CI diagnosis — 2026-11-03
+
+- Initial run `41721857299`: TypeScript passed on Ubuntu and Windows; both test jobs failed only because `tests/migrations.test.ts` still asserted that the latest schema stopped at v12. The failure was an outdated migration expectation, not a runtime migration failure. Both benchmark jobs completed successfully; macOS benchmark was queued at inspection.
+- Fixed the migration fixture to expect schema v13 and assert v13 migration idempotency in `tests/migrations.test.ts` (commit `a6838ae7f2f1bc18430573b655852437868f22fb`). New CI run is required; no green result is claimed yet.
+
+- Follow-up integrity hardening commits: `fa6f80d7f40c730d0063ec09f673b15fb2173a56` (ownership FK and DB-level append-only triggers), `e58ed9ac9016d5a49daa17286474b84be103c3b0` (trigger regression tests).

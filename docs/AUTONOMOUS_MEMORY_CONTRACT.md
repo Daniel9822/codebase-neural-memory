@@ -1,7 +1,7 @@
 # Autonomous Memory Contract v2
 
-**Status:** Approved implementation contract for the autonomous-memory workstream; implementation is not implied by this document.  
-**Baseline:** `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53` (2026-11-03).  
+**Status:** Approved implementation contract. Schema v13 migration is under implementation; core operations, retrieval, MCP integration, and agent workflow remain unimplemented until their own tests and PRs pass.  
+**Audit baseline:** `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53` (2026-11-03). Contract merged to `main` in PR #136 at `4f66aad688bd62bf6b480160584b5231b057b879`.  
 **Scope:** Project-local, persistent knowledge that can be captured, versioned, corrected, related, retrieved, and reviewed by compatible coding agents.
 
 ## 1. Product contract
@@ -162,11 +162,11 @@ Initial legacy mapping proposal:
 | Legacy status | New lifecycle | New epistemic state | Compatibility rule |
 |---|---|---|---|
 | `confirmed` | `active` | `user_asserted` | Preserve original status and all metadata; do not assume code verification merely because a human confirmed the note. |
-| `proposed` | `active` | `inferred` or `pending_validation` | Preserve as unconfirmed candidate; do not silently promote it to verified. |
-| `obsolete` | `superseded` | Preserve best available epistemic classification; otherwise `pending_validation` | Keep visible in history, excluded from current recall by default. |
+| `proposed` | `active` | `pending_validation` | Preserve as unconfirmed candidate; do not silently promote it to verified. |
+| `obsolete` | `superseded` | `pending_validation` | Preserve legacy status and original row; exclude from current recall by default. |
 | `rejected` | `archived` | `pending_validation` | Preserve rejection as a legacy event/reason and exclude from ordinary recall. |
 
-The final migration must preserve each legacy row's ID, title/content/category, status, source path/hash, commit SHA, author/updater, and timestamps. A legacy version is created from the exact row contents. Rejected/obsolete entries are not deleted. Legacy update/transition/delete APIs remain available with documented compatibility semantics until a separately reviewed deprecation.
+The migration must preserve each legacy row's ID, title/content/category, status, source path/hash, commit SHA, author/updater, and timestamps. A legacy version is created from the exact row contents. Rejected/obsolete entries are not deleted. Implemented v13 mapping: `confirmed` → `active/user_asserted`; `proposed` → `active/pending_validation`; `obsolete` → `superseded/pending_validation`; `rejected` → `archived/pending_validation`. Each imported identity stores the original status in `legacy_status`, and its version/fragment/event/evidence use deterministic legacy-derived IDs so a retry does not duplicate them. The old `memories` table remains intact. Legacy update/transition/delete APIs remain available with documented compatibility semantics until a separately reviewed deprecation.
 
 ## 8. MCP and agent integration
 
@@ -209,7 +209,7 @@ Structured errors use stable codes: `invalid_input`, `not_found`, `version_confl
 ## 9. Implementation sequence and gates
 
 1. **Contract (this document):** settle semantics, authority, migration mapping, idempotency, bounds, and compatibility.
-2. **Schema/history:** add normalized identity/version/fragment/evidence/relation/event storage and transactional migration.
+2. **Schema/history:** add normalized identity/version/fragment/evidence/relation/event storage and transactional migration. v13 DDL/backfill is being implemented and tested. Current-version ownership is constrained by a composite foreign key, and triggers enforce immutable versions/fragments and append-only evidence/events. It is not complete until migration tests and cross-platform CI pass.
 3. **Core operations:** implement capture, update, correction, history, and reconciliation with deterministic matching and concurrency control.
 4. **Retrieval:** implement bootstrap/search/get/expand/health with bounded FTS5 retrieval and source freshness.
 5. **MCP/workflow:** expose tools, preserve compatibility, update generated instructions and documentation, and verify supported clients.
