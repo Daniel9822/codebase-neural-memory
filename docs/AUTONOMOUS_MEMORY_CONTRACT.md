@@ -209,7 +209,7 @@ Structured errors use stable codes: `invalid_input`, `not_found`, `version_confl
 ## 9. Implementation sequence and gates
 
 1. **Contract (this document):** settle semantics, authority, migration mapping, idempotency, bounds, and compatibility.
-2. **Schema/history:** add normalized identity/version/fragment/evidence/relation/event storage and transactional migration. v13 DDL/backfill is being implemented and tested; it is not complete until migration tests and cross-platform CI pass.
+2. **Schema/history:** add normalized identity/version/fragment/evidence/relation/event storage and transactional migration. v13 DDL/backfill is being implemented and tested. Current-version ownership is constrained by a composite foreign key, and triggers enforce immutable versions/fragments and append-only evidence/events. It is not complete until migration tests and cross-platform CI pass.
 3. **Core operations:** implement capture, update, correction, history, and reconciliation with deterministic matching and concurrency control.
 4. **Retrieval:** implement bootstrap/search/get/expand/health with bounded FTS5 retrieval and source freshness.
 5. **MCP/workflow:** expose tools, preserve compatibility, update generated instructions and documentation, and verify supported clients.
