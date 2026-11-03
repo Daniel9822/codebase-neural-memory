@@ -420,3 +420,9 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Current state: implementation and focused test authored; no passing CI result yet. Do not mark Workstream C complete. The compatibility CRUD APIs still operate on the legacy table until the versioned core layer is implemented.
 
 | 2026-11-03 | Autonomous memory v2 contract | PR #136 merged; merge commit `4f66aad688bd62bf6b480160584b5231b057b879`; CI run `41719670579` had four successful jobs and the macOS benchmark remained queued at merge time | Contract and cross-document baseline are now on main. The implementation PR #137 is stacked on that contract and awaits CI/review. |
+
+
+### CI diagnosis — 2026-11-03
+
+- Initial run `41721857299`: TypeScript passed on Ubuntu and Windows; both test jobs failed only because `tests/migrations.test.ts` still asserted that the latest schema stopped at v12. The failure was an outdated migration expectation, not a runtime migration failure. Both benchmark jobs completed successfully; macOS benchmark was queued at inspection.
+- Fixed the migration fixture to expect schema v13 and assert v13 migration idempotency in `tests/migrations.test.ts` (commit `a6838ae7f2f1bc18430573b655852437868f22fb`). New CI run is required; no green result is claimed yet.
