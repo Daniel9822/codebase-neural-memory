@@ -175,6 +175,29 @@ describe("versioned memory capture", () => {
     expect(() => captureMemories(location, traversalPath)).toThrow("must stay inside the project root");
   });
 
+  it("rolls back an entire batch when a later evidence path fails project-boundary validation", () => {
+    setupProject();
+    const first = sampleInput().items[0]!;
+    const second = {
+      ...first,
+      title: "Another capture",
+      evidence: [{ evidenceType: "source", sourcePath: "../outside.ts" }],
+    };
+    expect(() => captureMemories(location, {
+      idempotencyKey: "capture-atomic-failure",
+      items: [first, second],
+    })).toThrow("must stay inside the project root");
+    const db = openDatabase(location);
+    try {
+      expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_items").get()).toEqual({ count: 0 });
+      expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get()).toEqual({ count: 0 });
+      expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE event_type = 'captured'").get()).toEqual({ count: 0 });
+      expect(db.prepare("SELECT COUNT(*) AS count FROM memory_idempotency").get()).toEqual({ count: 0 });
+    } finally {
+      db.close();
+    }
+  });
+
   it("rejects invalid bounds and confidence before persisting any part of a batch", () => {
     setupProject();
     const input = sampleInput({
