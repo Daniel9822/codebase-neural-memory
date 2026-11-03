@@ -132,6 +132,36 @@ describe("versioned memory capture", () => {
     }
   });
 
+  it("treats different fragment structure as a conflict and canonicalizes metadata key order", () => {
+    setupProject();
+    const input = sampleInput();
+    captureMemories(location, input);
+    const reorderedMetadata = sampleInput({
+      idempotencyKey: "capture-001",
+      items: [{
+        ...sampleInput().items[0],
+        evidence: [{
+          evidenceType: "test_result",
+          sourcePath: "src/core/safe-file.ts",
+          commitSha: "abc123",
+          testCommand: "npm test",
+          testResult: "passed",
+          metadata: { attempt: 1, suite: "safe-file" },
+        }],
+      }],
+    });
+    expect(captureMemories(location, reorderedMetadata)).toMatchObject({ idempotentReplay: true });
+
+    const changedFragments = sampleInput({
+      idempotencyKey: "capture-different-fragments",
+      items: [{
+        ...sampleInput().items[0],
+        fragments: [{ heading: "Different", content: "A materially different fragment." }],
+      }],
+    });
+    expect(captureMemories(location, changedFragments)).toMatchObject({ created: 0, conflicts: 1 });
+  });
+
   it("rejects absolute and traversal evidence paths", () => {
     setupProject();
     const absolutePath = sampleInput({
