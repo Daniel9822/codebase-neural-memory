@@ -69,6 +69,24 @@ export function correctMemory(location: ProjectLocation, input: MemoryCorrectInp
     throw new Error("Agent corrections marked verified require evidence");
   }
   if (input.evidence && input.evidence.length > 10) throw new Error("Evidence is limited to 10 entries");
+  for (const [index, entry] of (input.evidence ?? []).entries()) {
+    required(entry.evidenceType, `evidence[${index}].evidenceType`, 64);
+    for (const [field, value, max] of [
+      ["sourcePath", entry.sourcePath, 1000], ["sourceHash", entry.sourceHash, 256],
+      ["commitSha", entry.commitSha, 128], ["sourceSymbol", entry.sourceSymbol, 500],
+      ["testCommand", entry.testCommand, 1000], ["testResult", entry.testResult, 1000],
+      ["actor", entry.actor, 200],
+    ] as const) {
+      if (value !== undefined) required(value, `evidence[${index}].${field}`, max);
+    }
+    if (entry.metadata !== undefined && (!entry.metadata || typeof entry.metadata !== "object" ||
+        Array.isArray(entry.metadata) || Object.keys(entry.metadata).length > 20 ||
+        Object.entries(entry.metadata).some(([key, value]) => key.length < 1 || key.length > 64 ||
+          !(value === null || typeof value === "string" && value.length <= 1000 ||
+            typeof value === "number" && Number.isFinite(value) || typeof value === "boolean")))) {
+      throw new Error(`Invalid bounded correction evidence metadata at index ${index}`);
+    }
+  }
   const db = openDatabase(location);
   try {
     return db.transaction((): MemoryCorrectResult => {
