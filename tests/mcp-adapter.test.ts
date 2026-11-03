@@ -247,6 +247,38 @@ describe("MCP adapter protocol contract", () => {
       .toMatchObject({ status: "conflict" });
   });
 
+  it("corrects one captured fragment through MCP and preserves the original version", async () => {
+    createProject();
+    const client = await connectClient();
+    const capture = await client.request("tools/call", {
+      name: "memory_capture",
+      arguments: {
+        idempotencyKey: "mcp-correct-seed",
+        items: [{ title: "MCP correction fixture", content: "Before", type: "behavior", epistemicState: "observed" }],
+      },
+    });
+    const captureData = JSON.parse((capture.result as { content: Array<{ text: string }> }).content[0]!.text) as {
+      outcomes: Array<{ knowledgeId: string }>;
+    };
+    const knowledgeId = captureData.outcomes[0]!.knowledgeId;
+    const current = database!.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?")
+      .get(knowledgeId) as { current_version_id: string };
+    const fragment = database!.prepare("SELECT id FROM knowledge_fragments WHERE version_id=?")
+      .get(current.current_version_id) as { id: string };
+    const corrected = await client.request("tools/call", {
+      name: "memory_correct",
+      arguments: {
+        knowledgeId, expectedVersionId: current.current_version_id, targetFragmentId: fragment.id,
+        replacementContent: "After correction", reason: "User supplied the corrected behavior.",
+        correctionSource: "user", epistemicState: "user_asserted", actor: "user",
+      },
+    });
+    expect(JSON.parse((corrected.result as { content: Array<{ text: string }> }).content[0]!.text))
+      .toMatchObject({ status: "corrected", correctionSource: "user", versionNumber: 2 });
+    expect(database!.prepare("SELECT content FROM knowledge_fragments WHERE version_id=?")
+      .get(current.current_version_id)).toEqual({ content: "Before" });
+  });
+
   it("returns structural component groups and rejects unknown origins", async () => {
     createProject();
     mkdirSync(join(location.rootPath, "api"), { recursive: true });
