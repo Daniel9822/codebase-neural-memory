@@ -39,8 +39,13 @@ describe("versioned memory history", () => {
     const initial = create();
     const updated = updateMemoryVersion(location, { ...initial, expectedVersionId: initial.versionId, reason: "Verified update", content: "Updated content", epistemicState: "verified" });
     expect(updated.status).toBe("updated");
+    const db = openDatabase(location);
+    let currentFragmentId: string;
+    try {
+      currentFragmentId = (db.prepare("SELECT id FROM knowledge_fragments WHERE version_id=?").get(updated.currentVersionId) as { id: string }).id;
+    } finally { db.close(); }
     const corrected = correctMemory(location, {
-      knowledgeId: initial.knowledgeId, expectedVersionId: updated.currentVersionId!, targetFragmentId: initial.fragmentId,
+      knowledgeId: initial.knowledgeId, expectedVersionId: updated.currentVersionId!, targetFragmentId: currentFragmentId,
       replacementContent: "Corrected content", reason: "User correction", correctionSource: "user", epistemicState: "user_asserted",
     });
     expect(corrected.status).toBe("corrected");
@@ -64,6 +69,6 @@ describe("versioned memory history", () => {
     const initial = create();
     expect(() => getMemoryHistory({ ...location, id: "another-project" }, { knowledgeId: initial.knowledgeId })).toThrow("not found in this project");
     expect(() => getMemoryHistory(location, { knowledgeId: initial.knowledgeId, versionLimit: 51 })).toThrow("versionLimit");
-    expect(() => getMemoryHistory(location, { knowledgeId: initial.knowledgeId, beforeEventId: "event-only" })).toThrow("must be supplied together");
+    expect(() => getMemoryHistory(location, { knowledgeId: initial.knowledgeId, beforeEventId: "event-only" })).toThrow("requires a valid beforeEventCreatedAt and beforeEventId");
   });
 });
