@@ -75,7 +75,10 @@ describe("versioned memory capture", () => {
         summary: "Verified source-read invariant.", created_by: "test-agent",
       });
       expect(db.prepare("SELECT heading, summary, content FROM knowledge_fragments WHERE version_id = ?").all(item.current_version_id))
-        .toEqual([{ heading: "Invariant", summary: "Reader boundary", content: "Open and verify the same file descriptor." }]);
+        .toEqual([
+          { heading: "", summary: "Verified source-read invariant.", content: "Source files are opened through the verified reader." },
+          { heading: "Invariant", summary: "Reader boundary", content: "Open and verify the same file descriptor." },
+        ]);
       expect(db.prepare("SELECT evidence_type, source_path, commit_sha, test_command, test_result, actor FROM knowledge_evidence WHERE version_id = ?").all(item.current_version_id))
         .toEqual([{
           evidence_type: "test_result", source_path: "src/core/safe-file.ts", commit_sha: "abc123",
@@ -127,6 +130,19 @@ describe("versioned memory capture", () => {
     } finally {
       db.close();
     }
+  });
+
+  it("rejects absolute and traversal evidence paths", () => {
+    setupProject();
+    const absolutePath = sampleInput({
+      items: [{ ...sampleInput().items[0], evidence: [{ evidenceType: "source", sourcePath: "/etc/passwd" }] }],
+    });
+    expect(() => captureMemories(location, absolutePath)).toThrow("must be project-relative");
+    const traversalPath = sampleInput({
+      idempotencyKey: "capture-traversal",
+      items: [{ ...sampleInput().items[0], evidence: [{ evidenceType: "source", sourcePath: "../outside.ts" }] }],
+    });
+    expect(() => captureMemories(location, traversalPath)).toThrow("must stay inside the project root");
   });
 
   it("rejects invalid bounds and confidence before persisting any part of a batch", () => {
