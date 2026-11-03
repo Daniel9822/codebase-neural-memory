@@ -135,7 +135,7 @@ Dependent knowledge is marked for review through bounded impact discovery; CNM m
 
 ### 5.4 Reconciliation
 
-Reconciliation is bounded, deterministic, and reportable. It can identify stale evidence, duplicate candidates, contradictions, orphan relations, and dependent entries requiring review. Broad or destructive actions must support dry-run/reporting. Source changes never justify deleting knowledge by themselves.
+Reconciliation is bounded, deterministic, and reportable. It can identify stale evidence, duplicate candidates, contradictions, orphan relations, and dependent entries requiring review. Broad or destructive actions must support dry-run/reporting. Source changes never justify deleting knowledge by themselves. Version and event history has no automatic time-based deletion in the initial implementation; any future pruning policy must be explicit, auditable, recoverable, and must preserve the latest version and required provenance. History queries remain bounded and paginated.
 
 ## 6. Progressive retrieval contract
 
