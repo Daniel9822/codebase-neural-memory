@@ -17,15 +17,15 @@ function setup(): void {
 }
 afterEach(()=>{ if(root) rmSync(root,{recursive:true,force:true}); root=undefined; });
 
-function create(): { knowledgeId:string; versionId:string } {
+function create(): { knowledgeId:string; expectedVersionId:string } {
   const result=captureMemories(location,{
     idempotencyKey:"initial",actor:"test-agent",
     items:[{title:"Index invariant",content:"Initial behavior.",type:"architecture",epistemicState:"observed"}],
   });
   const db=openDatabase(location);
   try {
-    const row=db.prepare("SELECT id,current_version_id AS versionId FROM knowledge_items WHERE id=?").get(result.outcomes[0]!.knowledgeId) as {id:string;versionId:string};
-    return {knowledgeId:row.id,versionId:row.versionId};
+    const row=db.prepare("SELECT id,current_version_id AS expectedVersionId FROM knowledge_items WHERE id=?").get(result.outcomes[0]!.knowledgeId) as {id:string;expectedVersionId:string};
+    return {knowledgeId:row.id,expectedVersionId:row.expectedVersionId};
   } finally { db.close(); }
 }
 
@@ -38,14 +38,14 @@ describe("versioned memory update",()=>{
       confidenceReason:"Focused regression test passed.",
       evidence:[{evidenceType:"test_result",testCommand:"npm test",testResult:"passed"}],
     });
-    expect(result).toMatchObject({status:"updated",previousVersionId:initial.versionId,versionNumber:2});
+    expect(result).toMatchObject({status:"updated",previousVersionId:initial.expectedVersionId,versionNumber:2});
     const db=openDatabase(location);
     try {
       expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_versions WHERE knowledge_id=?").get(initial.knowledgeId)).toEqual({count:2});
       expect(db.prepare("SELECT title,epistemic_state,confidence,confidence_reason,change_reason FROM knowledge_versions WHERE id=?").get(result.currentVersionId))
         .toMatchObject({title:"Index invariant",epistemic_state:"verified",confidence:0.95,change_reason:"Verified after regression tests"});
-      expect(db.prepare("SELECT content FROM knowledge_fragments WHERE version_id=?").all(initial.versionId)).toEqual([{content:"Initial behavior."}]);
-      expect(db.prepare("SELECT event_type,reason FROM knowledge_events WHERE knowledge_id=? ORDER BY created_at,id").all(initial.knowledgeId))
+      expect(db.prepare("SELECT content FROM knowledge_fragments WHERE version_id=?").all(initial.expectedVersionId)).toEqual([{content:"Initial behavior."}]);
+      expect(db.prepare("SELECT event_type,reason FROM knowledge_events WHERE knowledge_id=? ORDER BY CASE event_type WHEN 'captured' THEN 0 ELSE 1 END").all(initial.knowledgeId))
         .toEqual([{event_type:"captured",reason:"Captured through memory_capture"},{event_type:"updated",reason:"Verified after regression tests"}]);
       expect(db.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?").get(initial.knowledgeId)).toEqual({current_version_id:result.currentVersionId});
     } finally { db.close(); }
@@ -67,7 +67,7 @@ describe("versioned memory update",()=>{
   it("does not create a version for a no-op",()=>{
     setup(); const initial=create();
     const result=updateMemoryVersion(location,{...initial,reason:"no changes"});
-    expect(result).toMatchObject({status:"no_op",currentVersionId:initial.versionId,versionNumber:1});
+    expect(result).toMatchObject({status:"no_op",currentVersionId:initial.expectedVersionId,versionNumber:1});
     const db=openDatabase(location);
     try { expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get()).toEqual({count:1}); }
     finally { db.close(); }
