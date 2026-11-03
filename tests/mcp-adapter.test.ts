@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly twenty tools and publishes the expected input schemas", async () => {
+  it("discovers exactly twenty-one tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -129,6 +129,7 @@ describe("MCP adapter protocol contract", () => {
       "index_freshness",
       "index_update",
       "memory_capture",
+      "memory_correct",
       "memory_freshness",
       "memory_propose",
       "memory_recall",
@@ -158,6 +159,7 @@ describe("MCP adapter protocol contract", () => {
       symbol_impact: ["depth", "direction", "filePath", "kind", "limit", "maxProcessed", "relationKinds", "startLine", "symbol"],
       task_context: ["anchors", "dependencyLimit", "fileLimit", "maxCharacters", "maxItems", "memoryLimit", "symbolLimit", "task", "testLimit"],
       memory_capture: ["actor", "idempotencyKey", "items", "origin"],
+      memory_correct: ["actor", "correctionSource", "epistemicState", "evidence", "expectedVersionId", "knowledgeId", "reason", "replacementContent", "targetFragmentId"],
       memory_update: ["actor", "aliases", "confidence", "confidenceReason", "content", "epistemicState", "evidence", "expectedVersionId", "fragments", "knowledgeId", "reason", "summary", "tags", "title"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
@@ -243,6 +245,38 @@ describe("MCP adapter protocol contract", () => {
     });
     expect(JSON.parse((stale.result as { content: Array<{ text: string }> }).content[0]!.text))
       .toMatchObject({ status: "conflict" });
+  });
+
+  it("corrects one captured fragment through MCP and preserves the original version", async () => {
+    createProject();
+    const client = await connectClient();
+    const capture = await client.request("tools/call", {
+      name: "memory_capture",
+      arguments: {
+        idempotencyKey: "mcp-correct-seed",
+        items: [{ title: "MCP correction fixture", content: "Before", type: "behavior", epistemicState: "observed" }],
+      },
+    });
+    const captureData = JSON.parse((capture.result as { content: Array<{ text: string }> }).content[0]!.text) as {
+      outcomes: Array<{ knowledgeId: string }>;
+    };
+    const knowledgeId = captureData.outcomes[0]!.knowledgeId;
+    const current = database!.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?")
+      .get(knowledgeId) as { current_version_id: string };
+    const fragment = database!.prepare("SELECT id FROM knowledge_fragments WHERE version_id=?")
+      .get(current.current_version_id) as { id: string };
+    const corrected = await client.request("tools/call", {
+      name: "memory_correct",
+      arguments: {
+        knowledgeId, expectedVersionId: current.current_version_id, targetFragmentId: fragment.id,
+        replacementContent: "After correction", reason: "User supplied the corrected behavior.",
+        correctionSource: "user", epistemicState: "user_asserted", actor: "user",
+      },
+    });
+    expect(JSON.parse((corrected.result as { content: Array<{ text: string }> }).content[0]!.text))
+      .toMatchObject({ status: "corrected", correctionSource: "user", versionNumber: 2 });
+    expect(database!.prepare("SELECT content FROM knowledge_fragments WHERE version_id=?")
+      .get(current.current_version_id)).toEqual({ content: "Before" });
   });
 
   it("returns structural component groups and rejects unknown origins", async () => {

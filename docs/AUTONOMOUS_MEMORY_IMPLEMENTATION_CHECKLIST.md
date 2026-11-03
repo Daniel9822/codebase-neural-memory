@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status (2026-11-03):** Contract v2, schema v13/migration, and first `memory_capture` slice are merged to `main` (PRs #136–#138). `memory_update` is implemented in the current work branch and awaits CI/review. Correction, history/retrieval, reconciliation, and broader agent integration remain open.
+**Status (2026-11-03):** Contract v2, schema v13/migration, `memory_capture`, and optimistic `memory_update` are merged to `main` (PRs #136–#139). `memory_correct` is implemented on `feat/memory-correct-provenance` and awaits CI/review. History/retrieval, dependent-knowledge impact review, reconciliation, and broader agent integration remain open.
 
 ## How to use this checklist
 
@@ -240,21 +240,21 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 ## D2. `memory_update` and history
 
-- [ ] Implement partial enrichment and explicit version creation.
-- [ ] Support reason/evidence and preserve original author separately from updater identity.
-- [ ] Reject invalid lifecycle/epistemic transitions.
-- [ ] Keep previous versions available and exclude superseded claims from default current recall.
-- [ ] Test no-op updates, duplicate updates, stale source references, and transactional failure.
+- [x] Implement bounded partial-field updates and explicit immutable version creation (`src/core/memory-update.ts`; PR #139).
+- [x] Persist change reason/actor and carry forward prior evidence while appending new evidence; retain prior version author/provenance.
+- [ ] Reject invalid lifecycle/epistemic transitions (lifecycle transition API remains separate; no general transition matrix is implemented here).
+- [ ] Keep previous versions available and exclude superseded claims from default current recall (history/retrieval is still pending).
+- [x] Test no-op updates and stale expected-version conflicts; [ ] duplicate update semantics, stale source references, independent-connection races, and transactional failure injection remain open.
 
 ## D3. `memory_correct` and user corrections
 
-- [ ] Implement explicit correction API that links to the prior version and records correction provenance.
-- [ ] Support correcting a specific claim/fragment rather than replacing unrelated content.
-- [ ] Preserve the prior version and correction reason in history.
-- [ ] Represent desired future behavior as a decision/planned item, not as current implemented behavior.
-- [ ] Where correction conflicts with source/tests, retain the user instruction as intent and record the implementation discrepancy for verification rather than silently falsifying code facts.
-- [ ] Find and mark dependent knowledge as needing review; do not blindly rewrite all related entries.
-- [ ] Add tests for corrections to verified facts, hypotheses, decisions, and dependent entries.
+- [x] Implement explicit correction API with expected-version concurrency and correction provenance (`src/core/memory-correct.ts`; current PR).
+- [x] Correct one selected current fragment while preserving every other fragment.
+- [x] Preserve prior immutable version, evidence snapshot, actor/reason, and append-only `corrected` event with prior version/target fragment references.
+- [ ] Represent desired future behavior as a separate linked `planned` decision (the correction API does not create that decision automatically).
+- [x] Keep user corrections explicitly `user_asserted` or `pending_validation`; reject labeling a user correction as verified implementation. Agent corrections marked verified require evidence.
+- [ ] Find and mark dependent knowledge as needing review; bounded impact discovery/review queue is not implemented.
+- [ ] Add broader tests for corrections across hypotheses, decisions, and dependent entries; current tests cover user assertions, pending validation, agent-evidence gate, stale conflict, no-op, and fragment/history preservation.
 
 ## D4. Reconciliation, duplicates, and contradictions
 
@@ -447,3 +447,12 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - PR #138 merge status was verified through GitHub; its original checklist progress note above is historical and is superseded by this entry.
 - Branch `feat/memory-update-versioned`: adds `src/core/memory-update.ts`, the `memory_update` MCP tool, core tests in `tests/memory-update.test.ts`, and protocol coverage in `tests/mcp-adapter.test.ts`; expected tool count is now 20 (`tests/mcp-stdio.test.ts`).
 - Update semantics: optimistic `expectedVersionId`, structured stale conflict, immutable version append, full fragment/evidence snapshot, actor/reason event, conditional current-version pointer update, and no-op suppression. This branch is not merged and must not be treated as released until its latest-head CI passes.
+
+
+### 2026-11-03 — Optimistic update merged; selective correction implementation in review
+
+- PR #139 merged to `main` as `f73e1a4022c8b61a6854af2e24c7405dabc3d24c`; `memory_update` is now part of the default branch. Post-merge CI run #2240 was started and must be confirmed independently.
+- Branch `feat/memory-correct-provenance` adds `src/core/memory-correct.ts`, MCP `memory_correct`, focused core tests, MCP protocol registration/integration coverage, and this checklist/contract/workflow update.
+- Correction semantics: target one fragment in the expected current version; append a new immutable version; preserve other fragments and prior evidence; record correction source (`user`/`agent`), actor, reason, previous version and target fragment in an append-only `corrected` event. User corrections can only be `user_asserted` or `pending_validation`; agent corrections marked `verified` require evidence.
+- Not implemented by this slice: dependent-knowledge impact/review marking, automatic creation/linking of a separate planned decision, history retrieval, independent-connection race tests, and failure-injection rollback tests. Do not mark those complete.
+- No CI success is claimed for this branch until the latest-head workflow finishes.

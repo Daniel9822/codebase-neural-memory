@@ -3,7 +3,15 @@
 CNM generates and maintains a managed instruction section in the target repository's root `AGENTS.md` during `cnm init`. If the file already contains project-authored instructions, CNM preserves them and adds or updates only its own marked section. Run `cnm agents-md --check` in CI to detect missing or outdated CNM instructions.
 
 
-> **Memory contract transition (2026-11-03):** Schema v13, `memory_capture`, and `memory_update` are implemented in the versioned store; `memory_capture` is merged to main and `memory_update` is under review on its feature branch. The legacy `memory_propose`/`memory_transition` APIs remain available for compatibility and still require explicit approval. Correction, history, bootstrap/search/get/expand, reconciliation, and health tools are not yet implemented. Follow the exact status in [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md); do not treat planned tools as available.
+> **Memory contract transition (2026-11-03):** Schema v13, `memory_capture`, and optimistic `memory_update` are merged to main. `memory_correct` is implemented on the current feature branch and is not available in main until merged. The legacy `memory_propose`/`memory_transition` APIs remain available for compatibility and still require explicit approval. History, bootstrap/search/get/expand, dependent-knowledge review, reconciliation, and health tools remain unimplemented. Follow [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) for exact status; do not treat planned tools as available.
+
+## Correction handling (versioned memory rollout)
+
+When the `memory_correct` tool is available, identify the exact current fragment being corrected and pass its `targetFragmentId` with the current `expectedVersionId`. Record the source honestly:
+- A user-provided correction is `user_asserted` or `pending_validation`; never call it verified implementation solely because the user stated it.
+- An agent correction may be marked `verified` only when source/test evidence is attached.
+- A desired future behavior is a separate `planned` decision, not a correction that rewrites the current implementation claim.
+- If a correction conflicts with source/tests, preserve the user intent as an assertion and leave implementation truth pending validation. Do not silently overwrite dependent knowledge; dependent impact/review tooling is still pending.
 
 ## Session initialization
 

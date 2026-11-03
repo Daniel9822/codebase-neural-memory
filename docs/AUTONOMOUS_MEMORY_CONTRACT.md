@@ -124,14 +124,14 @@ The initial implementation should use deterministic matching (stable source/symb
 
 ### 5.3 Correction
 
-`memory_correct` records which claim/version is being corrected, the replacement or corrected fragment, correction reason, and correction source (`user` or `agent`). It appends a version and explicit correction event/relation. The previous version remains retrievable.
+`memory_correct` requires `knowledgeId`, `expectedVersionId`, `targetFragmentId`, `replacementContent`, a non-empty reason, correction source (`user` or `agent`), and an explicit epistemic state. It only targets a fragment belonging to the expected current version. A stale expected version returns a structured conflict; identical replacement content is a no-op. A successful correction appends a new immutable version, copies all fragments while replacing only the selected fragment, carries forward prior evidence and appends supplied evidence, then writes an append-only `corrected` event containing the previous version ID, target fragment ID, correction source, ordinal, and version number. Actor and reason are stored on the new version/event. Prior versions/fragments/evidence remain unchanged. The core implementation is `src/core/memory-correct.ts`, exposed through MCP `memory_correct`.
 
-A user correction is captured without asking for confirmation again. The agent must still interpret the correction and label it correctly:
+A user correction is captured without asking for confirmation again. The API permits user-sourced corrections only as `user_asserted` or `pending_validation`; it cannot promote a user assertion to verified implementation. Agent-sourced corrections marked `verified` must include evidence. The agent must still interpret the correction and label it correctly:
 - correction of a current implementation claim -> record the user assertion and mark the implementation claim pending validation if it conflicts with source/tests;
 - desired future behavior -> create/update a linked `planned` decision, not a claim that code already behaves that way;
 - verified implementation change -> record the new behavior as verified only after relevant source/tests support it.
 
-Dependent knowledge is marked for review through bounded impact discovery; CNM must not blindly rewrite all related entries.
+Dependent knowledge is intended to be marked for review through bounded impact discovery; that discovery/review queue is not implemented in the current correction slice. CNM must not blindly rewrite all related entries. A desired future behavior must be captured separately as a linked `planned` decision; `memory_correct` does not create that decision automatically.
 
 ### 5.4 Reconciliation
 
