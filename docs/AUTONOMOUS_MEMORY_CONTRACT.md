@@ -1,7 +1,7 @@
 # Autonomous Memory Contract v2
 
 **Status:** Approved implementation contract. Schema v13 migration is under implementation; core operations, retrieval, MCP integration, and agent workflow remain unimplemented until their own tests and PRs pass.  
-**Baseline:** `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53` (2026-11-03).  
+**Audit baseline:** `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53` (2026-11-03). Contract merged to `main` in PR #136 at `4f66aad688bd62bf6b480160584b5231b057b879`.  
 **Scope:** Project-local, persistent knowledge that can be captured, versioned, corrected, related, retrieved, and reviewed by compatible coding agents.
 
 ## 1. Product contract
