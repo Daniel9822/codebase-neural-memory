@@ -228,15 +228,15 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 ## D1. `memory_capture`
 
-- [ ] Implement bounded, validated capture input and output contracts in the core memory engine.
-- [ ] Support small knowledge units and structured metadata without requiring an LLM.
-- [ ] Record origin, timestamp, verification state, confidence, and available source evidence.
-- [ ] Add idempotency/deduplication keys so retries do not create duplicate knowledge.
-- [ ] Match existing entries by exact identity, normalized lexical signals, aliases, source symbols/paths, and relation context.
-- [ ] Classify candidate operation as create, enrich, conflict, or duplicate; avoid destructive auto-merge on ambiguous matches.
-- [ ] Persist atomically and return stable IDs plus the outcome/reason.
-- [ ] Ensure ordinary agent capture does not require explicit user confirmation, while low-confidence claims remain labeled.
-- [ ] Add CLI/core/MCP integration tests, privacy exclusions, size bounds, and retry tests.
+- [x] Implement bounded, validated capture input and output contracts in the core memory engine (`src/core/memory-capture.ts`; MCP adapter schema also bounded). CLI integration and broader negative-case coverage remain open.
+- [x] Support small knowledge units and structured metadata without requiring an LLM (titles, summaries, fragments, tags, aliases, typed evidence; no LLM dependency).
+- [x] Record origin, timestamp, epistemic state, optional confidence with required rationale, actor, and bounded source/test evidence.
+- [x] Add project-scoped idempotency keys and request hashes; same-payload retries replay the original result, key reuse with a different payload is rejected.
+- [x] Match by exact normalized title/type identity and aliases (`src/core/memory-capture.ts`); broader lexical/source-symbol/path/relation matching remains open.
+- [x] Classify create, duplicate, or conflict using conservative exact identity matching; ambiguous/different content is never auto-merged. Enrich remains deferred.
+- [x] Persist each batch transactionally and return stable knowledge IDs plus per-item outcome/reason.
+- [x] Agent capture does not require per-item human confirmation; epistemic state is explicit and confidence requires a rationale.
+- [ ] Add CLI/core/MCP integration tests, privacy exclusions, size bounds, and retry tests. Core and MCP integration, bounds, retry, duplicate/conflict tests added; CLI coverage and explicit privacy-exclusion tests remain open.
 
 ## D2. `memory_update` and history
 
@@ -418,7 +418,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Branch: `feat/autonomous-memory-schema-v13`.
 - Migration commits: `659228bac38b66cefab16c44fde4758be25213ca`, retry-safe evidence `1daef6622cabce8f687fffc7b4c767123db47b17`, metadata columns `edf28202d2ebf343727617beeec8b968a328e0ae`, atomic migration marker `8bb786dc90b7dd1e5b707111ce5515c07e4585ac`.
 - Migration regression test commit: `d32ab7e37aa6d963874387e2d74aca9851d3e435`.
-- Current state: implementation and focused test authored; no passing CI result yet. Do not mark Workstream C complete. The compatibility CRUD APIs still operate on the legacy table until the versioned core layer is implemented.
+- Current state at PR #137 merge: schema v13 and focused migration tests merged. Post-merge CI run `41729315788` passed all five jobs (verify Ubuntu/Windows and benchmark Ubuntu/Windows/macOS). Do not mark all of Workstream C1 complete: older-schema matrix, crash/reopen boundaries, invalid legacy data, FTS integrity, and query-plan validation remain open. Compatibility CRUD APIs still operate on the legacy table until the versioned core layer is implemented.
 
 | 2026-11-03 | Autonomous memory v2 contract | PR #136 merged; merge commit `4f66aad688bd62bf6b480160584b5231b057b879`; CI run `41719670579` had four successful jobs and the macOS benchmark remained queued at merge time | Contract and cross-document baseline are now on main. The implementation PR #137 is stacked on that contract and awaits CI/review. |
 
@@ -429,3 +429,13 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Fixed the migration fixture to expect schema v13 and assert v13 migration idempotency in `tests/migrations.test.ts` (commit `a6838ae7f2f1bc18430573b655852437868f22fb`). New CI run is required; no green result is claimed yet.
 
 - Follow-up integrity hardening commits: `fa6f80d7f40c730d0063ec09f673b15fb2173a56` (ownership FK and DB-level append-only triggers), `e58ed9ac9016d5a49daa17286474b84be103c3b0` (trigger regression tests).
+
+
+### 2026-11-03 — Schema v13 merged; first capture slice implemented
+
+- PR #137 merged to `main` as `c1abe4160ff7a5c9503e42901b2c6e4e21476778`. It includes the migration edge-case fix: `openDatabase(location)` passes `location.id` to `migrate`, and the migration test covers a populated legacy DB with an empty `projects` table.
+- Merge-triggered CI run `41729315788` completed successfully: all five jobs passed, including `benchmark / macos-latest`. The merge commit is CI-green.
+- Branch `feat/memory-capture-core`: initial `memory_capture` core implementation in `src/core/memory-capture.ts`, MCP tool in `src/adapters/mcp/server.ts`, core tests in `tests/memory-capture.test.ts`, and MCP protocol integration coverage in `tests/mcp-adapter.test.ts`.
+- Implemented behavior: bounded 1–20 item batches; structured fragments/tags/aliases/evidence; explicit epistemic state and optional confidence rationale; project-scoped idempotency; exact normalized title/type matching; duplicate/conflict classification; atomic version/event/evidence persistence. Different content under the same identity is surfaced as conflict and never silently merged.
+- Not yet implemented: enrich semantics, broader lexical/source/symbol/relation matching, CLI integration, explicit privacy-exclusion tests, update/correction/history/reconciliation APIs, and bootstrap/search/get/expand/health retrieval.
+- No CI success is claimed for this branch until its workflow jobs complete.
