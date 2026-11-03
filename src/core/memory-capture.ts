@@ -1,4 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
 
@@ -169,6 +170,20 @@ function newId(prefix: string): string {
   return `${prefix}:${randomUUID()}`;
 }
 
+function normalizeEvidencePath(rootPath: string, sourcePath: string | undefined): string | null {
+  if (sourcePath === undefined) return null;
+  const normalized = sourcePath.replaceAll("\\\\", "/");
+  if (normalized.includes("\\0") || isAbsolute(normalized) || /^[A-Za-z]:\\//.test(normalized) || normalized.startsWith("//")) {
+    throw new Error("Memory evidence sourcePath must be project-relative");
+  }
+  const absolutePath = resolve(rootPath, normalized);
+  const relativePath = relative(rootPath, absolutePath);
+  if (relativePath === ".." || relativePath.startsWith(".." + sep) || isAbsolute(relativePath)) {
+    throw new Error("Memory evidence sourcePath must stay inside the project root");
+  }
+  return normalized;
+}
+
 /**
  * Capture small, explicitly supplied knowledge units into the versioned store.
  * Exact normalized-title matches are conservative: equal content is a duplicate;
@@ -239,7 +254,8 @@ export function captureMemories(location: ProjectLocation, rawInput: MemoryCaptu
           INSERT INTO knowledge_fragments(id, version_id, ordinal, heading, summary, content)
           VALUES (?, ?, ?, ?, ?, ?)
         `);
-        for (const [ordinal, fragment] of (item.fragments ?? [{ content: item.content }]).entries()) {
+        const persistedFragments = [{ heading: "", summary: item.summary ?? "", content: item.content }, ...(item.fragments ?? [])];
+        for (const [ordinal, fragment] of persistedFragments.entries()) {
           insertFragment.run(newId("fragment"), versionId, ordinal, fragment.heading ?? "",
             fragment.summary ?? "", fragment.content);
         }
@@ -251,7 +267,7 @@ export function captureMemories(location: ProjectLocation, rawInput: MemoryCaptu
         `);
         for (const evidence of item.evidence ?? []) {
           insertEvidence.run(newId("evidence"), versionId, evidence.evidenceType,
-            evidence.sourcePath ?? null, evidence.sourceHash ?? null, evidence.commitSha ?? null,
+            normalizeEvidencePath(location.rootPath, evidence.sourcePath), evidence.sourceHash ?? null, evidence.commitSha ?? null,
             evidence.sourceSymbol ?? null, evidence.testCommand ?? null, evidence.testResult ?? null,
             evidence.actor ?? input.actor ?? null, JSON.stringify(evidence.metadata ?? {}), now);
         }
