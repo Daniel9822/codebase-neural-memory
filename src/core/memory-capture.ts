@@ -172,8 +172,8 @@ function newId(prefix: string): string {
 
 function normalizeEvidencePath(rootPath: string, sourcePath: string | undefined): string | null {
   if (sourcePath === undefined) return null;
-  const normalized = sourcePath.replaceAll("\\\\", "/");
-  if (normalized.includes("\\0") || isAbsolute(normalized) || /^[A-Za-z]:\\//.test(normalized) || normalized.startsWith("//")) {
+  const normalized = sourcePath.replaceAll("\\", "/");
+  if (normalized.includes("\0") || normalized.startsWith("/") || normalized.startsWith("\\") || /^[A-Za-z]:/.test(normalized)) {
     throw new Error("Memory evidence sourcePath must be project-relative");
   }
   const absolutePath = resolve(rootPath, normalized);
@@ -183,7 +183,6 @@ function normalizeEvidencePath(rootPath: string, sourcePath: string | undefined)
   }
   return normalized;
 }
-
 /**
  * Capture small, explicitly supplied knowledge units into the versioned store.
  * Exact normalized-title matches are conservative: equal content is a duplicate;
