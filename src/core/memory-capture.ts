@@ -173,7 +173,9 @@ function canonicalize(value: unknown): unknown {
 }
 
 function stableHash(value: unknown): string {
-  return createHash("sha256").update(JSON.stringify(canonicalize(value))).digest("hex");
+  const serialized = JSON.stringify(canonicalize(value));
+  if (serialized === undefined) throw new Error("Memory capture payload could not be serialized deterministically");
+  return createHash("sha256").update(serialized).digest("hex");
 }
 
 function newId(prefix: string): string {
