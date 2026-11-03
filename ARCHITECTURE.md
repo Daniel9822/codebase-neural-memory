@@ -92,3 +92,10 @@ Explicit task anchors suppress broad lexical symbol/test/memory fallback and ret
 ### Directory-boundary component view
 
 The optional component map aggregates existing file-level `IMPORTS` edges by the first project-relative directory segment. It reports cross-directory edge counts and directed shortest dependency distances from an optional origin. This is an explainable structural projection, not semantic component discovery; it does not persist inferred entities or alter the source graph.
+
+
+## Autonomous memory v2 target architecture (planned)
+
+The current `memories` table and CRUD surface are a simple lifecycle-based baseline. The target model is specified in [docs/AUTONOMOUS_MEMORY_CONTRACT.md](docs/AUTONOMOUS_MEMORY_CONTRACT.md): a stable knowledge identity points to an immutable current version; versions reference ordered fragments, provenance/evidence, typed relations, and append-only history events. Lifecycle (`active|superseded|archived`) is separate from epistemic state (`observed|verified|inferred|user_asserted|planned|hypothesis|pending_validation`) and optional confidence.
+
+The core memory engine owns matching, capture, versioning, correction, freshness review, reconciliation, and bounded retrieval. MCP remains a thin validated adapter. The migration must preserve legacy memory IDs and contents, retain legacy status semantics for compatibility, and never infer that a human-approved legacy note is a verified code fact. This architecture is a target, not current behavior, until implemented and tested.
