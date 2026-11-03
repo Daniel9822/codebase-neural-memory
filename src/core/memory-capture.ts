@@ -118,9 +118,9 @@ function validateInput(input: MemoryCaptureInput): MemoryCaptureInput {
     if (raw.confidence !== undefined && !confidenceReason) throw new Error(`Confidence reason is required for item ${index}`);
     const tags = textList(raw.tags, `items[${index}].tags`, MAX_TAGS, 64);
     const aliases = textList(raw.aliases, `items[${index}].aliases`, MAX_ALIASES, 64);
-    const fragments = raw.fragments === undefined ? [{ content }] : raw.fragments;
-    if (!Array.isArray(fragments) || fragments.length < 1 || fragments.length > MAX_FRAGMENTS) {
-      throw new Error(`Invalid fragments for item ${index}: expected 1–${MAX_FRAGMENTS}`);
+    const fragments = raw.fragments ?? [];
+    if (!Array.isArray(fragments) || fragments.length > MAX_FRAGMENTS) {
+      throw new Error(`Invalid fragments for item ${index}: expected at most ${MAX_FRAGMENTS}`);
     }
     const normalizedFragments = fragments.map((fragment, fragmentIndex) => ({
       heading: text(fragment.heading, `items[${index}].fragments[${fragmentIndex}].heading`, 240, true) ?? "",
