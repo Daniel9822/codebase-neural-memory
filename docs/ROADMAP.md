@@ -429,3 +429,7 @@ Order of delivery:
 6. Evaluate reuse, correction, source changes, broad retrieval, and cross-session continuity against a control.
 
 Normal capture of durable knowledge will not require per-item user confirmation. Epistemic state and evidence prevent inferred or planned knowledge from being presented as verified implementation. CNM cannot passively observe conversations; agents must submit relevant discoveries through supported interfaces. No mandatory cloud, LLM, embeddings, or cross-device synchronization is introduced.
+
+## Autonomous Memory v2 implementation progress — 2026-11-03
+
+The v2 contract is defined in [AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md). Schema work has started on `feat/autonomous-memory-schema-v13`: normalized knowledge identity/version/fragment/evidence/relation/event/idempotency tables and a legacy-memory backfill are authored, with a populated-v12 regression test. This slice remains **in progress** pending CI, migration edge-case tests, and review. The legacy `memories` table and current APIs remain in place; no autonomous capture/correction or new retrieval/MCP behavior is claimed yet. The [master implementation checklist](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) is the source of truth for per-requirement completion.
