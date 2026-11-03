@@ -3,11 +3,11 @@
 CNM generates and maintains a managed instruction section in the target repository's root `AGENTS.md` during `cnm init`. If the file already contains project-authored instructions, CNM preserves them and adds or updates only its own marked section. Run `cnm agents-md --check` in CI to detect missing or outdated CNM instructions.
 
 
-> **Memory contract transition (2026-11-03):** Schema v13, `memory_capture`, and optimistic `memory_update` are merged to main. `memory_correct` is implemented on the current feature branch and is not available in main until merged. The legacy `memory_propose`/`memory_transition` APIs remain available for compatibility and still require explicit approval. History, bootstrap/search/get/expand, dependent-knowledge review, reconciliation, and health tools remain unimplemented. Follow [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) for exact status; do not treat planned tools as available.
+> **Versioned memory status (2026-11-03):** Schema v13, `memory_capture`, optimistic `memory_update`, and `memory_correct` are merged to `main` (PRs #137–#140). The latest-head CI for PR #140 passed all five jobs (run `41738355370`). The versioned capture/update/correction APIs are available through MCP. Legacy `memory_propose`/`memory_transition` remain for compatibility and retain their explicit-approval semantics. History, bootstrap/search/get/expand, dependent-knowledge review, reconciliation, and health tools are not implemented. See [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) for evidence and remaining work.
 
 ## Correction handling (versioned memory rollout)
 
-When the `memory_correct` tool is available, identify the exact current fragment being corrected and pass its `targetFragmentId` with the current `expectedVersionId`. Record the source honestly:
+When using `memory_correct`, identify the exact current fragment being corrected and pass its `targetFragmentId` with the current `expectedVersionId`. Record the source honestly:
 - A user-provided correction is `user_asserted` or `pending_validation`; never call it verified implementation solely because the user stated it.
 - An agent correction may be marked `verified` only when source/test evidence is attached.
 - A desired future behavior is a separate `planned` decision, not a correction that rewrites the current implementation claim.
@@ -83,4 +83,4 @@ After a durable verified discovery:
 
 This is a workflow recommendation, not a guarantee of complete program understanding. CNM indexes supported JavaScript/TypeScript structures. Runtime behavior, dynamic imports, framework magic, generated code, reflection, external package validity, and unindexed files still require direct inspection and tests.
 
-> **Schema v13 implementation note (2026-11-03):** the versioned knowledge tables and legacy backfill are being implemented on `feat/autonomous-memory-schema-v13`. This does not change the current agent-facing workflow: the existing legacy MCP memory tools remain active until the versioned core and adapter are implemented, tested, and merged. Continue following the legacy behavior described above; do not call planned v2 tools.
+> **Versioned memory implementation note (2026-11-03):** schema v13 and the `memory_capture`, `memory_update`, and `memory_correct` core/MCP operations are merged to `main`. For new durable knowledge, agents should use `memory_capture` without per-item approval, supplying accurate epistemic state and evidence; use `memory_update` with the current expected version for intentional edits; use `memory_correct` for a provenance-aware correction of one current fragment. Do not treat legacy `memory_propose`/`memory_transition` as the versioned API: they remain compatibility tools with their existing approval behavior. Retrieval/history, dependent review, reconciliation, and health are still pending.
