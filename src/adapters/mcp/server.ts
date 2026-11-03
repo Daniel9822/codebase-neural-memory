@@ -2,6 +2,7 @@ import { McpServer } from "@modelcontextprotocol/server";
 import { serveStdio } from "@modelcontextprotocol/server/stdio";
 import * as z from "zod/v4";
 import { getMemoryFreshnessReport, recallMemoriesReport, proposeMemory, transitionMemory, type MemoryStatus } from "../../core/memories.js";
+import { captureMemories } from "../../core/memory-capture.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -377,6 +378,50 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       ...(memoryLimit === undefined ? {} : { memoryLimit }),
       ...(anchors === undefined ? {} : { anchors: { ...(anchors.paths === undefined ? {} : { paths: anchors.paths }), ...(anchors.symbols === undefined ? {} : { symbols: anchors.symbols }) } }),
     })));
+
+  server.registerTool("memory_capture", {
+    description: "Capture bounded, reusable project knowledge into the versioned memory store. Agent capture does not require item-by-item user approval; epistemic state and evidence must accurately describe certainty. Retries with the same idempotencyKey and payload return the original result. Exact identity matches are reported as duplicates or conflicts; ambiguous content is never silently merged.",
+    inputSchema: z.object({
+      idempotencyKey: z.string().trim().min(1).max(128),
+      actor: z.string().trim().min(1).max(200).optional(),
+      origin: z.string().trim().min(1).max(200).optional(),
+      items: z.array(z.object({
+        title: z.string().trim().min(1).max(240),
+        content: z.string().trim().min(1).max(20000),
+        type: z.string().trim().min(1).max(64),
+        summary: z.string().max(1000).optional(),
+        epistemicState: z.enum(["observed", "verified", "inferred", "user_asserted", "planned", "hypothesis", "pending_validation"]),
+        confidence: z.number().min(0).max(1).optional(),
+        confidenceReason: z.string().max(500).optional(),
+        tags: z.array(z.string().trim().min(1).max(64)).max(20).optional(),
+        aliases: z.array(z.string().trim().min(1).max(64)).max(20).optional(),
+        fragments: z.array(z.object({
+          heading: z.string().max(240).optional(),
+          summary: z.string().max(1000).optional(),
+          content: z.string().trim().min(1).max(8000),
+        })).min(1).max(20).optional(),
+        evidence: z.array(z.object({
+          evidenceType: z.string().trim().min(1).max(64),
+          sourcePath: z.string().max(1000).optional(),
+          sourceHash: z.string().max(256).optional(),
+          commitSha: z.string().max(128).optional(),
+          sourceSymbol: z.string().max(500).optional(),
+          testCommand: z.string().max(1000).optional(),
+          testResult: z.string().max(1000).optional(),
+          actor: z.string().max(200).optional(),
+          metadata: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
+        })).max(10).optional(),
+      })).min(1).max(20),
+    }).superRefine((input, context) => {
+      input.items.forEach((item, index) => {
+        if (item.confidence !== undefined && !item.confidenceReason?.trim()) {
+          context.addIssue({ code: "custom", path: ["items", index, "confidenceReason"], message: "confidenceReason is required when confidence is supplied" });
+        }
+      });
+    }),
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(captureMemories(location, input), null, 2) }],
+  }));
 
   server.registerTool("memory_propose", {
     description: "Persist an agent-suggested project memory in proposed status. It is never confirmed automatically and requires explicit human review.",
