@@ -27,19 +27,29 @@ Observed from the current `main` documentation and package metadata on 2026-11-0
 
 These are documentation-level observations, not yet a complete source-level audit. All audit and implementation checkboxes below start unchecked until the corresponding evidence is gathered.
 
-## Source audit update — 2026-11-02 after PR #120
+## Source audit update — 2026-11-03 after CNM-06 merge
 
-Verified against merged `main` source files `src/core/memories.ts`, `src/core/context.ts`, and `src/adapters/mcp/server.ts`, plus `tests/memories.test.ts` and `tests/context.test.ts`:
+Verified against `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53`, including `src/core/memories.ts`, `src/storage/database.ts`, `src/adapters/mcp/server.ts`, `tests/memories.test.ts`, `docs/AGENT_WORKFLOW.md`, and the current migration sequence (schema v12):
 
-- **Verified behavior:** memory records have a UUID, category, title/content, one of `proposed|confirmed|obsolete|rejected`, optional source path/hash and commit SHA, author/updater, and created/updated timestamps.
-- **Verified behavior:** `remember` writes directly as `confirmed`; `proposeMemory` writes as `proposed`; `updateMemory` overwrites selected fields in place; `transitionMemory` validates lifecycle transitions. Source freshness reports changed/missing/unsafe references without automatically changing memory status.
-- **Verified behavior:** `memory_propose` explicitly requires a human confirmation before promotion; `memory_transition` accepts an explicit confirmed status and documents user authorization. The workflow asks agents to propose knowledge proactively but leaves it pending.
-- **Confirmed capability gap:** no version table/event history or stable knowledge-identity/current-version split was found in the audited memory CRUD surface; edits overwrite the same record and update timestamp. Corrections, supersession history, and dependent-knowledge invalidation are not implemented in this surface.
-- **Confirmed capability gap:** no autonomous `memory_capture` API or passive conversation observation exists in the audited MCP adapter. Normal durable capture therefore still depends on explicit tool use, and proposed knowledge still needs per-item approval.
-- **Architecture constraint:** keep capture local and deterministic; do not claim CNM can observe conversations that an agent integration does not send it. Introduce confidence/epistemic state separately from lifecycle, so inferred or planned knowledge can be stored without being presented as verified fact.
-- **Next implementation order:** (1) finalize a backward-compatible knowledge contract and migration design, (2) add version/event storage while preserving existing IDs and statuses, (3) implement idempotent `memory_capture` that can persist low-confidence items without promotion to verified/confirmed, (4) implement versioned update/correction and safe reconciliation, (5) expose bounded MCP operations and update generated instructions.
+- **Verified behavior:** the legacy `memories` table stores UUID, category, title/content, `proposed|confirmed|obsolete|rejected`, optional source path/hash and commit SHA, author/updater, and timestamps.
+- **Verified behavior:** `remember` inserts `confirmed`; `proposeMemory` inserts `proposed`; `updateMemory` overwrites fields in place; `transitionMemory` validates legacy status transitions; source/Git freshness reports review requirements without changing lifecycle.
+- **Verified behavior:** MCP currently registers `memory_propose`, `memory_transition`, `memory_freshness`, and `memory_recall`. The current agent workflow still asks for explicit confirmation of proposals.
+- **Confirmed capability gap:** no immutable version/history model, stable identity/current-version split, fragment store, evidence entity model, typed knowledge relations, autonomous capture API, correction API, bootstrap, or health/reconciliation APIs exist in the audited memory surface.
+- **Confirmed capability gap:** legacy `updateMemory` destroys the previous field values; the current schema cannot explain why a change occurred or reconstruct earlier versions.
+- **Boundary:** CNM cannot passively observe arbitrary agent conversations. Autonomous capture means the agent submits reusable findings through a supported tool without a per-item approval step.
+- **Contract:** [docs/AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md) defines the target semantics, authority model, epistemic states, idempotency, migration mapping, compatibility, and progressive retrieval. It is a design contract, not evidence of implementation.
+- **Next:** implement the schema migration and versioned core operations before adding new MCP tools. Preserve legacy IDs/data and keep legacy tool behavior explicit until migration and compatibility tests pass.
 
-This is a scoped source audit, not a completion claim for Workstream B or the memory system.
+### Current integrity workstream status
+
+- CNM-01: implemented across the relation-configuration fingerprint work; conservative manifest fingerprinting remains a documented precision trade-off.
+- CNM-02: closed for the defined threat boundary; unsafe directory scopes are protected, with portable Node directory race limitations documented.
+- CNM-03: CLI-facing full-index guards exist, but the comprehensive audit of every internal/destructive reconciliation entry point remains open.
+- CNM-04: strict/non-strict post-read freshness behavior and representative independent-process interleavings are implemented; the test scope is not an exhaustive scheduler/power-loss proof.
+- CNM-05: closed for the defined threat boundary; descriptor-verified file reads and path-based directory identity checks retain a documented swap-and-restore residual.
+- CNM-06: PR #135 merged; CI run [41718023148](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41718023148) completed successfully.
+
+The six-item audit is therefore substantially advanced, but CNM-03 and combined cross-surface close-out should not be represented as fully closed until their remaining checklist evidence is recorded.
 
 ## Definition of done — applies to every implementation task
 
