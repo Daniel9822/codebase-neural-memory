@@ -256,6 +256,7 @@ export function migrate(db: MemoryDatabase): void {
   // Version 13: introduce versioned knowledge while preserving the legacy memories table.
   // DDL and backfill are one transaction so an interrupted migration can be safely retried.
   const migrateKnowledgeV13 = db.transaction(() => {
+    if (db.prepare("SELECT 1 FROM schema_migrations WHERE version = 13").get()) return;
     db.exec(`
       CREATE TABLE IF NOT EXISTS knowledge_items (
         id TEXT PRIMARY KEY,
@@ -428,12 +429,10 @@ export function migrate(db: MemoryDatabase): void {
         JSON.stringify({ legacyStatus: row.status, originalId: row.id }), row.updated_at,
       );
     }
+    db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES (13, ?)").run(now);
   });
 
-  if (!(db.prepare("SELECT 1 FROM schema_migrations WHERE version = 13").get())) {
-    migrateKnowledgeV13();
-    db.prepare("INSERT INTO schema_migrations(version, applied_at) VALUES (13, ?)").run(now);
-  }
+  migrateKnowledgeV13();
 }
 
 export function ensureProject(db: MemoryDatabase, location: ProjectLocation): void {
