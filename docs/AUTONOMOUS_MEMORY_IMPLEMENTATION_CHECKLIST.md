@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status:** Source audit and contract v2 defined. Schema v13 code and populated-v12 migration regression are in progress on `feat/autonomous-memory-schema-v13`; CI/review pending. Core operations, retrieval, MCP integration, and agent workflow are not implemented.
+**Status (2026-11-03):** Contract v2, schema v13/migration, and first `memory_capture` slice are merged to `main` (PRs #136–#138). `memory_update` is implemented in the current work branch and awaits CI/review. Correction, history/retrieval, reconciliation, and broader agent integration remain open.
 
 ## How to use this checklist
 
@@ -439,3 +439,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Implemented behavior: bounded 1–20 item batches; structured fragments/tags/aliases/evidence; explicit epistemic state and optional confidence rationale; project-scoped idempotency; exact normalized title/type matching; duplicate/conflict classification; atomic version/event/evidence persistence. Different content under the same identity is surfaced as conflict and never silently merged.
 - Not yet implemented: enrich semantics, broader lexical/source/symbol/relation matching, CLI integration, explicit privacy-exclusion tests, update/correction/history/reconciliation APIs, and bootstrap/search/get/expand/health retrieval.
 - No CI success is claimed for this branch until its workflow jobs complete.
+
+
+### 2026-11-03 — Capture merged; versioned update in progress
+
+- PR #138 merged to `main` as `7faf875f0166bc2e496d099039cb625dde5ba832`; `memory_capture` core/MCP and bounded atomic capture tests are now part of main.
+- PR #138 merge status was verified through GitHub; its original checklist progress note above is historical and is superseded by this entry.
+- Branch `feat/memory-update-versioned`: adds `src/core/memory-update.ts`, the `memory_update` MCP tool, core tests in `tests/memory-update.test.ts`, and protocol coverage in `tests/mcp-adapter.test.ts`; expected tool count is now 20 (`tests/mcp-stdio.test.ts`).
+- Update semantics: optimistic `expectedVersionId`, structured stale conflict, immutable version append, full fragment/evidence snapshot, actor/reason event, conditional current-version pointer update, and no-op suppression. This branch is not merged and must not be treated as released until its latest-head CI passes.

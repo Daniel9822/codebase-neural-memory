@@ -120,7 +120,7 @@ The initial implementation should use deterministic matching (stable source/symb
 
 ### 5.2 Update
 
-`memory_update` appends a version to a known identity. It accepts an expected current version for optimistic concurrency, a reason, actor/origin, and any new evidence. A mismatch returns a structured conflict instead of overwriting concurrent work. No-op updates create no version.
+`memory_update` appends a version to a known identity. It requires `knowledgeId`, `expectedVersionId`, and a non-empty change `reason`; actor is optional. Mutable knowledge fields are partial: omitted title/summary/content/epistemic state/confidence/tags/aliases/fragments inherit from the current version. A supplied content body replaces the primary fragment; supplied fragments replace the prior fragment set (and are preceded by the primary content fragment when content is supplied). Existing evidence is carried forward into the new version and newly supplied evidence is appended. The identity's current-version pointer and metadata update in the same transaction as the new immutable version, fragments, evidence, and `updated` event. A stale expected version returns a structured `conflict` with the actual current version and performs no write. An unchanged effective payload returns `no_op` and creates no version/event. The original version and its author/evidence remain intact. Current implementation is `src/core/memory-update.ts`, exposed as MCP `memory_update`; core and protocol regression tests cover append/history preservation, stale conflict, no-op, confidence rationale, and project isolation. Failure-injection and independent-connection race tests remain outstanding.
 
 ### 5.3 Correction
 

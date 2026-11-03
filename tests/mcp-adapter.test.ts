@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly nineteen tools and publishes the expected input schemas", async () => {
+  it("discovers exactly twenty tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -133,6 +133,7 @@ describe("MCP adapter protocol contract", () => {
       "memory_propose",
       "memory_recall",
       "memory_transition",
+      "memory_update",
       "project_map",
       "project_overview",
       "source_excerpt",
@@ -157,6 +158,7 @@ describe("MCP adapter protocol contract", () => {
       symbol_impact: ["depth", "direction", "filePath", "kind", "limit", "maxProcessed", "relationKinds", "startLine", "symbol"],
       task_context: ["anchors", "dependencyLimit", "fileLimit", "maxCharacters", "maxItems", "memoryLimit", "symbolLimit", "task", "testLimit"],
       memory_capture: ["actor", "idempotencyKey", "items", "origin"],
+      memory_update: ["actor", "aliases", "confidence", "confidenceReason", "content", "epistemicState", "evidence", "expectedVersionId", "fragments", "knowledgeId", "reason", "summary", "tags", "title"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["category", "limit", "list", "query", "status"],
@@ -208,6 +210,39 @@ describe("MCP adapter protocol contract", () => {
     expect(JSON.parse((replay.result as { content: Array<{ text: string }> }).content[0]!.text))
       .toMatchObject({ created: 1, idempotentReplay: true });
     expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_items").get()).toEqual({ count: 1 });
+  });
+
+  it("updates captured knowledge through MCP using optimistic version checks", async () => {
+    createProject();
+    const client = await connectClient();
+    const capture = await client.request("tools/call", {
+      name: "memory_capture",
+      arguments: {
+        idempotencyKey: "mcp-update-seed",
+        items: [{ title: "Update fixture", content: "Before update", type: "behavior", epistemicState: "observed" }],
+      },
+    });
+    const captureData = JSON.parse((capture.result as { content: Array<{ text: string }> }).content[0]!.text) as {
+      outcomes: Array<{ knowledgeId: string }>;
+    };
+    const knowledgeId = captureData.outcomes[0]!.knowledgeId;
+    const current = database!.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?").get(knowledgeId) as { current_version_id: string };
+    const updated = await client.request("tools/call", {
+      name: "memory_update",
+      arguments: {
+        knowledgeId, expectedVersionId: current.current_version_id,
+        reason: "Regression test confirms the behavior", epistemicState: "verified",
+        content: "After update", actor: "test-agent",
+      },
+    });
+    expect(JSON.parse((updated.result as { content: Array<{ text: string }> }).content[0]!.text))
+      .toMatchObject({ status: "updated", versionNumber: 2 });
+    const stale = await client.request("tools/call", {
+      name: "memory_update",
+      arguments: { knowledgeId, expectedVersionId: current.current_version_id, reason: "stale retry", title: "Should not win" },
+    });
+    expect(JSON.parse((stale.result as { content: Array<{ text: string }> }).content[0]!.text))
+      .toMatchObject({ status: "conflict" });
   });
 
   it("returns structural component groups and rejects unknown origins", async () => {

@@ -92,6 +92,30 @@ describe("versioned memory capture", () => {
     }
   });
 
+  it("stores the primary content only once when no additional fragments are supplied", () => {
+    setupProject();
+    const input = sampleInput({
+      items: [{
+        title: "Single primary fragment",
+        content: "The primary content is persisted exactly once.",
+        type: "architecture",
+        epistemicState: "observed",
+      }],
+    });
+    const result = captureMemories(location, input);
+    const db = openDatabase(location);
+    try {
+      const versionId = (db.prepare("SELECT current_version_id AS id FROM knowledge_items WHERE id = ?")
+        .get(result.outcomes[0]!.knowledgeId) as { id: string }).id;
+      expect(db.prepare("SELECT ordinal, heading, summary, content FROM knowledge_fragments WHERE version_id = ?")
+        .all(versionId)).toEqual([{
+          ordinal: 0, heading: "", summary: "", content: "The primary content is persisted exactly once.",
+        }]);
+    } finally {
+      db.close();
+    }
+  });
+
   it("replays an idempotent request without creating additional rows", () => {
     setupProject();
     const input = sampleInput();
