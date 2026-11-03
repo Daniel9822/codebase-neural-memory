@@ -64,4 +64,41 @@ describe("database migrations", () => {
     }
     expect(projectColumns.some((column) => column.name === "relations_config_hash")).toBe(true);
   });
+
+  it("assigns legacy backfill to the database project when projects is still empty", () => {
+    database = new Database(":memory:") as MemoryDatabase;
+    const databaseProjectId = "project-derived-from-database-location";
+    migrate(database, databaseProjectId);
+
+    database.prepare(`
+      INSERT INTO memories
+        (id, category, title, content, status, created_at, updated_at)
+      VALUES ('legacy-without-project-row', 'decision', 'Legacy title', 'Legacy content',
+        'confirmed', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')
+    `).run();
+
+    // Recreate the pre-v13 state with no projects row, as on first open of an
+    // older per-project database before ensureProject has run.
+    database.exec(`
+      DROP TABLE knowledge_events;
+      DROP TABLE knowledge_relations;
+      DROP TABLE knowledge_evidence;
+      DROP TABLE knowledge_fragments;
+      DROP TABLE knowledge_versions;
+      DROP TABLE knowledge_items;
+      DROP TABLE memory_idempotency;
+      DELETE FROM schema_migrations WHERE version = 13;
+    `);
+
+    migrate(database, databaseProjectId);
+
+    expect(database.prepare(
+      "SELECT project_id FROM knowledge_items WHERE id = 'legacy-without-project-row'"
+    ).get()).toEqual({ project_id: databaseProjectId });
+    expect(database.prepare(
+      "SELECT project_id FROM knowledge_events WHERE knowledge_id = 'legacy-without-project-row'"
+    ).get()).toEqual({ project_id: databaseProjectId });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM projects").get()).toEqual({ count: 0 });
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
 });
