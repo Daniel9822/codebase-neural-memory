@@ -245,4 +245,12 @@ Audit started 2026-11-02. This is the live implementation ledger for CNM-01 thro
 - [x] Add explicit truncation signals to bounded symbol search, exact symbol lookup, and symbol relation lists.
 - [x] Correct `file_details.totals.candidatePaths` to include every unresolved import even when the unresolved-import collection itself is capped; regression covers 11,000 nested candidates with a one-import output limit.
 - [x] Ensure `task_context.budget.truncatedKinds` includes omissions caused by global item and serialized-character budgets and propagates a truncated memory recall window.
-- [ ] Verify PR #135's final Ubuntu/Windows typecheck, tests, build, smoke and Ubuntu/Windows/macOS benchmarks; merge only after all five jobs pass.
+- [x] Verify PR #135 final CI run [41718023148](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41718023148); workflow conclusion was `success` and PR #135 is merged.
+
+
+### CNM-06 final verification — 2026-11-03
+
+- [x] PR #135 merged into `main` at head `db659ea915289fbcc4d259be70c8280be362191d`.
+- [x] CI run [41718023148](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41718023148) completed with conclusion `success`.
+- [x] Deterministic ranking, candidate selection, and truncation contracts are merged; no further CNM-06 implementation work is currently identified.
+- **Status:** CNM-06 implementation and PR CI gate closed. Current-main post-merge verification is tracked separately from PR-head evidence.

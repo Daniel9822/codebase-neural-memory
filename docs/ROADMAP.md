@@ -413,4 +413,19 @@ This work turns CNM into an agent-ready project capability rather than relying o
 - [x] Normalize task-context anchors and follow-up paths before limits; gather dependency/test candidates before applying per-kind result budgets.
 - [x] Make global item/character budget omissions visible in `truncatedKinds`; preserve exact nested candidate totals even when parent collections are limited.
 - [x] Surface result and candidate-window truncation on symbol search, exact symbol lookup, and symbol-relation lists.
-- [ ] PR #135 final CI and merge verification pending.
+- [x] PR #135 merged; CI run [41718023148](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41718023148) completed successfully.
+
+
+## Autonomous memory v2 — new implementation workstream
+
+**Status:** Contract defined; implementation not yet started. This workstream follows [docs/AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md) and is tracked in [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md). It does not rewrite the historical Phase 4 explicit-memory closure; it adds a new capability set.
+
+Order of delivery:
+1. Finalize the knowledge contract and compatibility decisions.
+2. Add the forward-only SQLite identity/version/fragment/evidence/relation/event migration while preserving existing memory IDs and data.
+3. Implement deterministic, idempotent core capture, versioned update, correction, and bounded reconciliation.
+4. Implement progressive bootstrap/search/get/expand/history/health retrieval.
+5. Expose validated MCP operations, retain legacy tool compatibility, and update generated agent instructions.
+6. Evaluate reuse, correction, source changes, broad retrieval, and cross-session continuity against a control.
+
+Normal capture of durable knowledge will not require per-item user confirmation. Epistemic state and evidence prevent inferred or planned knowledge from being presented as verified implementation. CNM cannot passively observe conversations; agents must submit relevant discoveries through supported interfaces. No mandatory cloud, LLM, embeddings, or cross-device synchronization is introduced.

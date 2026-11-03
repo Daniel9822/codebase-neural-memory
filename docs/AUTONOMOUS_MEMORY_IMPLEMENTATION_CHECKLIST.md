@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status:** Audit in progress; no implementation milestone is considered complete by this plan alone.
+**Status:** Source audit refreshed on 2026-11-03; autonomous-memory contract v2 defined; schema/core/MCP implementation not started.
 
 ## How to use this checklist
 
@@ -25,21 +25,31 @@ Observed from the current `main` documentation and package metadata on 2026-11-0
 - `docs/ROADMAP.md` records Phases 3–7 as closed, while the supplied master plan adds six integrity/freshness risks and a new autonomous-memory capability set. Historical phase closures must be preserved; the new work must be tracked as new requirements rather than silently rewriting history.
 - The product is explicitly local-first, source-of-truth-first, agent-agnostic, and has no mandatory cloud, LLM, embeddings, or remote service.
 
-These are documentation-level observations, not yet a complete source-level audit. All audit and implementation checkboxes below start unchecked until the corresponding evidence is gathered.
+These baseline observations were initially documentation-level. The source audit update below records the later source-level findings and evidence. Checkboxes are maintained per requirement; unchecked items are still open or not yet verified.
 
-## Source audit update — 2026-11-02 after PR #120
+## Source audit update — 2026-11-03 after CNM-06 merge
 
-Verified against merged `main` source files `src/core/memories.ts`, `src/core/context.ts`, and `src/adapters/mcp/server.ts`, plus `tests/memories.test.ts` and `tests/context.test.ts`:
+Verified against `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53`, including `src/core/memories.ts`, `src/storage/database.ts`, `src/adapters/mcp/server.ts`, `tests/memories.test.ts`, `docs/AGENT_WORKFLOW.md`, and the current migration sequence (schema v12):
 
-- **Verified behavior:** memory records have a UUID, category, title/content, one of `proposed|confirmed|obsolete|rejected`, optional source path/hash and commit SHA, author/updater, and created/updated timestamps.
-- **Verified behavior:** `remember` writes directly as `confirmed`; `proposeMemory` writes as `proposed`; `updateMemory` overwrites selected fields in place; `transitionMemory` validates lifecycle transitions. Source freshness reports changed/missing/unsafe references without automatically changing memory status.
-- **Verified behavior:** `memory_propose` explicitly requires a human confirmation before promotion; `memory_transition` accepts an explicit confirmed status and documents user authorization. The workflow asks agents to propose knowledge proactively but leaves it pending.
-- **Confirmed capability gap:** no version table/event history or stable knowledge-identity/current-version split was found in the audited memory CRUD surface; edits overwrite the same record and update timestamp. Corrections, supersession history, and dependent-knowledge invalidation are not implemented in this surface.
-- **Confirmed capability gap:** no autonomous `memory_capture` API or passive conversation observation exists in the audited MCP adapter. Normal durable capture therefore still depends on explicit tool use, and proposed knowledge still needs per-item approval.
-- **Architecture constraint:** keep capture local and deterministic; do not claim CNM can observe conversations that an agent integration does not send it. Introduce confidence/epistemic state separately from lifecycle, so inferred or planned knowledge can be stored without being presented as verified fact.
-- **Next implementation order:** (1) finalize a backward-compatible knowledge contract and migration design, (2) add version/event storage while preserving existing IDs and statuses, (3) implement idempotent `memory_capture` that can persist low-confidence items without promotion to verified/confirmed, (4) implement versioned update/correction and safe reconciliation, (5) expose bounded MCP operations and update generated instructions.
+- **Verified behavior:** the legacy `memories` table stores UUID, category, title/content, `proposed|confirmed|obsolete|rejected`, optional source path/hash and commit SHA, author/updater, and timestamps.
+- **Verified behavior:** `remember` inserts `confirmed`; `proposeMemory` inserts `proposed`; `updateMemory` overwrites fields in place; `transitionMemory` validates legacy status transitions; source/Git freshness reports review requirements without changing lifecycle.
+- **Verified behavior:** MCP currently registers `memory_propose`, `memory_transition`, `memory_freshness`, and `memory_recall`. The current agent workflow still asks for explicit confirmation of proposals.
+- **Confirmed capability gap:** no immutable version/history model, stable identity/current-version split, fragment store, evidence entity model, typed knowledge relations, autonomous capture API, correction API, bootstrap, or health/reconciliation APIs exist in the audited memory surface.
+- **Confirmed capability gap:** legacy `updateMemory` destroys the previous field values; the current schema cannot explain why a change occurred or reconstruct earlier versions.
+- **Boundary:** CNM cannot passively observe arbitrary agent conversations. Autonomous capture means the agent submits reusable findings through a supported tool without a per-item approval step.
+- **Contract:** [docs/AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md) defines the target semantics, authority model, epistemic states, idempotency, migration mapping, compatibility, and progressive retrieval. It is a design contract, not evidence of implementation.
+- **Next:** implement the schema migration and versioned core operations before adding new MCP tools. Preserve legacy IDs/data and keep legacy tool behavior explicit until migration and compatibility tests pass.
 
-This is a scoped source audit, not a completion claim for Workstream B or the memory system.
+### Current integrity workstream status
+
+- CNM-01: implemented across the relation-configuration fingerprint work; conservative manifest fingerprinting remains a documented precision trade-off.
+- CNM-02: closed for the defined threat boundary; unsafe directory scopes are protected, with portable Node directory race limitations documented.
+- CNM-03: CLI-facing full-index guards exist, but the comprehensive audit of every internal/destructive reconciliation entry point remains open.
+- CNM-04: strict/non-strict post-read freshness behavior and representative independent-process interleavings are implemented; the test scope is not an exhaustive scheduler/power-loss proof.
+- CNM-05: closed for the defined threat boundary; descriptor-verified file reads and path-based directory identity checks retain a documented swap-and-restore residual.
+- CNM-06: PR #135 merged; CI run [41718023148](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41718023148) completed successfully.
+
+The six-item audit is therefore substantially advanced, but CNM-03 and combined cross-surface close-out should not be represented as fully closed until their remaining checklist evidence is recorded.
 
 ## Definition of done — applies to every implementation task
 
@@ -159,27 +169,27 @@ This is a scoped source audit, not a completion claim for Workstream B or the me
 
 ## B1. Model and vocabulary
 
-- [ ] Audit existing memory schema, migrations, CRUD, statuses, source links, commit metadata, and freshness behavior.
-- [ ] Define stable knowledge identity separately from version identity.
-- [ ] Define extensible knowledge types: behavior, architecture, infrastructure, procedure, convention, decision, incident, solution, test/evidence, constraint, hypothesis, pending question, and lesson.
-- [ ] Separate lifecycle (`active`, `superseded`, `archived`) from epistemic state (`observed`, `verified`, `inferred`, `planned`, `hypothesis`, `pending_validation`) and confidence.
-- [ ] Define source/provenance records: code path/symbol/hash, commit/index revision, test command/result, user correction, agent/tool origin, and timestamps.
-- [ ] Define contradiction, supersession, merge/split, and dependency relation semantics.
-- [ ] Specify idempotency, concurrency, transaction boundaries, and retry behavior for capture/update/correction.
-- [ ] Define privacy filters that prevent secrets, credentials, and irrelevant transient conversation content from entering memory.
-- [ ] Define API contracts, validation, response bounds, and structured error shapes before implementation.
-- [ ] Review the contract against backward compatibility and local-first/no-remote-dependency constraints.
+- [x] Audit existing memory schema, migrations, CRUD, statuses, source links, commit metadata, and freshness behavior (main schema v12; `memories.ts`, `database.ts`, MCP adapter, tests inspected 2026-11-03).
+- [x] Define stable knowledge identity separately from version identity (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define extensible knowledge types: behavior, architecture, infrastructure, procedure, convention, decision, incident, solution, test/evidence, constraint, hypothesis, pending question, and lesson (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Separate lifecycle (`active`, `superseded`, `archived`) from epistemic state (`observed`, `verified`, `inferred`, `user_asserted`, `planned`, `hypothesis`, `pending_validation`) and optional confidence (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define source/provenance records: code path/symbol/hash, commit/index revision, test command/result, user correction, agent/tool origin, and timestamps (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define contradiction, supersession, merge/split, and dependency relation semantics (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`; ambiguous automatic merges are prohibited).
+- [x] Specify idempotency, optimistic concurrency, transactional version/event writes, and retry behavior for capture/update/correction (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define privacy filters that prevent secrets, credentials, and irrelevant transient conversation content from entering memory (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define API contracts, validation, response bounds, and structured error shapes before implementation (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`, Sections 8.1–8.2).
+- [x] Review the contract against backward compatibility and local-first/no-remote-dependency constraints (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
 
 ## B2. Resolve product decisions explicitly
 
-- [ ] Define what qualifies as reusable knowledge and what must not be captured (transient chatter, secrets, unverified claims represented as facts).
-- [ ] Define how autonomous capture is triggered by agent behavior versus what CNM can itself observe; do not claim passive conversation capture unless the integration actually supplies those events.
-- [ ] Define how user corrections are detected from explicit correction tools and natural-language agent interpretation; preserve the distinction between desired behavior and current code behavior.
-- [ ] Define conflict policy between source/test evidence, user-stated intent, prior memory, and agent inference.
-- [ ] Define whether capture writes active knowledge immediately or stages low-confidence items as hypotheses/pending validation without requiring user confirmation.
-- [ ] Define audit/history retention and bounded pruning policy without deleting necessary provenance.
-- [ ] Define worktree/project identity policy that avoids accidental repository mixing.
-- [ ] Define compatibility/migration strategy for current `proposed`, `confirmed`, `obsolete`, and `rejected` memories.
+- [x] Define what qualifies as reusable knowledge and what must not be captured (transient chatter, secrets, unverified claims represented as facts) (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define how autonomous capture is triggered by agent behavior versus what CNM can itself observe; do not claim passive conversation capture unless the integration actually supplies those events (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define how user corrections are detected from explicit correction tools and natural-language agent interpretation; preserve the distinction between desired behavior and current code behavior (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define conflict policy between source/test evidence, user-stated intent, prior memory, and agent inference (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define whether capture writes active knowledge immediately or stages low-confidence items as hypotheses/pending validation without requiring user confirmation (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define audit/history retention and bounded pruning policy without deleting necessary provenance: no automatic pruning in the initial implementation; bounded/paginated reads only (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define worktree/project identity policy that avoids accidental repository mixing: no implicit sharing; explicit linking remains deferred (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
+- [x] Define compatibility/migration strategy for current `proposed`, `confirmed`, `obsolete`, and `rejected` memories (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
 - [ ] Update Product Spec, Architecture, Roadmap, Acceptance Criteria, MCP contract, Agent Workflow, AGENTS, README, and Changelog to one coherent contract.
 
 **Acceptance:** written contract distinguishes actual behavior, verified evidence, user intent, plans, and hypotheses; normal agent capture does not require per-item user approval; local-first and bounded-response constraints remain intact.

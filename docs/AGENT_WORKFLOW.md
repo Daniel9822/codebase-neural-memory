@@ -2,6 +2,9 @@
 
 CNM generates and maintains a managed instruction section in the target repository's root `AGENTS.md` during `cnm init`. If the file already contains project-authored instructions, CNM preserves them and adds or updates only its own marked section. Run `cnm agents-md --check` in CI to detect missing or outdated CNM instructions.
 
+
+> **Memory contract transition:** The workflow below describes the currently implemented legacy memory API. It still requires explicit human approval for `memory_propose`. Autonomous Memory Contract v2 is the target design in [docs/AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md), not yet implemented. Do not claim `memory_capture`, version history, automatic correction, or bootstrap tools exist until their code and tests are merged.
+
 ## Session initialization
 
 1. Call `memory_recall` with a natural-language task/domain query before broad source exploration. Use `list: true` to inspect recent memories, and filters such as `status` or `category` when useful.

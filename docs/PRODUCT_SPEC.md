@@ -4,7 +4,7 @@
 **CLI command:** `cnm`  
 **Repository:** `Daniel9822/codebase-neural-memory`  
 **Document status:** Product baseline for the v0.x development line  
-**Last reviewed:** 2026-11-01
+**Last reviewed:** 2026-11-03
 
 ## 1. Purpose
 
@@ -230,3 +230,12 @@ Coding agents can retrieve actual implementation text through the read-only MCP 
 ## MCP trust and agent workflow
 
 Indexed reads must never silently imply that the source/index snapshot is current. The MCP adapter declares stale or incomplete state on every indexed read, supports an opt-in strict refusal policy, and supports opt-in incremental auto-update for complete scans of at most 50 changed files. Auto-update is synchronous and is not a wall-clock timeout. Source-bearing responses expose their own SHA-256 freshness so a file change between preflight and read is still detectable. Optional symbol/file snippets and explicit task anchors reduce unnecessary full-file reads and irrelevant fallback context. Agent usage guidance and copyable policy are maintained in [`docs/AGENT_WORKFLOW.md`](AGENT_WORKFLOW.md).
+
+
+## 13. Autonomous memory v2 — planned evolution
+
+The current v0.x implementation remains the explicit lifecycle described in Section 8: `memory_propose` creates a proposed record and confirmation remains a separate human-authorized operation. That behavior is the current implementation, not the target contract.
+
+The next memory workstream is governed by [Autonomous Memory Contract v2](AUTONOMOUS_MEMORY_CONTRACT.md). It evolves project notes into stable knowledge identities with immutable versions, epistemic states distinct from lifecycle, provenance/evidence, fragments, typed relations, autonomous agent-submitted capture, versioned correction, and progressive bounded retrieval. Normal capture of reusable knowledge will not require per-item approval; uncertain claims remain labeled as inferred, hypotheses, or pending validation. User intent and current implementation facts remain separate.
+
+This is planned work until the corresponding schema, core operations, MCP tools, generated instructions, tests, and migration are merged. CNM receives only information submitted by an agent/client; passive interception of arbitrary conversations is not part of the contract.
