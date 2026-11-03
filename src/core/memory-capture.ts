@@ -9,19 +9,19 @@ export type KnowledgeEpistemicState =
 
 export interface MemoryCaptureEvidence {
   evidenceType: string;
-  sourcePath?: string;
-  sourceHash?: string;
-  commitSha?: string;
-  sourceSymbol?: string;
-  testCommand?: string;
-  testResult?: string;
-  actor?: string;
-  metadata?: Record<string, string | number | boolean | null>;
+  sourcePath?: string | undefined;
+  sourceHash?: string | undefined;
+  commitSha?: string | undefined;
+  sourceSymbol?: string | undefined;
+  testCommand?: string | undefined;
+  testResult?: string | undefined;
+  actor?: string | undefined;
+  metadata?: Record<string, string | number | boolean | null> | undefined;
 }
 
 export interface MemoryCaptureFragment {
-  heading?: string;
-  summary?: string;
+  heading?: string | undefined;
+  summary?: string | undefined;
   content: string;
 }
 
@@ -31,19 +31,19 @@ export interface MemoryCaptureItem {
   type: string;
   summary?: string;
   epistemicState: KnowledgeEpistemicState;
-  confidence?: number;
-  confidenceReason?: string;
-  tags?: string[];
-  aliases?: string[];
-  fragments?: MemoryCaptureFragment[];
-  evidence?: MemoryCaptureEvidence[];
+  confidence?: number | undefined;
+  confidenceReason?: string | undefined;
+  tags?: string[] | undefined;
+  aliases?: string[] | undefined;
+  fragments?: MemoryCaptureFragment[] | undefined;
+  evidence?: MemoryCaptureEvidence[] | undefined;
 }
 
 export interface MemoryCaptureInput {
   idempotencyKey: string;
   items: MemoryCaptureItem[];
-  actor?: string;
-  origin?: string;
+  actor?: string | undefined;
+  origin?: string | undefined;
 }
 
 export interface MemoryCaptureOutcome {
@@ -270,14 +270,14 @@ export function captureMemories(location: ProjectLocation, rawInput: MemoryCaptu
             testResult: evidence.testResult, actor: evidence.actor,
             metadataJson: JSON.stringify(canonicalize(JSON.parse(evidence.metadataJson))),
           })).sort((left, right) => stableHash(left).localeCompare(stableHash(right)));
-          const sameContent = normalize(candidate.summary) === normalize(item.summary) &&
+          const sameContent = normalize(candidate.summary) === normalize(item.summary ?? "") &&
             stableHash(storedFragments.map((fragment) => ({
               heading: normalize(fragment.heading), summary: normalize(fragment.summary), content: normalize(fragment.content),
             }))) === stableHash(expectedFragments.map((fragment) => ({
               heading: normalize(fragment.heading), summary: normalize(fragment.summary), content: normalize(fragment.content),
             }))) &&
-            stableHash(JSON.parse(candidate.tags_json).map(normalize).sort()) === stableHash(item.tags.map(normalize).sort()) &&
-            stableHash(JSON.parse(candidate.aliases_json).map(normalize).sort()) === stableHash(item.aliases.map(normalize).sort()) &&
+            stableHash(JSON.parse(candidate.tags_json).map(normalize).sort()) === stableHash((item.tags ?? []).map(normalize).sort()) &&
+            stableHash(JSON.parse(candidate.aliases_json).map(normalize).sort()) === stableHash((item.aliases ?? []).map(normalize).sort()) &&
             stableHash(normalizedStoredEvidence) === stableHash(expectedEvidence);
           outcomes.push({
             inputIndex,
