@@ -12,11 +12,11 @@ export function openDatabase(location: ProjectLocation): MemoryDatabase {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.pragma("busy_timeout = 5000");
-  migrate(db);
+  migrate(db, location.id);
   return db;
 }
 
-export function migrate(db: MemoryDatabase): void {
+export function migrate(db: MemoryDatabase, projectId?: string): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INTEGER PRIMARY KEY,
@@ -408,8 +408,11 @@ export function migrate(db: MemoryDatabase): void {
       source_path: string | null; commit_sha: string | null; source_hash: string | null;
       author: string | null; updated_by: string | null; created_at: string; updated_at: string;
     }>;
-    const project = db.prepare("SELECT id FROM projects ORDER BY created_at, id LIMIT 1").get() as { id: string } | undefined;
-    const projectId = project?.id ?? "legacy-unassigned";
+    const existingProject = db.prepare("SELECT id FROM projects ORDER BY created_at, id LIMIT 1").get() as { id: string } | undefined;
+    // openDatabase supplies the project identity derived from the database path.
+    // This is essential on first open: ensureProject runs after migrations, so
+    // a legacy database can legitimately have an empty projects table here.
+    const migrationProjectId = projectId ?? existingProject?.id ?? "legacy-unassigned";
     const insertItem = db.prepare(`
       INSERT OR IGNORE INTO knowledge_items
         (id, project_id, knowledge_type, lifecycle, current_version_id, legacy_status, created_at, updated_at)
@@ -441,7 +444,7 @@ export function migrate(db: MemoryDatabase): void {
         : row.status === "rejected" ? "archived" : "active";
       const epistemicState = row.status === "confirmed" ? "user_asserted" : "pending_validation";
       const versionId = `legacy-v1:${row.id}`;
-      insertItem.run(row.id, projectId, row.category, lifecycle, versionId, row.status, row.created_at, row.updated_at);
+      insertItem.run(row.id, migrationProjectId, row.category, lifecycle, versionId, row.status, row.created_at, row.updated_at);
       insertVersion.run(versionId, row.id, epistemicState, row.title, row.author, row.created_at);
       insertFragment.run(`legacy-fragment:${row.id}:0`, versionId, row.content);
       if (row.source_path !== null || row.source_hash !== null || row.commit_sha !== null) {
@@ -452,7 +455,7 @@ export function migrate(db: MemoryDatabase): void {
         );
       }
       insertEvent.run(
-        `legacy-event:${row.id}:0`, projectId, row.id, versionId, row.updated_by ?? row.author,
+        `legacy-event:${row.id}:0`, migrationProjectId, row.id, versionId, row.updated_by ?? row.author,
         JSON.stringify({ legacyStatus: row.status, originalId: row.id }), row.updated_at,
       );
     }
