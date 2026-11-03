@@ -87,6 +87,24 @@ describe("versioned memory correction", () => {
     })).toThrow("require evidence");
   });
 
+  it("allows an agent correction to be verified when evidence is supplied", () => {
+    setup();
+    const initial = create();
+    const result = correctMemory(location, {
+      knowledgeId: initial.knowledgeId, expectedVersionId: initial.versionId,
+      targetFragmentId: initial.fragmentIds[0]!, replacementContent: "Verified corrected command.",
+      reason: "Source and focused tests confirm the corrected command.",
+      correctionSource: "agent", epistemicState: "verified", actor: "agent",
+      evidence: [{ evidenceType: "test_result", testCommand: "npm test -- memory-correct", testResult: "passed" }],
+    });
+    expect(result).toMatchObject({ status: "corrected", correctionSource: "agent", versionNumber: 2 });
+    const db = openDatabase(location);
+    try {
+      expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_evidence WHERE version_id=?")
+        .get(result.currentVersionId)).toEqual({ count: 2 });
+    } finally { db.close(); }
+  });
+
   it("rejects user corrections that falsely claim verified implementation", () => {
     setup();
     const initial = create();
