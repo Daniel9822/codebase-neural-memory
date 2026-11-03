@@ -479,3 +479,20 @@ The following capabilities remain open: signature-regex search, public-contract 
 - [x] PR #126 final PR-head CI run [41475613803](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41475613803) passed typecheck, full tests, build, smoke on Ubuntu/Windows and benchmark jobs on Ubuntu/Windows/macOS; merged as `24974f82b8df690f1d1d2530b9a1451391d066a0`.
 
 **Concurrency claim boundary:** deterministic process-level tests cover representative writer/read and writer/writer interleavings. This is not exhaustive proof of every scheduler ordering, power-loss scenario, or network-filesystem behavior.
+
+## Autonomous memory v2 — planned acceptance criteria
+
+These criteria are a new workstream and do not alter the historical Phase 4 explicit-memory closure. The authoritative target semantics are in [docs/AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md). They remain **not implemented** until the code, migrations, tests, and CI evidence exist.
+
+- [ ] Existing schema-v12 databases migrate transactionally/recoverably while preserving every legacy memory ID, content field, status, source reference, author/updater, and timestamp.
+- [ ] Stable knowledge identities point to immutable, ordered versions; updates/corrections append versions and auditable events instead of overwriting prior content.
+- [ ] Lifecycle and epistemic state are separate; user assertions, inferred claims, planned behavior, hypotheses, pending validation, and verified implementation facts remain distinguishable.
+- [ ] Evidence/provenance, fragments, typed relations, confidence basis, actor/origin, and timestamps are persisted and retrievable.
+- [ ] Normal reusable-knowledge capture is local, bounded, idempotent, and does not require per-item human approval; uncertain claims remain correctly labeled.
+- [ ] Corrections preserve prior versions, distinguish user intent from current implementation, and mark dependent knowledge for review without blindly rewriting it.
+- [ ] Search/bootstrap/get/expand/history/health/reconcile are deterministic, progressive, source-aware, paginated, and bounded with explicit truncation metadata.
+- [ ] Source changes mark affected knowledge for review; they do not delete knowledge or silently present stale claims as current.
+- [ ] Existing memory tools remain compatible during migration and their legacy status behavior is documented.
+- [ ] Generated agent instructions guide bootstrap, lookup-before-exploration, capture during work, correction, and task close-out without claiming passive conversation interception.
+- [ ] Evaluation demonstrates measurable reuse/correction/continuity benefit against a control on reproducible fixtures.
+- [ ] No mandatory cloud, network, LLM, embeddings, vector database, or team synchronization is introduced.
