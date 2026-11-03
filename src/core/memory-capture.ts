@@ -135,8 +135,8 @@ function validateInput(input: MemoryCaptureInput): MemoryCaptureInput {
       const field = `items[${index}].evidence[${evidenceIndex}]`;
       if (!entry || typeof entry !== "object" || Array.isArray(entry)) throw new Error(`Invalid ${field}`);
       if (entry.metadata !== undefined && (!entry.metadata || typeof entry.metadata !== "object" || Array.isArray(entry.metadata) ||
-        Object.keys(entry.metadata).length > 20 || Object.values(entry.metadata).some((v) =>
-          !(v === null || typeof v === "string" || typeof v === "number" && Number.isFinite(v) || typeof v === "boolean")))) {
+        Object.keys(entry.metadata).length > 20 || Object.entries(entry.metadata).some(([key, v]) =>
+          key.length > 64 || !(v === null || typeof v === "string" && v.length <= 1_000 || typeof v === "number" && Number.isFinite(v) || typeof v === "boolean")))) {
         throw new Error(`Invalid bounded metadata for ${field}`);
       }
       return {
@@ -207,22 +207,35 @@ export function captureMemories(location: ProjectLocation, rawInput: MemoryCaptu
       const outcomes: MemoryCaptureOutcome[] = [];
       for (const [inputIndex, item] of input.items.entries()) {
         const candidates = db.prepare(`
-          SELECT i.id, v.title, v.summary, f.content, i.aliases_json
+          SELECT i.id, v.id AS versionId, v.title, v.summary, i.aliases_json
           FROM knowledge_items i
           JOIN knowledge_versions v ON v.id = i.current_version_id AND v.knowledge_id = i.id
-          LEFT JOIN knowledge_fragments f ON f.version_id = v.id AND f.ordinal = 0
           WHERE i.project_id = ? AND i.knowledge_type = ? AND i.lifecycle = 'active'
           ORDER BY i.created_at, i.id
         `).all(location.id, item.type) as Array<{
-          id: string; title: string; summary: string; content: string | null; aliases_json: string;
+          id: string; versionId: string; title: string; summary: string; aliases_json: string;
         }>;
         const candidate = candidates.find((row) =>
           normalize(row.title) === normalize(item.title) ||
           (JSON.parse(row.aliases_json) as string[]).some((alias) => normalize(alias) === normalize(item.title)) ||
           item.aliases.some((alias) => normalize(alias) === normalize(row.title)));
         if (candidate) {
-          const sameContent = normalize(candidate.content ?? "") === normalize(item.content) &&
-            normalize(candidate.summary) === normalize(item.summary);
+          const storedFragments = db.prepare(`
+            SELECT heading, summary, content FROM knowledge_fragments
+            WHERE version_id = ? ORDER BY ordinal
+          `).all(candidate.versionId) as Array<{ heading: string; summary: string; content: string }>;
+          const expectedFragments = [
+            { heading: "", summary: item.summary ?? "", content: item.content },
+            ...(item.fragments ?? []).map((fragment) => ({
+              heading: fragment.heading ?? "", summary: fragment.summary ?? "", content: fragment.content,
+            })),
+          ];
+          const sameContent = normalize(candidate.summary) === normalize(item.summary) &&
+            stableHash(storedFragments.map((fragment) => ({
+              heading: normalize(fragment.heading), summary: normalize(fragment.summary), content: normalize(fragment.content),
+            }))) === stableHash(expectedFragments.map((fragment) => ({
+              heading: normalize(fragment.heading), summary: normalize(fragment.summary), content: normalize(fragment.content),
+            })));
           outcomes.push({
             inputIndex,
             operation: sameContent ? "duplicate" : "conflict",
