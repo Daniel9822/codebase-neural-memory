@@ -199,3 +199,7 @@ The JSON response includes lexical anchors, ranked symbols/files/memories/test p
 ### Structural component overview
 
 Use `cnm components` or MCP `component_map` to aggregate the indexed import graph by first project-relative directory. For example, `cnm components --from src --depth 3` reports directed cross-directory imports and shortest dependency distances. These groups are deterministic structural boundaries, not semantic or business-domain component inference; root-level files are grouped under `(root)`. Output is bounded and includes truncation metadata.
+
+## Autonomous memory development status
+
+Autonomous Memory Contract v2 and its staged implementation plan are documented in [docs/AUTONOMOUS_MEMORY_CONTRACT.md](docs/AUTONOMOUS_MEMORY_CONTRACT.md) and [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md). The schema-v13 migration is currently under development; existing memory commands and MCP tools remain on the legacy implementation until the versioned core and adapter are complete. Planned v2 capabilities must not be treated as released behavior.
