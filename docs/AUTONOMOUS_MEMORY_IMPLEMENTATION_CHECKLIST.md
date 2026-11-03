@@ -177,7 +177,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [x] Define contradiction, supersession, merge/split, and dependency relation semantics (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`; ambiguous automatic merges are prohibited).
 - [x] Specify idempotency, optimistic concurrency, transactional version/event writes, and retry behavior for capture/update/correction (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
 - [x] Define privacy filters that prevent secrets, credentials, and irrelevant transient conversation content from entering memory (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
-- [ ] Define API contracts, validation, response bounds, and structured error shapes before implementation.
+- [x] Define API contracts, validation, response bounds, and structured error shapes before implementation (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`, Sections 8.1–8.2).
 - [x] Review the contract against backward compatibility and local-first/no-remote-dependency constraints (`docs/AUTONOMOUS_MEMORY_CONTRACT.md`).
 
 ## B2. Resolve product decisions explicitly
