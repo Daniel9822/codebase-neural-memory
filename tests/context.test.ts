@@ -128,8 +128,8 @@ describe("task-oriented context builder", () => {
 
   it("selects the same highest-ranked dependency when explicit anchors arrive in a different order", () => {
     setup();
-    writeFileSync(join(location.rootPath, "src", "a-anchor.ts"), "import './z-dependency';\\nexport const a = true;");
-    writeFileSync(join(location.rootPath, "src", "b-anchor.ts"), "import './y-dependency';\\nexport const b = true;");
+    writeFileSync(join(location.rootPath, "src", "a-anchor.ts"), "import './z-dependency';\nexport const a = true;");
+    writeFileSync(join(location.rootPath, "src", "b-anchor.ts"), "import './y-dependency';\nexport const b = true;");
     writeFileSync(join(location.rootPath, "src", "z-dependency.ts"), "export const z = true;");
     writeFileSync(join(location.rootPath, "src", "y-dependency.ts"), "export const y = true;");
     indexWithDatabase(db!, location, true);
