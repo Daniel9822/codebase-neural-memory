@@ -29,7 +29,7 @@ export interface MemoryCaptureItem {
   title: string;
   content: string;
   type: string;
-  summary?: string;
+  summary?: string | undefined;
   epistemicState: KnowledgeEpistemicState;
   confidence?: number | undefined;
   confidenceReason?: string | undefined;
@@ -230,7 +230,7 @@ export function captureMemories(location: ProjectLocation, rawInput: MemoryCaptu
         const candidate = candidates.find((row) =>
           normalize(row.title) === normalize(item.title) ||
           (JSON.parse(row.aliases_json) as string[]).some((alias) => normalize(alias) === normalize(item.title)) ||
-          item.aliases.some((alias) => normalize(alias) === normalize(row.title)));
+          (item.aliases ?? []).some((alias) => normalize(alias) === normalize(row.title)));
         if (candidate) {
           const storedFragments = db.prepare(`
             SELECT heading, summary, content FROM knowledge_fragments
