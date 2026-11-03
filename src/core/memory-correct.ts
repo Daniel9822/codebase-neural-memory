@@ -20,7 +20,7 @@ export interface MemoryCorrectResult {
   knowledgeId: string;
   previousVersionId: string;
   currentVersionId: string;
-  correctedFragmentId: string;
+  targetFragmentId: string;
   correctionSource: "user" | "agent";
   versionNumber?: number;
   reason: string;
@@ -103,7 +103,7 @@ export function correctMemory(location: ProjectLocation, input: MemoryCorrectInp
       if (!item) throw new Error("Knowledge item not found in this project");
       if (item.current_version_id !== expectedVersionId) return {
         status: "conflict", knowledgeId, previousVersionId: expectedVersionId,
-        currentVersionId: item.current_version_id, correctedFragmentId: targetFragmentId,
+        currentVersionId: item.current_version_id, targetFragmentId,
         correctionSource: input.correctionSource,
         reason: "The current version changed; reload the item before correcting it.",
       };
@@ -117,7 +117,7 @@ export function correctMemory(location: ProjectLocation, input: MemoryCorrectInp
       if (!target) throw new Error("Target fragment does not belong to the expected current version");
       if (target.content === replacementContent) return {
         status: "no_op", knowledgeId, previousVersionId: expectedVersionId,
-        currentVersionId: expectedVersionId, correctedFragmentId: targetFragmentId,
+        currentVersionId: expectedVersionId, targetFragmentId,
         correctionSource: input.correctionSource, versionNumber: item.version_number,
         reason: "Replacement content is identical; no version or event was created.",
       };
@@ -189,7 +189,7 @@ export function correctMemory(location: ProjectLocation, input: MemoryCorrectInp
       }), now);
       return {
         status: "corrected", knowledgeId, previousVersionId: expectedVersionId,
-        currentVersionId: versionId, correctedFragmentId: targetFragmentId,
+        currentVersionId: versionId, targetFragmentId,
         correctionSource: input.correctionSource, versionNumber,
         reason: "A corrected immutable version was appended; prior content and provenance remain intact.",
       };
