@@ -212,6 +212,39 @@ describe("MCP adapter protocol contract", () => {
     expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_items").get()).toEqual({ count: 1 });
   });
 
+  it("updates captured knowledge through MCP using optimistic version checks", async () => {
+    createProject();
+    const client = await connectClient();
+    const capture = await client.request("tools/call", {
+      name: "memory_capture",
+      arguments: {
+        idempotencyKey: "mcp-update-seed",
+        items: [{ title: "Update fixture", content: "Before update", type: "behavior", epistemicState: "observed" }],
+      },
+    });
+    const captureData = JSON.parse((capture.result as { content: Array<{ text: string }> }).content[0]!.text) as {
+      outcomes: Array<{ knowledgeId: string }>;
+    };
+    const knowledgeId = captureData.outcomes[0]!.knowledgeId;
+    const current = database!.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?").get(knowledgeId) as { current_version_id: string };
+    const updated = await client.request("tools/call", {
+      name: "memory_update",
+      arguments: {
+        knowledgeId, expectedVersionId: current.current_version_id,
+        reason: "Regression test confirms the behavior", epistemicState: "verified",
+        content: "After update", actor: "test-agent",
+      },
+    });
+    expect(JSON.parse((updated.result as { content: Array<{ text: string }> }).content[0]!.text))
+      .toMatchObject({ status: "updated", versionNumber: 2 });
+    const stale = await client.request("tools/call", {
+      name: "memory_update",
+      arguments: { knowledgeId, expectedVersionId: current.current_version_id, reason: "stale retry", title: "Should not win" },
+    });
+    expect(JSON.parse((stale.result as { content: Array<{ text: string }> }).content[0]!.text))
+      .toMatchObject({ status: "conflict" });
+  });
+
   it("returns structural component groups and rejects unknown origins", async () => {
     createProject();
     mkdirSync(join(location.rootPath, "api"), { recursive: true });
