@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly eighteen tools and publishes the expected input schemas", async () => {
+  it("discovers exactly nineteen tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -128,6 +128,7 @@ describe("MCP adapter protocol contract", () => {
       "git_history",
       "index_freshness",
       "index_update",
+      "memory_capture",
       "memory_freshness",
       "memory_propose",
       "memory_recall",
@@ -155,11 +156,58 @@ describe("MCP adapter protocol contract", () => {
       change_impact: ["limit", "maxProcessed", "path"],
       symbol_impact: ["depth", "direction", "filePath", "kind", "limit", "maxProcessed", "relationKinds", "startLine", "symbol"],
       task_context: ["anchors", "dependencyLimit", "fileLimit", "maxCharacters", "maxItems", "memoryLimit", "symbolLimit", "task", "testLimit"],
+      memory_capture: ["actor", "idempotencyKey", "items", "origin"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["category", "limit", "list", "query", "status"],
       memory_transition: ["id", "status"],
     });
+  });
+
+  it("captures versioned knowledge through MCP without requiring human confirmation", async () => {
+    createProject();
+    const client = await connectClient();
+    const response = await client.request("tools/call", {
+      name: "memory_capture",
+      arguments: {
+        idempotencyKey: "mcp-capture-001",
+        actor: "test-agent",
+        origin: "mcp-integration-test",
+        items: [{
+          title: "MCP capture behavior",
+          content: "The MCP adapter stores versioned knowledge atomically.",
+          type: "behavior",
+          epistemicState: "observed",
+          tags: ["mcp"],
+          evidence: [{ evidenceType: "test_result", testCommand: "npm test", testResult: "passed" }],
+        }],
+      },
+    });
+    const result = response.result as { isError?: boolean; content?: Array<{ text?: string }> };
+    expect(result.isError).not.toBe(true);
+    expect(JSON.parse(result.content?.[0]?.text ?? "{}")).toMatchObject({
+      created: 1, duplicates: 0, conflicts: 0, idempotentReplay: false,
+      outcomes: [expect.objectContaining({ operation: "created" })],
+    });
+    const replay = await client.request("tools/call", {
+      name: "memory_capture",
+      arguments: {
+        idempotencyKey: "mcp-capture-001",
+        actor: "test-agent",
+        origin: "mcp-integration-test",
+        items: [{
+          title: "MCP capture behavior",
+          content: "The MCP adapter stores versioned knowledge atomically.",
+          type: "behavior",
+          epistemicState: "observed",
+          tags: ["mcp"],
+          evidence: [{ evidenceType: "test_result", testCommand: "npm test", testResult: "passed" }],
+        }],
+      },
+    });
+    expect(JSON.parse((replay.result as { content: Array<{ text: string }> }).content[0]!.text))
+      .toMatchObject({ created: 1, idempotentReplay: true });
+    expect(database!.prepare("SELECT COUNT(*) AS count FROM knowledge_items").get()).toEqual({ count: 1 });
   });
 
   it("returns structural component groups and rejects unknown origins", async () => {
