@@ -4,7 +4,7 @@
 **CLI command:** `cnm`  
 **Repository:** `Daniel9822/codebase-neural-memory`  
 **Document status:** Product baseline for the v0.x development line  
-**Last reviewed:** 2026-11-01
+**Last reviewed:** 2026-11-03
 
 ## 1. Purpose
 
