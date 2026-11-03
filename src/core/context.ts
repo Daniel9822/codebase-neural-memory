@@ -90,10 +90,14 @@ function boundedItems(
   for (const item of candidates) {
     const key = itemIdentity(item);
     const previous = unique.get(key);
-    if (!previous || item.score > previous.score) unique.set(key, item);
+    if (!previous || item.score > previous.score ||
+        (item.score === previous.score && compareCodeUnits(JSON.stringify(item), JSON.stringify(previous)) < 0)) {
+      unique.set(key, item);
+    }
   }
   const ranked = [...unique.values()].sort((a, b) =>
-    b.score - a.score || compareCodeUnits(a.source, b.source) || compareCodeUnits(a.title, b.title));
+    b.score - a.score || compareCodeUnits(a.source, b.source) ||
+    compareCodeUnits(a.title, b.title) || compareCodeUnits(JSON.stringify(a), JSON.stringify(b)));
   const items: TaskContextItem[] = [];
   // maxCharacters is the exact character length of JSON.stringify(items), including
   // the array brackets, commas, quotes, and serialized item fields.
@@ -101,8 +105,13 @@ function boundedItems(
   let truncated = false;
   const usedByKind: Record<TaskContextItem["kind"], number> = { symbol: 0, file: 0, dependency: 0, test: 0, memory: 0 };
   const truncatedKinds = new Set<TaskContextItem["kind"]>();
-  for (const item of ranked) {
-    if (items.length >= maxItems) { truncated = true; break; }
+  for (let index = 0; index < ranked.length; index += 1) {
+    const item = ranked[index]!;
+    if (items.length >= maxItems) {
+      truncated = true;
+      for (const pending of ranked.slice(index)) truncatedKinds.add(pending.kind);
+      break;
+    }
     if (usedByKind[item.kind] >= perKindLimits[item.kind]) {
       truncated = true;
       truncatedKinds.add(item.kind);
@@ -110,12 +119,20 @@ function boundedItems(
     }
     const candidate = [...items, item];
     const candidateCharacters = JSON.stringify(candidate).length;
-    if (candidateCharacters > maxCharacters) { truncated = true; continue; }
+    if (candidateCharacters > maxCharacters) {
+      truncated = true;
+      truncatedKinds.add(item.kind);
+      continue;
+    }
     items.push(item);
     usedByKind[item.kind] += 1;
     usedCharacters = candidateCharacters;
   }
-  return { items, usedCharacters, usedByKind, truncatedKinds: [...truncatedKinds], truncated };
+  return {
+    items, usedCharacters, usedByKind,
+    truncatedKinds: TASK_CONTEXT_KINDS.filter((kind) => truncatedKinds.has(kind)),
+    truncated,
+  };
 }
 
 /** Build deterministic, bounded task context from the local index and project memories. */
@@ -147,8 +164,8 @@ export function buildTaskContext(
   const anchorPaths = [...new Set((options.anchors?.paths ?? []).map((path) => {
     const normalized = path.trim().replaceAll("\\", "/");
     return normalized.startsWith("./") ? normalized.slice(2) : normalized;
-  }))];
-  const anchorSymbols = [...new Set((options.anchors?.symbols ?? []).map((symbol) => symbol.trim()).filter(Boolean))];
+  }))].sort(compareCodeUnits);
+  const anchorSymbols = [...new Set((options.anchors?.symbols ?? []).map((symbol) => symbol.trim()).filter(Boolean))].sort(compareCodeUnits);
   if (explicitAnchorMode && anchorPaths.length + anchorSymbols.length === 0) throw new Error("anchors must include at least one path or symbol.");
   if (anchorPaths.length > 20 || anchorSymbols.length > 20 || anchorPaths.some((path) => !path || path.startsWith("/") || path.split("/").some((part) => part === ".." || part === ""))) {
     throw new Error("anchors accepts up to 20 normalized project-relative paths and 20 non-empty symbol names.");
@@ -163,7 +180,9 @@ export function buildTaskContext(
   const symbolMatches = explicitAnchorMode
     ? anchorSymbols.flatMap((name) => searchSymbols(location, name, symbolLimit + 1).filter((symbol) => symbol.name === name))
     : searchSymbols(location, normalizedTask, symbolLimit + 1);
-  const symbolCandidatesTruncated = symbolMatches.length > symbolLimit;
+  const symbolSearchWindowTruncated = symbolMatches.some((symbol) => symbol.candidateWindowTruncated);
+  const symbolCandidatesTruncated = symbolMatches.length > symbolLimit ||
+    symbolSearchWindowTruncated;
   const symbols = symbolMatches.slice(0, symbolLimit);
   const fileCandidatesTruncated = new Set(symbolMatches.map((symbol) => symbol.filePath)).size > fileLimit;
   for (const symbol of symbols) {
@@ -185,14 +204,10 @@ export function buildTaskContext(
   let testCandidatesTruncated = false;
   let dependencyCandidatesTruncated = false;
   const addTestCandidate = (item: TaskContextItem) => {
-    if (seenTestPaths.has(item.source)) return;
-    if (seenTestPaths.size >= testLimit) { testCandidatesTruncated = true; return; }
     seenTestPaths.add(item.source);
     candidates.push(item);
   };
   const addDependencyCandidate = (item: TaskContextItem) => {
-    if (seenDependencyPaths.has(item.source)) return;
-    if (seenDependencyPaths.size >= dependencyLimit) { dependencyCandidatesTruncated = true; return; }
     seenDependencyPaths.add(item.source);
     candidates.push(item);
   };
@@ -225,21 +240,18 @@ export function buildTaskContext(
         const ambiguous = /ambiguous/i.test(unresolved.status) || unresolved.candidates.length > 1;
         warnings.push(`Import "${unresolved.specifier}" in ${symbol.filePath} is ${ambiguous ? "ambiguous" : "unresolved"}; candidates: ${unresolved.candidates.length ? unresolved.candidates.join(", ") : "none"}.`);
       }
-      const remainingDependencies = dependencyLimit - seenDependencyPaths.size;
-      if (remainingDependencies > 0) {
-        const dependencies = findDependencies(location, symbol.filePath, 1, Math.min(20, remainingDependencies), 100);
-        for (const dependency of dependencies.dependencies) {
-          addDependencyCandidate({
-            kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
-            score: Math.max(1, symbol.score - 10 - dependency.depth),
-            signals: ["direct-import", "dependency-of-matching-file"],
-            detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
-          });
-        }
-        if (dependencies.truncated) {
-          dependencyCandidatesTruncated = true;
-          warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
-        }
+      const dependencies = findDependencies(location, symbol.filePath, 1, 20, 100);
+      for (const dependency of dependencies.dependencies) {
+        addDependencyCandidate({
+          kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
+          score: Math.max(1, symbol.score - 10 - dependency.depth),
+          signals: ["direct-import", "dependency-of-matching-file"],
+          detail: { from: symbol.filePath, chain: dependency.chain, evidence: dependency.evidence },
+        });
+      }
+      if (dependencies.truncated) {
+        dependencyCandidatesTruncated = true;
+        warnings.push(`Dependency results for ${symbol.filePath} were truncated by retrieval limits.`);
       }
       // Map the indexed source file back to tests through actual reverse-import
       // relations, rather than relying only on test filenames containing task words.
@@ -275,20 +287,17 @@ export function buildTaskContext(
         relations: detail.relations.slice(0, 10),
       },
     });
-    const remainingDependencies = dependencyLimit - seenDependencyPaths.size;
-    if (remainingDependencies > 0) {
-      const dependencies = findDependencies(location, path, 1, Math.min(20, remainingDependencies), 100);
-      for (const dependency of dependencies.dependencies) {
-        addDependencyCandidate({
-          kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
-          score: Math.max(1, 90 - dependency.depth), signals: ["direct-import", "dependency-of-explicit-path-anchor"],
-          detail: { from: path, chain: dependency.chain, evidence: dependency.evidence },
-        });
-      }
-      if (dependencies.truncated) {
-        dependencyCandidatesTruncated = true;
-        warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
-      }
+    const dependencies = findDependencies(location, path, 1, 20, 100);
+    for (const dependency of dependencies.dependencies) {
+      addDependencyCandidate({
+        kind: "dependency", origin: "graph", title: dependency.path, source: dependency.path,
+        score: Math.max(1, 90 - dependency.depth), signals: ["direct-import", "dependency-of-explicit-path-anchor"],
+        detail: { from: path, chain: dependency.chain, evidence: dependency.evidence },
+      });
+    }
+    if (dependencies.truncated) {
+      dependencyCandidatesTruncated = true;
+      warnings.push(`Dependency results for ${path} were truncated by retrieval limits.`);
     }
   }
 
@@ -334,6 +343,8 @@ export function buildTaskContext(
       detail: { matchingAnchors },
     });
   }
+  testCandidatesTruncated = seenTestPaths.size > testLimit;
+  dependencyCandidatesTruncated = dependencyCandidatesTruncated || seenDependencyPaths.size > dependencyLimit;
   if (testPathDiscoveryTruncated) warnings.push("Test-path discovery was truncated at 500 indexed candidates; matching tests may be missing.");
   if (testCandidatesTruncated) warnings.push(`Test candidates were truncated at the configured testLimit of ${testLimit}.`);
   if (dependencyCandidatesTruncated) warnings.push(`Dependency candidates were truncated at the configured dependencyLimit of ${dependencyLimit}.`);
@@ -362,6 +373,7 @@ export function buildTaskContext(
     });
     if (sourceFreshness?.requiresReview) warnings.push(`Memory "${memory.title}" requires review: source is ${sourceFreshness.status}.`);
   }
+  if (symbolSearchWindowTruncated) warnings.push("Symbol search reached its bounded candidate window; additional matching symbols may be omitted.");
   if (symbols.length === 0 && !explicitAnchorMode) warnings.push("No indexed symbols matched the task lexically; consider a more specific follow-up query.");
   if (memories.some((memory) => memory.status === "proposed")) warnings.push("Proposed memories are suggestions, not confirmed project knowledge.");
   if (memories.some((memory) => memory.status === "obsolete")) warnings.push("Obsolete memories are included for traceability and must not be treated as current guidance.");
@@ -375,7 +387,7 @@ export function buildTaskContext(
   if (fileCandidatesTruncated) truncatedKinds.add("file");
   if (dependencyCandidatesTruncated) truncatedKinds.add("dependency");
   if (testCandidatesTruncated || testPathDiscoveryTruncated) truncatedKinds.add("test");
-  if (memoryCandidatesTruncated) truncatedKinds.add("memory");
+  if (memoryCandidatesTruncated || memoryRecall?.truncated) truncatedKinds.add("memory");
   if (bounded.truncated) warnings.push("Context was truncated to respect the configured item or character budget.");
   if (truncatedKinds.size > 0) warnings.push(`Per-kind context budgets truncated: ${[...truncatedKinds].join(", ")}.`);
   return {
@@ -385,7 +397,7 @@ export function buildTaskContext(
       maxItems, maxCharacters, usedItems: bounded.items.length, usedCharacters: bounded.usedCharacters,
       truncated: bounded.truncated || truncatedKinds.size > 0,
       perKind: Object.fromEntries(TASK_CONTEXT_KINDS.map((kind) => [kind, { limit: perKindLimits[kind], used: bounded.usedByKind[kind] }])) as Record<TaskContextItem["kind"], { limit: number; used: number }>,
-      truncatedKinds: [...truncatedKinds],
+      truncatedKinds: TASK_CONTEXT_KINDS.filter((kind) => truncatedKinds.has(kind)),
     },
   };
 }
@@ -410,7 +422,7 @@ export function lookupTaskContextDetails(
     throw new Error("maxCharacters must be between 100 and 50000.");
   }
   const knownSources = new Set(context.items.map((item) => item.source.split(":")[0]));
-  const uniquePaths = [...new Set(sourcePaths.map((path) => path.replaceAll("\\", "/").replace(/^\.\//, "")))];
+  const uniquePaths = [...new Set(sourcePaths.map((path) => path.replaceAll("\\", "/").replace(/^\.\//, "")))].sort(compareCodeUnits);
   const results: TaskContextItem[] = [];
   let used = 0;
   for (const path of uniquePaths) {

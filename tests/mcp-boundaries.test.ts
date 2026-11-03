@@ -187,6 +187,21 @@ describe("MCP bounded output and project isolation", () => {
       item.candidatesTotal === 1_000 && item.candidatesTruncated)).toBe(true);
   });
 
+  it("reports symbol_lookup truncation after its caller-visible result limit", async () => {
+    const { location, root } = createProject("symbol-lookup-truncation");
+    for (let index = 0; index < 205; index += 1) {
+      writeFileSync(join(root, `candidate-${String(index).padStart(3, "0")}.ts`),
+        "export function findThing() { return true; }");
+    }
+    indexWithDatabase(databases[0]!, location);
+    const client = await connect(location);
+
+    const results = await client.call("symbol_lookup", { query: "findThing", limit: 1 });
+    expect(results).toHaveLength(1);
+    expect(results[0].resultsTruncated).toBe(true);
+    expect(results[0].candidateWindowTruncated).toBe(false);
+  });
+
   it("bounds file_details unresolved-import candidate materialization globally", async () => {
     const { location, root } = createProject("file-details-candidate-budget");
     const imports = Array.from({ length: 11 }, (_, index) => `import "./missing-${String(index).padStart(2, "0")}";`);
@@ -209,6 +224,13 @@ describe("MCP bounded output and project isolation", () => {
     expect(details.unresolvedImports.every((item: { candidatesTotal: number; candidatesTruncated: boolean }) =>
       item.candidatesTotal === 1_000 && item.candidatesTruncated)).toBe(true);
     expect(details.truncated.candidatePaths).toBe(true);
+
+    const oneImport = await client.call("file_details", { path: "entry.ts", limit: 1 });
+    expect(oneImport.unresolvedImports).toHaveLength(1);
+    expect(oneImport.totals.unresolvedImports).toBe(11);
+    expect(oneImport.totals.candidatePaths).toBe(11_000);
+    expect(oneImport.truncated.unresolvedImports).toBe(true);
+    expect(oneImport.truncated.candidatePaths).toBe(true);
 
     const context = await client.call("task_context", {
       task: "inspect unresolved modules",

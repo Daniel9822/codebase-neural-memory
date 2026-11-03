@@ -92,6 +92,41 @@ describe("symbol retrieval contracts", () => {
     expect(hits.map((hit) => hit.filePath)).toEqual(["Z.ts", "a.ts", "ä.ts"]);
   });
 
+  it("reports when the bounded symbol candidate window omits additional matches", () => {
+    createProject();
+    for (let index = 0; index < 205; index += 1) {
+      writeFileSync(join(location.rootPath, `candidate-${String(index).padStart(3, "0")}.ts`),
+        "export function findThing() { return true; }");
+    }
+    indexWithDatabase(database!, location);
+
+    const hits = searchSymbols(location, "findThing", 1);
+    expect(hits).toHaveLength(1);
+    expect(hits[0]?.candidateWindowTruncated).toBe(true);
+  });
+
+  it("reports truncation for bounded exact symbol and relation lookups", () => {
+    createProject();
+    for (let index = 0; index < 21; index += 1) {
+      writeFileSync(join(location.rootPath, `lookup-${String(index).padStart(2, "0")}.ts`),
+        "export function lookupItem() { return true; }");
+    }
+    writeFileSync(join(location.rootPath, "target.ts"), "export function target() { return true; }");
+    writeFileSync(join(location.rootPath, "caller-a.ts"), 'import { target } from "./target"; export function callerA() { return target(); }');
+    writeFileSync(join(location.rootPath, "caller-b.ts"), 'import { target } from "./target"; export function callerB() { return target(); }');
+    indexWithDatabase(database!, location);
+
+    const exact = explainSymbol(location, "lookupItem");
+    expect(exact).toHaveLength(20);
+    expect(exact.every((item) => item.resultsTruncated)).toBe(true);
+    expect(explainSymbol(location, "target").every((item) => !item.resultsTruncated)).toBe(true);
+
+    const limitedRelations = getSymbolRelations(location, "target", 1);
+    expect(limitedRelations).toHaveLength(1);
+    expect(limitedRelations[0]?.resultsTruncated).toBe(true);
+    expect(getSymbolRelations(location, "target", 10).every((item) => !item.resultsTruncated)).toBe(true);
+  });
+
   it("escapes SQL LIKE wildcards in literal symbol-name queries", () => {
     createProject();
     writeFileSync(join(location.rootPath, "names.ts"), `
@@ -301,12 +336,14 @@ describe("getSymbolRelations", () => {
 
     expect(getSymbolRelations(location, "Worker")).toEqual([
       {
+        resultsTruncated: false,
         direction: "outgoing", relation: "EXTENDS", symbolName: "Worker", symbolKind: "class",
         symbolFilePath: "worker.ts", symbolStartLine: 3, symbolEndLine: 3,
         relatedSymbolName: "Base", relatedSymbolKind: "class", relatedFilePath: "base.ts",
         relatedStartLine: 1, relatedEndLine: 1, confidence: 1, provenance: "typescript-ast-heritage", indexRevision: 1,
       },
       {
+        resultsTruncated: false,
         direction: "outgoing", relation: "IMPLEMENTS", symbolName: "Worker", symbolKind: "class",
         symbolFilePath: "worker.ts", symbolStartLine: 3, symbolEndLine: 3,
         relatedSymbolName: "Contract", relatedSymbolKind: "interface", relatedFilePath: "contract.ts",
@@ -317,6 +354,7 @@ describe("getSymbolRelations", () => {
     expect(() => getSymbolRelations(location, "Worker", 0)).toThrow("Relation limit must be a positive safe integer no greater than 500.");
     expect(getSymbolRelations(location, "Base")).toEqual([
       {
+        resultsTruncated: false,
         direction: "incoming", relation: "EXTENDS", symbolName: "Base", symbolKind: "class",
         symbolFilePath: "base.ts", symbolStartLine: 1, symbolEndLine: 1,
         relatedSymbolName: "Worker", relatedSymbolKind: "class", relatedFilePath: "worker.ts",
@@ -566,6 +604,14 @@ describe("findSymbolImpact", () => {
     writeFileSync(join(location.rootPath, "contract.ts"), "export interface Contract {}\n");
     writeFileSync(join(location.rootPath, "child.ts"), 'import { Base } from "./base";\nimport { Contract } from "./contract";\nexport class Child extends Base implements Contract {}\n');
     indexWithDatabase(database!, location);
+
+    const canonicalKinds = findSymbolImpact(location, "target", {
+      filePath: "target.ts", relationKinds: ["CALLS", "EXTENDS", "IMPLEMENTS"],
+    });
+    const permutedKinds = findSymbolImpact(location, "target", {
+      filePath: "target.ts", relationKinds: ["IMPLEMENTS", "CALLS", "EXTENDS"],
+    });
+    expect(permutedKinds).toEqual(canonicalKinds);
 
     const incoming = findSymbolImpact(location, "target", { filePath: "target.ts", depth: 2 });
     expect(incoming).toMatchObject({

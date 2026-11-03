@@ -366,7 +366,7 @@ This work turns CNM into an agent-ready project capability rather than relying o
 
 - [x] Apply `symbol_lookup` kind, project-relative path-prefix, and export filters in SQL before the bounded candidate window.
 - [x] Add a regression fixture with more than 1,000 unfiltered candidates and a matching symbol beyond that window.
-- [ ] Complete the remaining MCP output-contract audit for ranking, deterministic tie-breaks, processing budgets, and order-before-truncation across all registered tools.
+- [ ] Verify and merge the dedicated cross-surface retrieval-contract PR #135: stable ties, normalized anchors/filter sets, rank-before-limit task context, nested candidate totals, and explicit symbol-list truncation signals.
 - [x] Bound `index_update` diagnostic response collections to 200 sorted details each while preserving exact counters/totals and explicit truncation metadata (PR #110 merged; CI passed).
 
 
@@ -403,4 +403,14 @@ This work turns CNM into an agent-ready project capability rather than relying o
 
 - [x] Enforce a 500-result maximum in `getSymbolRelations`; reject zero, unsafe, and over-limit values.
 - [x] Document the CLI `cnm relations --limit` range as 1–500.
-- [ ] Verify CI and merge; continue the cross-surface output audit.
+- [x] Verify PR #113 CI run 41434956754 passed and merge commit `b2ecb2ab37482fe38016d14f742799426700b307` is on `main`.
+- [ ] The remaining cross-surface audit is implemented separately in PR #135; final CI/merge is pending.
+
+
+### CNM-06 follow-up — deterministic retrieval close-out (2026-11-02)
+
+- [x] Stabilize symbol, file-detail, graph, and relation tie-breaks using code-unit paths and stable symbol/relation keys.
+- [x] Normalize task-context anchors and follow-up paths before limits; gather dependency/test candidates before applying per-kind result budgets.
+- [x] Make global item/character budget omissions visible in `truncatedKinds`; preserve exact nested candidate totals even when parent collections are limited.
+- [x] Surface result and candidate-window truncation on symbol search, exact symbol lookup, and symbol-relation lists.
+- [ ] PR #135 final CI and merge verification pending.

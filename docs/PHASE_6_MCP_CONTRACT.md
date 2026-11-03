@@ -149,3 +149,12 @@ When changing `src/adapters/mcp/server.ts`, update this contract and the linked 
 - **Merge commit:** `de0cc1056469113995647d1d10199e08da39dc42`.
 - **PR-head CI:** [run 41285903567](https://github.com/Daniel9822/codebase-neural-memory/actions/runs/41285903567) — verify, benchmark/ubuntu-latest, benchmark/windows-latest, and benchmark/macos-latest all passed.
 - **Manual compatibility:** not yet repeated after the new response warning blocks and optional input fields; existing client evidence remains historical for the prior contract.
+
+
+## Deterministic bounded retrieval — CNM-06
+
+- Symbol search applies kind/path/export filters before its candidate window. The FTS and LIKE fallback paths each probe at most 1,001 rows to distinguish a full 1,000-candidate window from a truncated one; returned hits expose `candidateWindowTruncated` and `resultsTruncated`.
+- Exact symbol lookup retains at most 20 rows and symbol relations retain at most the caller's 1–500 limit; each returned row exposes `resultsTruncated` when the result cap omitted additional rows.
+- `task_context` sorts explicit anchors and follow-up paths by code unit, gathers dependency/test candidates before per-kind selection, resolves equal-score duplicates deterministically, and reports all kinds omitted by per-kind, global item, or serialized-character limits.
+- `file_details.totals.candidatePaths` counts candidates across all unresolved imports in the file, not only the parent collection slice. Per-import candidate limits and the global 2,000-path budget retain explicit truncation signals.
+- Graph traversals use stable SQL edge ordering and explicit result/processing truncation metadata. Set-valued `symbol_impact.relationKinds` are normalized to canonical `CALLS`, `EXTENDS`, `IMPLEMENTS` order.

@@ -126,6 +126,41 @@ describe("task-oriented context builder", () => {
     expect(() => lookupTaskContextDetails(location, context, ["src/not-in-context.ts"])).toThrow("not referenced");
   });
 
+  it("selects the same highest-ranked dependency when explicit anchors arrive in a different order", () => {
+    setup();
+    writeFileSync(join(location.rootPath, "src", "a-anchor.ts"), "import './z-dependency';\nexport const a = true;");
+    writeFileSync(join(location.rootPath, "src", "b-anchor.ts"), "import './y-dependency';\nexport const b = true;");
+    writeFileSync(join(location.rootPath, "src", "z-dependency.ts"), "export const z = true;");
+    writeFileSync(join(location.rootPath, "src", "y-dependency.ts"), "export const y = true;");
+    indexWithDatabase(db!, location, true);
+
+    const forward = buildTaskContext(location, "dependency selection", {
+      anchors: { paths: ["src/b-anchor.ts", "src/a-anchor.ts"] }, dependencyLimit: 1,
+    });
+    const reversed = buildTaskContext(location, "dependency selection", {
+      anchors: { paths: ["src/a-anchor.ts", "src/b-anchor.ts"] }, dependencyLimit: 1,
+    });
+
+    const selected = (result: ReturnType<typeof buildTaskContext>) =>
+      result.items.filter((item) => item.kind === "dependency").map((item) => item.source);
+    expect(selected(forward)).toEqual(["src/y-dependency.ts"]);
+    expect(selected(reversed)).toEqual(selected(forward));
+    expect(forward.budget.truncatedKinds).toContain("dependency");
+    expect(reversed.budget.truncatedKinds).toContain("dependency");
+  });
+
+  it("normalizes follow-up path candidates before applying their limit", () => {
+    setup();
+    const context = buildTaskContext(location, "auth token files", {
+      anchors: { paths: ["src/token.ts", "src/auth.ts"] },
+    });
+    const forward = lookupTaskContextDetails(location, context, ["src/token.ts", "src/auth.ts"], { limit: 1 });
+    const reversed = lookupTaskContextDetails(location, context, ["src/auth.ts", "src/token.ts"], { limit: 1 });
+
+    expect(forward.map((item) => item.source)).toEqual(["src/auth.ts"]);
+    expect(reversed.map((item) => item.source)).toEqual(forward.map((item) => item.source));
+  });
+
   it("enforces independent per-kind context budgets and reports their usage", () => {
     setup();
     remember(location, "Refresh auth token", "Rotate the refresh token safely.", "decision", "src/auth.ts");
@@ -175,6 +210,7 @@ describe("task-oriented context builder", () => {
     expect(result.budget.usedCharacters).toBe(JSON.stringify(result.items).length);
     expect(result.budget.usedCharacters).toBeLessThanOrEqual(500);
     expect(result.budget.truncated).toBe(true);
+    expect(result.budget.truncatedKinds.length).toBeGreaterThan(0);
     const exactBudget = result.budget.usedCharacters;
     const exact = buildTaskContext(location, "refresh auth token", { maxItems: 1, maxCharacters: exactBudget });
     expect(exact.items).toHaveLength(1);
@@ -183,6 +219,7 @@ describe("task-oriented context builder", () => {
     expect(tooSmall.items).not.toContainEqual(exact.items[0]);
     expect(tooSmall.budget.usedCharacters).toBe(JSON.stringify(tooSmall.items).length);
     expect(tooSmall.budget.usedCharacters).toBeLessThanOrEqual(exactBudget - 1);
+    expect(tooSmall.budget.truncatedKinds).toContain(exact.items[0]?.kind);
     expect(() => buildTaskContext(location, "   ")).toThrow("Task description must not be empty");
     expect(() => buildTaskContext(location, "auth", { maxCharacters: 10 })).toThrow("maxCharacters");
     expect(() => lookupTaskContextDetails(location, result, ["src/auth.ts"], { limit: 0 })).toThrow("limit");
