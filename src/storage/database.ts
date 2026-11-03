@@ -268,7 +268,9 @@ export function migrate(db: MemoryDatabase): void {
         tags_json TEXT NOT NULL DEFAULT '[]',
         aliases_json TEXT NOT NULL DEFAULT '[]',
         created_at TEXT NOT NULL,
-        updated_at TEXT NOT NULL
+        updated_at TEXT NOT NULL,
+        FOREIGN KEY(current_version_id, id) REFERENCES knowledge_versions(id, knowledge_id)
+          DEFERRABLE INITIALLY DEFERRED
       );
       CREATE INDEX IF NOT EXISTS idx_knowledge_items_project_lifecycle
         ON knowledge_items(project_id, lifecycle, updated_at DESC);
@@ -370,6 +372,31 @@ export function migrate(db: MemoryDatabase): void {
         created_at TEXT NOT NULL,
         PRIMARY KEY(project_id, operation, idempotency_key)
       );
+
+      CREATE TRIGGER IF NOT EXISTS knowledge_versions_no_update
+      BEFORE UPDATE ON knowledge_versions
+      BEGIN SELECT RAISE(ABORT, 'knowledge versions are immutable'); END;
+      CREATE TRIGGER IF NOT EXISTS knowledge_versions_no_delete
+      BEFORE DELETE ON knowledge_versions
+      BEGIN SELECT RAISE(ABORT, 'knowledge versions are immutable'); END;
+      CREATE TRIGGER IF NOT EXISTS knowledge_fragments_no_update
+      BEFORE UPDATE ON knowledge_fragments
+      BEGIN SELECT RAISE(ABORT, 'knowledge fragments are immutable'); END;
+      CREATE TRIGGER IF NOT EXISTS knowledge_fragments_no_delete
+      BEFORE DELETE ON knowledge_fragments
+      BEGIN SELECT RAISE(ABORT, 'knowledge fragments are immutable'); END;
+      CREATE TRIGGER IF NOT EXISTS knowledge_evidence_no_update
+      BEFORE UPDATE ON knowledge_evidence
+      BEGIN SELECT RAISE(ABORT, 'knowledge evidence is append-only'); END;
+      CREATE TRIGGER IF NOT EXISTS knowledge_evidence_no_delete
+      BEFORE DELETE ON knowledge_evidence
+      BEGIN SELECT RAISE(ABORT, 'knowledge evidence is append-only'); END;
+      CREATE TRIGGER IF NOT EXISTS knowledge_events_no_update
+      BEFORE UPDATE ON knowledge_events
+      BEGIN SELECT RAISE(ABORT, 'knowledge events are append-only'); END;
+      CREATE TRIGGER IF NOT EXISTS knowledge_events_no_delete
+      BEFORE DELETE ON knowledge_events
+      BEGIN SELECT RAISE(ABORT, 'knowledge events are append-only'); END;
     `);
 
     const legacyRows = db.prepare(`
