@@ -10,7 +10,7 @@ afterEach(() => {
 });
 
 describe("database migrations", () => {
-  it("upgrades a version 6 database to version 7 and preserves existing project data", () => {
+  it("upgrades a version 6 database through the latest schema and preserves existing project data", () => {
     database = new Database(":memory:") as MemoryDatabase;
     database.exec(`
       CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
@@ -41,7 +41,7 @@ describe("database migrations", () => {
       id: "legacy-project", index_revision: 6, index_excludes_json: "[]",
     });
     expect(database.prepare("SELECT version FROM schema_migrations ORDER BY version").all()).toEqual([
-      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 },
+      { version: 1 }, { version: 2 }, { version: 3 }, { version: 4 }, { version: 5 }, { version: 6 }, { version: 7 }, { version: 8 }, { version: 9 }, { version: 10 }, { version: 11 }, { version: 12 }, { version: 13 },
     ]);
   });
 
@@ -49,7 +49,7 @@ describe("database migrations", () => {
     database = new Database(":memory:") as MemoryDatabase;
     migrate(database);
     migrate(database);
-    for (const version of [8, 9, 10, 11, 12]) expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = ?").get(version)).toEqual({ count: 1 });
+    for (const version of [8, 9, 10, 11, 12, 13]) expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = ?").get(version)).toEqual({ count: 1 });
     expect(database.prepare("PRAGMA table_info(projects)").all()
       .filter((column: any) => column.name === "index_excludes_json")).toHaveLength(1);
     const memoryColumns = database.prepare("PRAGMA table_info(memories)").all() as Array<{ name: string }>;
