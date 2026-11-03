@@ -418,7 +418,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Branch: `feat/autonomous-memory-schema-v13`.
 - Migration commits: `659228bac38b66cefab16c44fde4758be25213ca`, retry-safe evidence `1daef6622cabce8f687fffc7b4c767123db47b17`, metadata columns `edf28202d2ebf343727617beeec8b968a328e0ae`, atomic migration marker `8bb786dc90b7dd1e5b707111ce5515c07e4585ac`.
 - Migration regression test commit: `d32ab7e37aa6d963874387e2d74aca9851d3e435`.
-- Current state: implementation and focused test authored; no passing CI result yet. Do not mark Workstream C complete. The compatibility CRUD APIs still operate on the legacy table until the versioned core layer is implemented.
+- Current state at PR #137 merge: schema v13 and focused migration tests merged. Post-merge CI run `41729315788` passed all five jobs (verify Ubuntu/Windows and benchmark Ubuntu/Windows/macOS). Do not mark all of Workstream C1 complete: older-schema matrix, crash/reopen boundaries, invalid legacy data, FTS integrity, and query-plan validation remain open. Compatibility CRUD APIs still operate on the legacy table until the versioned core layer is implemented.
 
 | 2026-11-03 | Autonomous memory v2 contract | PR #136 merged; merge commit `4f66aad688bd62bf6b480160584b5231b057b879`; CI run `41719670579` had four successful jobs and the macOS benchmark remained queued at merge time | Contract and cross-document baseline are now on main. The implementation PR #137 is stacked on that contract and awaits CI/review. |
 
@@ -434,7 +434,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 ### 2026-11-03 — Schema v13 merged; first capture slice implemented
 
 - PR #137 merged to `main` as `c1abe4160ff7a5c9503e42901b2c6e4e21476778`. It includes the migration edge-case fix: `openDatabase(location)` passes `location.id` to `migrate`, and the migration test covers a populated legacy DB with an empty `projects` table.
-- Merge-triggered CI run `41729315788` was queued at the time of this entry. The merge is verified; the post-merge CI result must still be checked before calling the merge commit CI-green.
+- Merge-triggered CI run `41729315788` completed successfully: all five jobs passed, including `benchmark / macos-latest`. The merge commit is CI-green.
 - Branch `feat/memory-capture-core`: initial `memory_capture` core implementation in `src/core/memory-capture.ts`, MCP tool in `src/adapters/mcp/server.ts`, core tests in `tests/memory-capture.test.ts`, and MCP protocol integration coverage in `tests/mcp-adapter.test.ts`.
 - Implemented behavior: bounded 1–20 item batches; structured fragments/tags/aliases/evidence; explicit epistemic state and optional confidence rationale; project-scoped idempotency; exact normalized title/type matching; duplicate/conflict classification; atomic version/event/evidence persistence. Different content under the same identity is surfaced as conflict and never silently merged.
 - Not yet implemented: enrich semantics, broader lexical/source/symbol/relation matching, CLI integration, explicit privacy-exclusion tests, update/correction/history/reconciliation APIs, and bootstrap/search/get/expand/health retrieval.
