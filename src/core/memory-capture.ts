@@ -217,13 +217,13 @@ export function captureMemories(location: ProjectLocation, rawInput: MemoryCaptu
       const outcomes: MemoryCaptureOutcome[] = [];
       for (const [inputIndex, item] of input.items.entries()) {
         const candidates = db.prepare(`
-          SELECT i.id, v.id AS versionId, v.title, v.summary, i.aliases_json
+          SELECT i.id, v.id AS versionId, v.title, v.summary, i.tags_json, i.aliases_json
           FROM knowledge_items i
           JOIN knowledge_versions v ON v.id = i.current_version_id AND v.knowledge_id = i.id
           WHERE i.project_id = ? AND i.knowledge_type = ? AND i.lifecycle = 'active'
           ORDER BY i.created_at, i.id
         `).all(location.id, item.type) as Array<{
-          id: string; versionId: string; title: string; summary: string; aliases_json: string;
+          id: string; versionId: string; title: string; summary: string; tags_json: string; aliases_json: string;
         }>;
         const candidate = candidates.find((row) =>
           normalize(row.title) === normalize(item.title) ||
@@ -240,12 +240,43 @@ export function captureMemories(location: ProjectLocation, rawInput: MemoryCaptu
               heading: fragment.heading ?? "", summary: fragment.summary ?? "", content: fragment.content,
             })),
           ];
+          const storedEvidence = db.prepare(`
+            SELECT evidence_type AS evidenceType, source_path AS sourcePath, source_hash AS sourceHash,
+                   commit_sha AS commitSha, source_symbol AS sourceSymbol, test_command AS testCommand,
+                   test_result AS testResult, actor, metadata_json AS metadataJson
+            FROM knowledge_evidence WHERE version_id = ? ORDER BY id
+          `).all(candidate.versionId) as Array<{
+            evidenceType: string; sourcePath: string | null; sourceHash: string | null;
+            commitSha: string | null; sourceSymbol: string | null; testCommand: string | null;
+            testResult: string | null; actor: string | null; metadataJson: string;
+          }>;
+          const expectedEvidence = (item.evidence ?? []).map((evidence) => ({
+            evidenceType: evidence.evidenceType,
+            sourcePath: normalizeEvidencePath(location.rootPath, evidence.sourcePath),
+            sourceHash: evidence.sourceHash ?? null,
+            commitSha: evidence.commitSha ?? null,
+            sourceSymbol: evidence.sourceSymbol ?? null,
+            testCommand: evidence.testCommand ?? null,
+            testResult: evidence.testResult ?? null,
+            actor: evidence.actor ?? input.actor ?? null,
+            metadataJson: JSON.stringify(canonicalize(evidence.metadata ?? {})),
+          })).sort((left, right) => stableHash(left).localeCompare(stableHash(right)));
+          const normalizedStoredEvidence = storedEvidence.map((evidence) => ({
+            evidenceType: evidence.evidenceType, sourcePath: evidence.sourcePath,
+            sourceHash: evidence.sourceHash, commitSha: evidence.commitSha,
+            sourceSymbol: evidence.sourceSymbol, testCommand: evidence.testCommand,
+            testResult: evidence.testResult, actor: evidence.actor,
+            metadataJson: JSON.stringify(canonicalize(JSON.parse(evidence.metadataJson))),
+          })).sort((left, right) => stableHash(left).localeCompare(stableHash(right)));
           const sameContent = normalize(candidate.summary) === normalize(item.summary) &&
             stableHash(storedFragments.map((fragment) => ({
               heading: normalize(fragment.heading), summary: normalize(fragment.summary), content: normalize(fragment.content),
             }))) === stableHash(expectedFragments.map((fragment) => ({
               heading: normalize(fragment.heading), summary: normalize(fragment.summary), content: normalize(fragment.content),
-            })));
+            }))) &&
+            stableHash(JSON.parse(candidate.tags_json).map(normalize).sort()) === stableHash(item.tags.map(normalize).sort()) &&
+            stableHash(JSON.parse(candidate.aliases_json).map(normalize).sort()) === stableHash(item.aliases.map(normalize).sort()) &&
+            stableHash(normalizedStoredEvidence) === stableHash(expectedEvidence);
           outcomes.push({
             inputIndex,
             operation: sameContent ? "duplicate" : "conflict",
