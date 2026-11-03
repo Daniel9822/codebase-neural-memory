@@ -228,15 +228,15 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 ## D1. `memory_capture`
 
-- [ ] Implement bounded, validated capture input and output contracts in the core memory engine.
-- [ ] Support small knowledge units and structured metadata without requiring an LLM.
-- [ ] Record origin, timestamp, verification state, confidence, and available source evidence.
-- [ ] Add idempotency/deduplication keys so retries do not create duplicate knowledge.
-- [ ] Match existing entries by exact identity, normalized lexical signals, aliases, source symbols/paths, and relation context.
-- [ ] Classify candidate operation as create, enrich, conflict, or duplicate; avoid destructive auto-merge on ambiguous matches.
-- [ ] Persist atomically and return stable IDs plus the outcome/reason.
-- [ ] Ensure ordinary agent capture does not require explicit user confirmation, while low-confidence claims remain labeled.
-- [ ] Add CLI/core/MCP integration tests, privacy exclusions, size bounds, and retry tests.
+- [x] Implement bounded, validated capture input and output contracts in the core memory engine (`src/core/memory-capture.ts`; MCP adapter schema also bounded). CLI integration and broader negative-case coverage remain open.
+- [x] Support small knowledge units and structured metadata without requiring an LLM (titles, summaries, fragments, tags, aliases, typed evidence; no LLM dependency).
+- [x] Record origin, timestamp, epistemic state, optional confidence with required rationale, actor, and bounded source/test evidence.
+- [x] Add project-scoped idempotency keys and request hashes; same-payload retries replay the original result, key reuse with a different payload is rejected.
+- [ ] Match by exact normalized title/type identity and aliases (implemented); broader lexical/source-symbol/path/relation matching remains open.
+- [x] Classify create, duplicate, or conflict using conservative exact identity matching; ambiguous/different content is never auto-merged. Enrich remains deferred.
+- [x] Persist each batch transactionally and return stable knowledge IDs plus per-item outcome/reason.
+- [x] Agent capture does not require per-item human confirmation; epistemic state is explicit and confidence requires a rationale.
+- [ ] Add CLI/core/MCP integration tests, privacy exclusions, size bounds, and retry tests. Core and MCP integration, bounds, retry, duplicate/conflict tests added; CLI coverage and explicit privacy-exclusion tests remain open.
 
 ## D2. `memory_update` and history
 
@@ -429,3 +429,13 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Fixed the migration fixture to expect schema v13 and assert v13 migration idempotency in `tests/migrations.test.ts` (commit `a6838ae7f2f1bc18430573b655852437868f22fb`). New CI run is required; no green result is claimed yet.
 
 - Follow-up integrity hardening commits: `fa6f80d7f40c730d0063ec09f673b15fb2173a56` (ownership FK and DB-level append-only triggers), `e58ed9ac9016d5a49daa17286474b84be103c3b0` (trigger regression tests).
+
+
+### 2026-11-03 — Schema v13 merged; first capture slice implemented
+
+- PR #137 merged to `main` as `c1abe4160ff7a5c9503e42901b2c6e4e21476778`. It includes the migration edge-case fix: `openDatabase(location)` passes `location.id` to `migrate`, and the migration test covers a populated legacy DB with an empty `projects` table.
+- Merge-triggered CI run `41729315788` was queued at the time of this entry. The merge is verified; the post-merge CI result must still be checked before calling the merge commit CI-green.
+- Branch `feat/memory-capture-core`: initial `memory_capture` core implementation in `src/core/memory-capture.ts`, MCP tool in `src/adapters/mcp/server.ts`, core tests in `tests/memory-capture.test.ts`, and MCP protocol integration coverage in `tests/mcp-adapter.test.ts`.
+- Implemented behavior: bounded 1–20 item batches; structured fragments/tags/aliases/evidence; explicit epistemic state and optional confidence rationale; project-scoped idempotency; exact normalized title/type matching; duplicate/conflict classification; atomic version/event/evidence persistence. Different content under the same identity is surfaced as conflict and never silently merged.
+- Not yet implemented: enrich semantics, broader lexical/source/symbol/relation matching, CLI integration, explicit privacy-exclusion tests, update/correction/history/reconciliation APIs, and bootstrap/search/get/expand/health retrieval.
+- No CI success is claimed for this branch until its workflow jobs complete.
