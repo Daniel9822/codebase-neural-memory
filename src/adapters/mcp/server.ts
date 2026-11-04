@@ -9,6 +9,7 @@ import { getMemoryHistory } from "../../core/memory-history.js";
 import { getMemory, expandMemory } from "../../core/memory-get.js";
 import { searchMemories } from "../../core/memory-search.js";
 import { bootstrapMemory } from "../../core/memory-bootstrap.js";
+import { getMemoryHealth } from "../../core/memory-health.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -630,6 +631,15 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     })
   }, async (input) => ({
     content: [{ type: "text", text: JSON.stringify(bootstrapMemory(location, input), null, 2) }]
+  }));
+  
+  server.registerTool("memory_health", {
+    description: "Inspect project memory integrity without changing knowledge. Reports schema/migration state, lifecycle and epistemic counts, pending validation, contradictions, broken references, FTS index consistency, and bounded source-evidence freshness samples.",
+    inputSchema: z.object({
+      limit: z.number().int().min(1).max(100).optional()
+    })
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(getMemoryHealth(location, input), null, 2) }]
   }));
 
   return server;

@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly twenty-six tools and publishes the expected input schemas", async () => {
+  it("discovers exactly twenty-seven tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -134,6 +134,7 @@ describe("MCP adapter protocol contract", () => {
       "memory_expand",
       "memory_freshness",
       "memory_get",
+      "memory_health",
       "memory_history",
       "memory_propose",
       "memory_recall",
@@ -174,6 +175,7 @@ describe("MCP adapter protocol contract", () => {
       memory_recall: ["category", "limit", "list", "query", "status"],
       memory_search: ["createdAfter", "createdBefore", "cursor", "epistemicState", "includeHistorical", "lifecycle", "limit", "maxChars", "path", "query", "relatedKnowledgeId", "relationType", "symbol", "tag", "type"],
       memory_bootstrap: ["includePending", "limit", "maxChars", "types"],
+      memory_health: ["limit"],
       memory_transition: ["id", "status"],
     });
   });
@@ -198,6 +200,10 @@ describe("MCP adapter protocol contract", () => {
     expect((browsed.result as { isError?: boolean }).isError).not.toBe(true);
     const browseData = JSON.parse((browsed.result as { content: Array<{ text: string }> }).content[0]!.text);
     expect(browseData.browsing).toBe(true);
+    const health = await client.request("tools/call", { name: "memory_health", arguments: { limit: 5 } });
+    expect((health.result as { isError?: boolean }).isError).not.toBe(true);
+    const healthData = JSON.parse((health.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(healthData.counts.knowledgeItems).toBe(2);
     const bootstrap = await client.request("tools/call", { name: "memory_bootstrap", arguments: { limit: 10, maxChars: 3000 } });
     expect((bootstrap.result as { isError?: boolean }).isError).not.toBe(true);
     const context = JSON.parse((bootstrap.result as { content: Array<{ text: string }> }).content[0]!.text);

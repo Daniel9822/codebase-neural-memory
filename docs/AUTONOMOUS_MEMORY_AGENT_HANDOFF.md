@@ -43,6 +43,7 @@ The following autonomous-memory slices are recorded as merged to `main`:
 | `memory_history` | IMPLEMENTED with bounded independent version/event pagination | PR #141; merge `582161966b67a35ba83f8eddf128a97e0d2be9ed`; `src/core/memory-history.ts` |
 | `memory_get`, `memory_expand` | IMPLEMENTED with bounded metadata/evidence and selective fragment expansion | PR #142; merge `b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`; `src/core/memory-get.ts`; `tests/memory-get.test.ts` |
 | `memory_search`, `memory_bootstrap` | PARTIAL — merged core behavior; edge-case acceptance matrix remains open | PR #144; merge `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`; CI run `41795181023`; `src/core/memory-search.ts`, `src/core/memory-bootstrap.ts`; 239 tests passed on Ubuntu and Windows |
+| `memory_health` | IN REVIEW — bounded integrity and source-freshness report; no automatic repair | PR #146; `src/core/memory-health.ts`; `memory_health` MCP tool; core and protocol tests added; CI pending |
 
 The implementation checklist contains the detailed semantics and evidence. Historical progress-log entries describe the state at the time they were written; later entries supersede earlier ones. Do not interpret a historical “pending” note as current without reading the latest status and checking `main`.
 
@@ -52,7 +53,7 @@ These are known open items at this snapshot. They are not claims that every edge
 
 ### Next implementation slice
 
-**Implement `memory_health` first, then `memory_reconcile`.** The search/bootstrap tools are already merged; do not reopen their completed core implementation unless the remaining E1 edge-case matrix or a regression requires it.
+**`memory_health` is in review in PR #146.** Its report is read-only with respect to knowledge and includes bounded integrity/source-freshness samples. After CI and merge, implement `memory_reconcile` as a separate bounded, auditable dry-run-first operation; do not silently rewrite dependent knowledge.
 
 Merge: `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`. CI run `41795181023` passed all five jobs: typecheck, 239 tests, build, and smoke on Ubuntu/Windows, plus benchmarks on Ubuntu/Windows/macOS. Core search/browse, filters, snapshot cursors, bounded bootstrap, FTS migration/backfill, and MCP protocol coverage are on `main`. E1 remains PARTIAL because the full multilingual/basic-normalization, wildcard, repeated-run, ambiguous-query, and exact-boundary acceptance matrix is not yet complete. Source-evidence freshness, health/reconcile, and dependent-knowledge review remain open.
 

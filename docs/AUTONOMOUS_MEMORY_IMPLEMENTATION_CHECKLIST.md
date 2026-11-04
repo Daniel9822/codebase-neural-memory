@@ -298,6 +298,10 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 ## E3. Health and reconcile APIs
 
+### E3 implementation in review — 2026-11-04 (PR #146)
+
+`memory_health` is implemented on `feat/memory-health` with a bounded core report and MCP registration. It reports schema/migration state, lifecycle/epistemic counts, pending validation, contradictions, FK/project-boundary violations, FTS bookkeeping consistency, and sampled current/legacy source evidence using safe reads. It does not mutate knowledge. CI and merge are still pending; keep E3 acceptance boxes unchecked. `memory_reconcile`, idempotent repair semantics, and recovery tests remain open.
+
 - [ ] Implement `memory_health` for schema status, counts, broken references, pending validation, conflicts, and source freshness.
 - [ ] Implement `memory_reconcile` as a bounded, auditable operation with dry-run/reporting where destructive or broad changes could occur.
 - [ ] Define idempotency and safe behavior when discovery is incomplete or source snapshots change.
@@ -410,6 +414,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 | 2026-11-02 | Initial documentation-level baseline review | `main`: product/architecture/roadmap/MCP/workflow docs and package metadata inspected | Source-level audit and CI verification were pending at baseline; subsequent implementation progress is recorded below. |
 | 2026-11-04 | Merge and documentation close-out for focused retrieval | PR #142 merge `b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`; `src/core/memory-get.ts`; MCP adapter; `tests/memory-get.test.ts`; MCP tests | `memory_get` and `memory_expand` are on main. Next implementation slice: lexical `memory_search` and compact `memory_bootstrap`; stale-source signaling, health/reconcile, dependent review, and integration/evaluation remain open. |
 | 2026-11-04 | Versioned memory search and bootstrap | PR #144 merged as `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`; CI `41795181023`; `src/core/memory-search.ts`, `src/core/memory-bootstrap.ts`, MCP adapter, focused core/protocol tests | Search/browse, filters, snapshot cursors, and compact bootstrap are on main; 239 tests pass on Ubuntu and Windows, all five CI jobs green. E1 remains PARTIAL only for the multilingual/wildcard/repeated-run/ambiguous/exact-boundary edge-case matrix. E3 health/reconcile, source-evidence freshness, dependent review, and evaluation remain open. |
+| 2026-11-04 | Memory health and source freshness | PR #146; branch `feat/memory-health`; `src/core/memory-health.ts`; MCP adapter; `tests/memory-health.test.ts` | Bounded integrity and source-evidence freshness report is under review. No automatic repair. CI and merge pending; `memory_reconcile`, idempotency/recovery semantics, and dependent-knowledge review remain open. |
 
 | 2026-11-02 | CNM-02 directory symlink replacement | PR #75; CI 41404323034; merge `3d7d94de32151b1f891308d7e661c945cfd694b9` | Targeted regression merged; broader symlink combinations remain open. |
 | 2026-11-02 | CNM-05 source-excerpt safe open/read | PR #76; CI 41404690251; merge `da7e7fd90a15a39af551237ca7c3ee6868ccc43a` | Descriptor-based read and identity checks merged; other path-based read sites still require audit. |
