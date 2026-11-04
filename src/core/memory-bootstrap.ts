@@ -19,7 +19,8 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
       .get(location.id) as { count: number }).count;
     const rows = db.prepare(`
       SELECT i.id AS knowledgeId, i.knowledge_type AS type, i.tags_json AS tagsJson, i.aliases_json AS aliasesJson,
-        v.id AS versionId, v.version_number AS versionNumber, v.title, v.summary,
+        v.id AS versionId, v.version_number AS versionNumber, v.title,
+        COALESCE(NULLIF(v.summary, ''), (SELECT substr(content, 1, 320) FROM knowledge_fragments WHERE version_id=v.id ORDER BY ordinal LIMIT 1), '') AS summary,
         v.epistemic_state AS epistemicState, v.confidence, i.updated_at AS updatedAt,
         COALESCE((SELECT group_concat(source_path, ', ') FROM knowledge_evidence WHERE version_id=v.id AND source_path IS NOT NULL), '') AS sourcePaths,
         COALESCE((SELECT group_concat(source_symbol, ', ') FROM knowledge_evidence WHERE version_id=v.id AND source_symbol IS NOT NULL), '') AS sourceSymbols
@@ -67,7 +68,7 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
     }
     result.freshness.warnings.push("Source-file and Git evidence attached to knowledge items has not yet been reconciled by memory_health.");
     const groups = [highValue, openRisks, pendingValidation];
-    let serializedChars = JSON.stringify({ ...result, serializedChars: 0 }).length;
+    let serializedChars = JSON.stringify({ ...result, serializedChars: 0 }, null, 2).length;
     while (serializedChars > maxChars && groups.some((group) => group.length)) {
       [...groups].reverse().find((group) => group.length)!.pop();
       result = { ...result, returned: highValue.length + openRisks.length + pendingValidation.length, truncated: true };
