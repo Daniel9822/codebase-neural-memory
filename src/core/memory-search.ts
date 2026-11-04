@@ -240,7 +240,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
     const buildResult = () => {
       const hasMore = candidates.length > results.length || candidateWindowTruncated;
       return {
-        query, browsing: !searching, results, returned: results.length,
+        query: query.slice(0, 128), queryTruncated: query.length > 128, browsing: !searching, results, returned: results.length,
         totalMatches: offset === 0 && !candidateWindowTruncated ? candidates.length : null,
         candidateCount: candidates.length, candidateWindow: candidateLimit, candidateWindowTruncated,
         limit, maxChars, serializedChars: 0,
