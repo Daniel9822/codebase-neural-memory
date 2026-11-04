@@ -4,10 +4,10 @@ import type { ProjectLocation } from "./project.js";
 export type MemoryLifecycle = "active" | "superseded" | "archived";
 export type MemoryEpistemicState = "observed" | "verified" | "inferred" | "user_asserted" | "planned" | "hypothesis" | "pending_validation";
 export interface MemorySearchInput {
-  query: string; limit?: number; maxChars?: number; includeHistorical?: boolean;
-  lifecycle?: MemoryLifecycle; type?: string; epistemicState?: MemoryEpistemicState;
-  createdAfter?: string; createdBefore?: string; relatedKnowledgeId?: string;
-  relationType?: "supports" | "contradicts" | "supersedes" | "depends_on" | "related_to" | "derived_from" | "affects";
+  query: string; limit?: number | undefined; maxChars?: number | undefined; includeHistorical?: boolean | undefined;
+  lifecycle?: MemoryLifecycle | undefined; type?: string | undefined; epistemicState?: MemoryEpistemicState | undefined;
+  createdAfter?: string | undefined; createdBefore?: string | undefined; relatedKnowledgeId?: string | undefined;
+  relationType?: "supports" | "contradicts" | "supersedes" | "depends_on" | "related_to" | "derived_from" | "affects" | undefined;
 }
 type SearchRow = {
   knowledgeId: string; versionId: string; type: string; lifecycle: MemoryLifecycle; versionNumber: number;
