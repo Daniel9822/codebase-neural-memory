@@ -81,7 +81,7 @@ Implemented and merged in PR #149: default dry-run creates no event/idempotency 
 PR #150 merged as `2279edd954bdeedea2c7cd9d1e5d014c05eccb24`; CI `41827470581` passed all five jobs. It enforces the 12,000-character serialized response budget and records up to 20 related evidence IDs and 20 project-scoped relation IDs per event, with truncation flags.
 
 Still required:
-- Deterministic overlapping independent-connection writer/apply schedule, including lock contention and retry behavior (not covered by the stale-version-before-apply test).
+- Deterministic overlapping independent-connection writer/apply schedule, including lock contention and retry behavior. PR #154 adds a cross-process lock-holder test that expects a busy failure with no writes, followed by successful retry after release (CI pending).
 - Power-loss/filesystem durability testing; the child-process termination test covers process exit after commit, not machine/power failure.
 
 
