@@ -30,6 +30,7 @@ function validDate(value: string | undefined, field: string): string | undefined
 export function ensureMemorySearchIndex(db: MemoryDatabase): void {
   const setup = db.transaction(() => {
     db.exec(`
+      CREATE TABLE IF NOT EXISTS memory_search_indexed_versions (version_id TEXT PRIMARY KEY);
       CREATE VIRTUAL TABLE IF NOT EXISTS memory_search_fts USING fts5(
         knowledge_id, version_id UNINDEXED, project_id UNINDEXED, knowledge_type,
         title, summary, body, aliases, tags, source_paths, source_symbols,
@@ -49,6 +50,8 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
           COALESCE((SELECT group_concat(source_path, ' ') FROM knowledge_evidence WHERE version_id = v.id AND source_path IS NOT NULL), ''),
           COALESCE((SELECT group_concat(source_symbol, ' ') FROM knowledge_evidence WHERE version_id = v.id AND source_symbol IS NOT NULL), '')
         FROM knowledge_versions v WHERE v.id = NEW.current_version_id AND v.knowledge_id = NEW.id;
+        INSERT OR IGNORE INTO memory_search_indexed_versions(version_id)
+          SELECT v.id FROM knowledge_versions v WHERE v.id = NEW.current_version_id AND v.knowledge_id = NEW.id;
       END;
     `);
     db.exec(`
@@ -61,8 +64,10 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
         COALESCE((SELECT group_concat(source_path, ' ') FROM knowledge_evidence WHERE version_id = v.id AND source_path IS NOT NULL), ''),
         COALESCE((SELECT group_concat(source_symbol, ' ') FROM knowledge_evidence WHERE version_id = v.id AND source_symbol IS NOT NULL), '')
       FROM knowledge_items i JOIN knowledge_versions v ON v.knowledge_id = i.id
-      WHERE NOT EXISTS (SELECT 1 FROM memory_search_fts f WHERE f.version_id = v.id)
+      WHERE NOT EXISTS (SELECT 1 FROM memory_search_indexed_versions f WHERE f.version_id = v.id)
       ORDER BY i.project_id, i.id, v.version_number;
+      INSERT OR IGNORE INTO memory_search_indexed_versions(version_id)
+        SELECT f.version_id FROM memory_search_fts f;
       INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (14, datetime('now'));
     `);
   });
