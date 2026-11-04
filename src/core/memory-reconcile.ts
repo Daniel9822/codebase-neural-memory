@@ -37,7 +37,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
       ORDER BY lower(trim(v.title)) COLLATE BINARY ASC
       LIMIT ?
     `).all(location.id, limit + 1) as Array<{ normalizedTitle: string; itemCount: number }>;
-    duplicateTotal = db.prepare(`
+    duplicateTotal = (db.prepare(`
       SELECT COUNT(*) AS count FROM (
         SELECT lower(trim(v.title))
         FROM knowledge_items i
@@ -45,7 +45,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
         WHERE i.project_id=? AND i.lifecycle='active' AND trim(v.title)<>''
         GROUP BY lower(trim(v.title)) HAVING COUNT(*) > 1
       )
-    `).get(location.id) as number extends never ? never : { count: number } as { count: number };
+    `).get(location.id) as { count: number }).count;
 
     duplicateCandidates = groups.slice(0, limit).map((group) => {
       const rows = db.prepare(`
