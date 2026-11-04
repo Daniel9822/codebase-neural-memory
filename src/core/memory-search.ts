@@ -13,7 +13,7 @@ type SearchRow = {
   knowledgeId: string; versionId: string; type: string; lifecycle: MemoryLifecycle; versionNumber: number;
   title: string; summary: string; epistemicState: MemoryEpistemicState; confidence: number | null;
   createdAt: string; tagsJson: string; aliasesJson: string; snippet: string; rank: number;
-  exactId: number; exactTitle: number; exactPath: number; exactSymbol: number;
+  exactId: number; exactTitle: number; exactPath: number; exactSymbol: number; lexicalMatch: number;
   sourcePaths: string; sourceSymbols: string;
 };
 function parseList(value: string): string[] {
@@ -74,6 +74,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
   const query = typeof input.query === "string" ? input.query.trim() : "";
   if (!query || query.length > 1000) throw new Error("Memory search query must contain 1–1000 characters");
   const tokens = [...new Set(query.normalize("NFKC").match(/[\p{L}\p{N}_]+/gu) ?? [])].slice(0, 12);
+  if (tokens.length === 0) throw new Error("Memory search query must contain searchable letters or numbers");
   const matchExpression = tokens.map((token) => '"' + token.replaceAll('"', '""') + '"*').join(" OR ");
   const limit = input.limit ?? 20, maxChars = input.maxChars ?? 12000;
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error("Invalid memory search limit");
@@ -92,7 +93,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
   try {
     ensureMemorySearchIndex(db);
     const where = [
-      "f.project_id = ?",
+      "memory_search_fts.project_id = ?",
       "(memory_search_fts MATCH ? OR i.id = ? OR EXISTS (SELECT 1 FROM knowledge_evidence e WHERE e.version_id = v.id AND (e.source_path = ? OR e.source_symbol = ?)))",
       "(? = 1 OR v.id = i.current_version_id)",
       "i.lifecycle = COALESCE(?, 'active')",
@@ -110,7 +111,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
       input.relatedKnowledgeId ?? null, input.relatedKnowledgeId ?? "", input.relatedKnowledgeId ?? "",
       input.relationType ?? null, input.relationType ?? null
     ];
-    const from = " FROM memory_search_fts f JOIN knowledge_items i ON i.id=f.knowledge_id AND i.project_id=f.project_id JOIN knowledge_versions v ON v.id=f.version_id AND v.knowledge_id=i.id WHERE " + where.join(" AND ");
+    const from = " FROM memory_search_fts JOIN knowledge_items i ON i.id=memory_search_fts.knowledge_id AND i.project_id=memory_search_fts.project_id JOIN knowledge_versions v ON v.id=memory_search_fts.version_id AND v.knowledge_id=i.id WHERE " + where.join(" AND ");
     const totalMatches = (db.prepare("SELECT COUNT(*) AS count" + from).get(...params) as { count: number }).count;
     const rows = db.prepare(\`
       SELECT i.id AS knowledgeId, v.id AS versionId, i.knowledge_type AS type, i.lifecycle,
@@ -118,6 +119,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         v.confidence, v.created_at AS createdAt, i.tags_json AS tagsJson, i.aliases_json AS aliasesJson,
         snippet(memory_search_fts, 6, '[', ']', ' … ', 16) AS snippet,
         bm25(memory_search_fts, 0, 0, 0, 0, 8, 5, 1, 7, 5, 6, 7) AS rank,
+        CASE WHEN memory_search_fts MATCH ? THEN 1 ELSE 0 END AS lexicalMatch,
         CASE WHEN i.id = ? THEN 1 ELSE 0 END AS exactId,
         CASE WHEN lower(v.title) = lower(?) THEN 1 ELSE 0 END AS exactTitle,
         CASE WHEN EXISTS (SELECT 1 FROM knowledge_evidence e WHERE e.version_id=v.id AND e.source_path=?) THEN 1 ELSE 0 END AS exactPath,
@@ -135,7 +137,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
       if (row.exactTitle) matchedBy.push("exact-title");
       if (row.exactPath) matchedBy.push("exact-source-path");
       if (row.exactSymbol) matchedBy.push("exact-source-symbol");
-      matchedBy.push("lexical");
+      if (row.lexicalMatch) matchedBy.push("lexical");
       return {
         knowledgeId: row.knowledgeId, versionId: row.versionId, type: row.type, lifecycle: row.lifecycle,
         versionNumber: row.versionNumber, title: row.title, summary: row.summary,
@@ -146,14 +148,14 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         snippet: row.snippet.slice(0, 500), matchedBy, relevance: Number((-row.rank).toFixed(6))
       };
     });
-    let serializedChars = JSON.stringify(results).length;
+    const buildResult = () => ({ query, results, returned: results.length, totalMatches, limit, maxChars,
+      serializedChars: 0, truncated: results.length < totalMatches, includeHistorical: input.includeHistorical ?? false,
+      sourceEvidenceFreshness: "not_checked" as const });
+    let serializedChars = JSON.stringify(buildResult()).length;
     while (results.length && serializedChars > maxChars) {
       results.pop();
-      serializedChars = JSON.stringify(results).length;
+      serializedChars = JSON.stringify(buildResult()).length;
     }
-    return {
-      query, results, returned: results.length, totalMatches, limit, maxChars, serializedChars,
-      truncated: results.length < totalMatches, includeHistorical: input.includeHistorical ?? false
-    };
+    return { ...buildResult(), serializedChars: JSON.stringify(buildResult()).length };
   } finally { db.close(); }
 }
