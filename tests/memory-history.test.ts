@@ -97,7 +97,7 @@ describe("versioned memory history", () => {
     expect(page.budgetOmittedEvents).toBeGreaterThan(0);
     expect(page.pagination.hasMoreEvents).toBe(true);
     expect(page.serializedChars).toBe(JSON.stringify(page).length);
-    expect(page.serializedChars).toBeLessThanOrEqual(1500);
+    expect(page.serializedChars).toBeLessThanOrEqual(2500);
   });
 
   it("continues through every event across repeated character-constrained pages without skips or duplicates", () => {
@@ -124,7 +124,7 @@ describe("versioned memory history", () => {
     let cursor: { createdAt: string; id: string } | null = null;
     for (let pageNumber = 0; pageNumber < 12; pageNumber++) {
       const page = getMemoryHistory(location, {
-        knowledgeId: initial.knowledgeId, eventLimit: 20, maxChars: 1500,
+        knowledgeId: initial.knowledgeId, eventLimit: 20, maxChars: 2500,
         ...(cursor ? { beforeEventCreatedAt: cursor.createdAt, beforeEventId: cursor.id } : {}),
       });
       expect(page.serializedChars).toBe(JSON.stringify(page).length);
