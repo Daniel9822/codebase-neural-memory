@@ -5,6 +5,7 @@ export interface MemoryHistoryInput {
   knowledgeId: string;
   versionLimit?: number | undefined;
   eventLimit?: number | undefined;
+  maxChars?: number | undefined;
   beforeVersionNumber?: number | undefined;
   beforeEventCreatedAt?: string | undefined;
   beforeEventId?: string | undefined;
@@ -37,6 +38,13 @@ export interface MemoryHistoryResult {
     payload: Record<string, unknown>;
     createdAt: string;
   }>;
+  totalVersions: number;
+  totalEvents: number;
+  truncated: boolean;
+  maxChars: number;
+  serializedChars: number;
+  budgetOmittedVersions: number;
+  budgetOmittedEvents: number;
   pagination: {
     versionLimit: number;
     eventLimit: number;
@@ -64,6 +72,8 @@ export function getMemoryHistory(location: ProjectLocation, input: MemoryHistory
   const knowledgeId = input.knowledgeId.trim();
   const versionLimit = positiveInteger(input.versionLimit, 20, 50, "versionLimit");
   const eventLimit = positiveInteger(input.eventLimit, 20, 50, "eventLimit");
+  const maxChars = positiveInteger(input.maxChars, 12_000, 12_000, "maxChars");
+  if (maxChars < 500) throw new Error("Invalid memory history maxChars");
   const beforeVersionNumber = input.beforeVersionNumber;
   if (beforeVersionNumber !== undefined && (!Number.isInteger(beforeVersionNumber) || beforeVersionNumber < 1)) {
     throw new Error("Invalid memory history beforeVersionNumber");
@@ -112,6 +122,8 @@ export function getMemoryHistory(location: ProjectLocation, input: MemoryHistory
         reason: string | null; payloadJson: string; createdAt: string;
       }>;
 
+    const totalVersions = (db.prepare("SELECT COUNT(*) AS count FROM knowledge_versions WHERE knowledge_id=?").get(knowledgeId) as { count: number }).count;
+    const totalEvents = (db.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE project_id=? AND knowledge_id=?").get(location.id, knowledgeId) as { count: number }).count;
     const hasMoreVersions = versionRows.length > versionLimit;
     const hasMoreEvents = eventRows.length > eventLimit;
     const versions = versionRows.slice(0, versionLimit);
@@ -130,9 +142,10 @@ export function getMemoryHistory(location: ProjectLocation, input: MemoryHistory
       };
     });
 
-    return {
+    const result: MemoryHistoryResult = {
       knowledgeId, lifecycle: item.lifecycle, currentVersionId: item.currentVersionId,
-      versions, events,
+      versions, events, totalVersions, totalEvents, truncated: false, maxChars, serializedChars: 0,
+      budgetOmittedVersions: 0, budgetOmittedEvents: 0,
       pagination: {
         versionLimit, eventLimit, versionsReturned: versions.length, eventsReturned: events.length,
         hasMoreVersions, hasMoreEvents,
@@ -141,6 +154,46 @@ export function getMemoryHistory(location: ProjectLocation, input: MemoryHistory
           ? { createdAt: events.at(-1)!.createdAt, id: events.at(-1)!.id } : null,
       },
     };
+    const measure = (): number => {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const length = JSON.stringify(result).length;
+        if (result.serializedChars === length) return length;
+        result.serializedChars = length;
+      }
+      return JSON.stringify(result).length;
+    };
+    while (measure() > maxChars) {
+      result.truncated = true;
+      // Keep each stream independently ordered and page-able; remove the older tail
+      // from the larger serialized stream first, with events winning ties.
+      const removeEvent = result.events.length > 0 &&
+        (result.versions.length === 0 || JSON.stringify(result.events).length >= JSON.stringify(result.versions).length);
+      if (removeEvent) {
+        const removed = result.events.pop()!;
+        result.budgetOmittedEvents++;
+        result.pagination.hasMoreEvents = true;
+        result.pagination.nextBeforeEvent = { createdAt: removed.createdAt, id: removed.id };
+      } else if (result.versions.length > 0) {
+        const removed = result.versions.pop()!;
+        result.budgetOmittedVersions++;
+        result.pagination.hasMoreVersions = true;
+        result.pagination.nextBeforeVersionNumber = removed.versionNumber;
+      } else {
+        throw new Error("Memory history response metadata exceeds its character budget");
+      }
+      result.pagination.versionsReturned = result.versions.length;
+      result.pagination.eventsReturned = result.events.length;
+      // Recalculate the cursors from the last returned row when one exists.
+      if (result.versions.length > 0 && result.pagination.hasMoreVersions) {
+        result.pagination.nextBeforeVersionNumber = result.versions.at(-1)!.versionNumber;
+      }
+      if (result.events.length > 0 && result.pagination.hasMoreEvents) {
+        const last = result.events.at(-1)!;
+        result.pagination.nextBeforeEvent = { createdAt: last.createdAt, id: last.id };
+      }
+    }
+    result.serializedChars = JSON.stringify(result).length;
+    return result;
   } finally {
     db.close();
   }
