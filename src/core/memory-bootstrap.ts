@@ -2,7 +2,7 @@ import { openDatabase } from "../storage/database.js";
 import { getIndexFreshness } from "./indexer.js";
 import type { ProjectLocation } from "./project.js";
 
-export interface MemoryBootstrapInput { maxItems?: number; maxChars?: number; }
+export interface MemoryBootstrapInput { maxItems?: number | undefined; maxChars?: number | undefined; }
 function parseList(value: string): string[] {
   try { const parsed: unknown = JSON.parse(value); return Array.isArray(parsed) ? parsed.filter((v): v is string => typeof v === "string") : []; }
   catch { return []; }
