@@ -48,7 +48,7 @@ describe("versioned memory search and bootstrap", () => {
       sourcePath: "src/core/secure-reader.ts", sourceSymbol: "openVerifiedFile",
     });
     for (const query of ["descriptor boundary", "symlink substitution", "opened descriptor", "safe source open",
-      "filesystem security", "src/core/secure-reader.ts", "openVerifiedFile", id]) {
+      "filesystem security", "architecture", "src/core/secure-reader.ts", "openVerifiedFile", id]) {
       const result = searchMemories(location, { query });
       expect(result.results.some((entry) => entry.knowledgeId === id), query).toBe(true);
     }
@@ -92,7 +92,7 @@ describe("versioned memory search and bootstrap", () => {
     } finally { db.close(); }
     const filtered = searchMemories(location, {
       query: "Unique searchable token", type: "decision", epistemicState: "hypothesis",
-      relatedKnowledgeId: other, relationType: "supports",
+      relatedKnowledgeId: other, relationType: "supports", createdAfter: "2000-01-01T00:00:00.000Z", createdBefore: "2999-01-01T00:00:00.000Z",
     });
     expect(filtered.results.map((entry) => entry.knowledgeId)).toEqual([target]);
     expect(searchMemories({ ...location, id: "different-project" }, { query: "Unique searchable token" }).results).toEqual([]);
