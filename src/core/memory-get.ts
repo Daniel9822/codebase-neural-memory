@@ -108,10 +108,13 @@ export function expandMemory(location: ProjectLocation, input: MemoryExpandInput
     const hasMore = !ids && candidates.length > limit;
     const page = candidates.slice(0, ids ? 20 : limit);
     const fragments: typeof page = [];
-    let serializedChars = 0;
+    let serializedChars = 2; // Include the brackets in the serialized fragment array.
     for (const fragment of page) {
       const nextChars = JSON.stringify(fragment).length + (fragments.length ? 1 : 0);
-      if (serializedChars + nextChars > maxChars) break;
+      if (serializedChars + nextChars > maxChars) {
+        if (fragments.length === 0) throw new Error("A requested fragment exceeds the memory expand character budget");
+        break;
+      }
       fragments.push(fragment);
       serializedChars += nextChars;
     }
