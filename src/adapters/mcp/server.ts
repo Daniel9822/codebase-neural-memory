@@ -7,6 +7,8 @@ import { updateMemoryVersion } from "../../core/memory-update.js";
 import { correctMemory } from "../../core/memory-correct.js";
 import { getMemoryHistory } from "../../core/memory-history.js";
 import { getMemory, expandMemory } from "../../core/memory-get.js";
+import { searchMemories } from "../../core/memory-search.js";
+import { bootstrapMemory } from "../../core/memory-bootstrap.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -591,6 +593,44 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       ...(category === undefined ? {} : { category }),
       ...(list === undefined ? {} : { list }),
     })));
+
+
+  server.registerTool("memory_search", {
+    description: "Search or browse current project knowledge with bounded FTS5 ranking. An omitted/empty query browses high-value current items. Supports type/tag/path/symbol, lifecycle, epistemic, time, and relation filters; exact IDs and source locators receive explicit ranking signals. Snapshot-bound cursors paginate stable result sets; historical versions are opt-in.",
+    inputSchema: z.object({
+      query: z.string().trim().max(1000).optional(),
+      limit: z.number().int().min(1).max(50).optional(),
+      maxChars: z.number().int().min(500).max(12000).optional(),
+      includeHistorical: z.boolean().optional(),
+      lifecycle: z.enum(["active", "superseded", "archived"]).optional(),
+      type: z.string().trim().min(1).max(64).optional(),
+      tag: z.string().trim().min(1).max(64).optional(),
+      path: z.string().trim().min(1).max(1024).optional(),
+      symbol: z.string().trim().min(1).max(512).optional(),
+      cursor: z.string().min(1).max(2048).optional(),
+      epistemicState: z.enum(["observed", "verified", "inferred", "user_asserted", "planned", "hypothesis", "pending_validation"]).optional(),
+      createdAfter: z.string().min(1).max(40).optional(),
+      createdBefore: z.string().min(1).max(40).optional(),
+      relatedKnowledgeId: z.string().trim().min(1).max(128).optional(),
+      relationType: z.enum(["supports", "contradicts", "supersedes", "depends_on", "related_to", "derived_from", "affects"]).optional()
+    }).refine((input) => input.relationType === undefined || input.relatedKnowledgeId !== undefined, {
+      message: "relationType requires relatedKnowledgeId"
+    })
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(searchMemories(location, input), null, 2) }]
+  }));
+
+  server.registerTool("memory_bootstrap", {
+    description: "Return a compact project-scoped startup context grouped into high-value knowledge, open risks/questions, and pending validation. Supports a 1–20 item limit, type filters, an include-pending switch, and a 500–8,000 character budget; freshness limits are explicit.",
+    inputSchema: z.object({
+      limit: z.number().int().min(1).max(20).optional(),
+      maxChars: z.number().int().min(500).max(8000).optional(),
+      types: z.array(z.string().trim().min(1).max(64)).max(20).optional(),
+      includePending: z.boolean().optional()
+    })
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(bootstrapMemory(location, input), null, 2) }]
+  }));
 
   return server;
 }

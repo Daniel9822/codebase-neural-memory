@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly twenty-four tools and publishes the expected input schemas", async () => {
+  it("discovers exactly twenty-six tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -128,6 +128,7 @@ describe("MCP adapter protocol contract", () => {
       "git_history",
       "index_freshness",
       "index_update",
+      "memory_bootstrap",
       "memory_capture",
       "memory_correct",
       "memory_expand",
@@ -136,6 +137,7 @@ describe("MCP adapter protocol contract", () => {
       "memory_history",
       "memory_propose",
       "memory_recall",
+      "memory_search",
       "memory_transition",
       "memory_update",
       "project_map",
@@ -170,8 +172,38 @@ describe("MCP adapter protocol contract", () => {
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["category", "limit", "list", "query", "status"],
+      memory_search: ["createdAfter", "createdBefore", "cursor", "epistemicState", "includeHistorical", "lifecycle", "limit", "maxChars", "path", "query", "relatedKnowledgeId", "relationType", "symbol", "tag", "type"],
+      memory_bootstrap: ["includePending", "limit", "maxChars", "types"],
       memory_transition: ["id", "status"],
     });
+  });
+
+  it("searches versioned knowledge and bootstraps compact project context through MCP", async () => {
+    createProject();
+    const client = await connectClient();
+    const captured = await client.request("tools/call", { name: "memory_capture", arguments: {
+      idempotencyKey: "mcp-search-bootstrap-seed",
+      items: [
+        { title: "Verified MCP search fixture", content: "A unique FTS searchable phrase", type: "architecture", epistemicState: "verified", tags: ["retrieval"], aliases: ["search fixture"] },
+        { title: "Open rollout risk", content: "A deployment question remains", type: "risk", epistemicState: "hypothesis" }
+      ]
+    } });
+    expect((captured.result as { isError?: boolean }).isError).not.toBe(true);
+    const searched = await client.request("tools/call", { name: "memory_search", arguments: { query: "unique FTS searchable phrase", limit: 5 } });
+    expect((searched.result as { isError?: boolean }).isError).not.toBe(true);
+    const searchData = JSON.parse((searched.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(searchData.results[0]).toMatchObject({ title: "Verified MCP search fixture", epistemicState: "verified" });
+    expect(searchData.results[0].matchedBy).toContain("lexical");
+    const browsed = await client.request("tools/call", { name: "memory_search", arguments: { limit: 1 } });
+    expect((browsed.result as { isError?: boolean }).isError).not.toBe(true);
+    const browseData = JSON.parse((browsed.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(browseData.browsing).toBe(true);
+    const bootstrap = await client.request("tools/call", { name: "memory_bootstrap", arguments: { limit: 10, maxChars: 3000 } });
+    expect((bootstrap.result as { isError?: boolean }).isError).not.toBe(true);
+    const context = JSON.parse((bootstrap.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(context.highValue.some((item: { title: string }) => item.title === "Verified MCP search fixture")).toBe(true);
+    expect(context.openRisks.some((item: { title: string }) => item.title === "Open rollout risk")).toBe(true);
+    expect(context.freshness.sourceEvidence).toBe("not_checked");
   });
 
   it("retrieves current memory metadata and selectively expands fragments through MCP", async () => {
@@ -593,11 +625,18 @@ describe("MCP adapter protocol contract", () => {
   it("does not change repository files, index revision, or durable memory records during read calls", async () => {
     createProject();
     const client = await connectClient();
+    const seed = await client.request("tools/call", { name: "memory_capture", arguments: {
+      idempotencyKey: "mcp-read-only-versioned-memory-seed",
+      items: [{ title: "Read-only search fixture", content: "This versioned knowledge must remain unchanged.", type: "behavior", epistemicState: "observed" }]
+    } });
+    expect((seed.result as { isError?: boolean }).isError).not.toBe(true);
     const sourceBefore = readFileSync(join(location.rootPath, "main.ts"), "utf8");
     const before = {
       memories: database!.prepare("SELECT id, title, content, status, source_path FROM memories ORDER BY id").all(),
       indexRevision: database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id),
       files: database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all(),
+      knowledgeItems: database!.prepare("SELECT id, current_version_id, lifecycle FROM knowledge_items ORDER BY id").all(),
+      knowledgeVersions: database!.prepare("SELECT id, knowledge_id, version_number FROM knowledge_versions ORDER BY id").all(),
     };
 
     for (const [name, args] of [
@@ -613,6 +652,8 @@ describe("MCP adapter protocol contract", () => {
       ["task_context", { task: "target helper" }],
       ["memory_freshness", {}],
       ["memory_recall", {}],
+      ["memory_search", { query: "MCP adapter fixture" }],
+      ["memory_bootstrap", { limit: 5 }],
     ] as Array<[string, Record<string, unknown>]>) {
       await client.request("tools/call", { name, arguments: args });
     }
@@ -621,6 +662,8 @@ describe("MCP adapter protocol contract", () => {
     expect(database!.prepare("SELECT id, title, content, status, source_path FROM memories ORDER BY id").all()).toEqual(before.memories);
     expect(database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id)).toEqual(before.indexRevision);
     expect(database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all()).toEqual(before.files);
+    expect(database!.prepare("SELECT id, current_version_id, lifecycle FROM knowledge_items ORDER BY id").all()).toEqual(before.knowledgeItems);
+    expect(database!.prepare("SELECT id, knowledge_id, version_number FROM knowledge_versions ORDER BY id").all()).toEqual(before.knowledgeVersions);
   });
 
   it("supports explicit incremental index updates and stores agent memories as proposed", async () => {

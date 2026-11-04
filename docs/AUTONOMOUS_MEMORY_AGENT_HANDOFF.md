@@ -51,16 +51,16 @@ These are known open items at this snapshot. They are not claims that every edge
 
 ### Next implementation slice
 
-**PENDING — `memory_search` and `memory_bootstrap`.**
+**IN REVIEW — `memory_search` and `memory_bootstrap` (PR #144).**
 
-A work branch was created from `main`: `feat/memory-search-bootstrap`. At handoff time it is a prepared branch, not an implementation. Verify its HEAD against current `main` before use.
+The implementation is on `feat/memory-search-bootstrap`, based directly on `main` at `76c41859181c79ea2698fe3a28f55a37b58371f8`. PR #144 adds the FTS5 search index/backfill and update trigger, bounded search, compact bootstrap, MCP registrations, and focused core/protocol tests. It is not IMPLEMENTED until required CI passes and the merge is verified on `main`. The source-evidence freshness audit and the remaining retrieval-quality evaluation stay open.
 
 Expected scope:
 - deterministic, project-scoped lexical FTS5 search over versioned knowledge;
 - current-version/lifecycle filtering by default, with explicit historical options where specified by the contract;
-- support for relevant titles, summaries, fragments, tags/aliases and exact identifiers without exposing raw FTS syntax errors;
+- support for relevant titles, summaries, fragments, types, tags/aliases, paths/symbols and exact identifiers; empty-query browse; snapshot-bound cursors; no raw FTS syntax errors;
 - bounded snippets/results, stable tie-breakers, match explanations, and truncation metadata;
-- compact bootstrap context with explicit epistemic labels and no invented freshness guarantees;
+- compact bootstrap context with explicit epistemic labels, contract-aligned item/character bounds, type/include-pending filters, and no invented freshness guarantees;
 - migration/backfill and FTS consistency tests, plus MCP schema/protocol tests.
 
 Do not add embeddings, hosted services, LLM calls, or remote dependencies.
