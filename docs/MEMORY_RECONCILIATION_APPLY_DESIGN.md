@@ -1,6 +1,6 @@
 # Memory Reconciliation Apply — Safety Design
 
-**Status:** Implemented baseline contract for event-only `request_review` (PR #149); follow-up hardening in review adds response-budget enforcement and related evidence/relation references.  
+**Status:** Implemented event-only `request_review` contract (PRs #149–#150 merged); response-budget enforcement and related evidence/relation references are implemented.  
 **Baseline:** PR #147 merged to `main` as `754b7dddd74afc8b3be5353cdc838568e0ba7283`; CI `41823553294` passed all five jobs.  
 **Scope:** Define the first safe write-capable reconciliation operation without merging, rewriting, archiving, or deleting knowledge.
 
@@ -78,13 +78,13 @@ Events are append-only. The operation must not update/delete prior events or evi
 
 Implemented and merged in PR #149: default dry-run creates no event/idempotency row; successful apply appends one event per item and preserves knowledge/version rows; same-key replay and mismatch conflict; stale/missing/foreign IDs abort the batch; duplicate IDs, missing apply key and invalid batch size are rejected; event-insert failure rolls back events and idempotency; MCP integration applies a review request. CI run `41825667650` passed all five jobs.
 
-Follow-up hardening in this branch adds response-budget/truncation coverage and event payload references for related evidence/relations.
+PR #150 merged as `2279edd954bdeedea2c7cd9d1e5d014c05eccb24`; CI `41827470581` passed all five jobs. It enforces the 12,000-character serialized response budget and records up to 20 related evidence IDs and 20 project-scoped relation IDs per event, with truncation flags.
 
 Still required:
 - Independent SQLite connection changes a selected current version during a concurrent apply; transaction detects conflict.
 - Failure injection after commit followed by retry returns the stored result.
 - Explicit append-only event trigger behavior and full evidence/relation count/pointer preservation assertions.
-- Windows/Ubuntu/macOS CI for the response-budget/reference hardening branch.
+
 
 ## 9. Explicitly deferred
 
