@@ -93,6 +93,25 @@ describe("memory health", () => {
     expect(stale.sourceFreshness.samples[0]?.reason).toBe("source_hash_mismatch");
   });
 
+  it("reports unknown when the bounded source-evidence sample is truncated", () => {
+    setup();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    for (const name of ["one", "two"]) {
+      const sourcePath = "src/" + name + ".ts";
+      const content = "export const " + name + " = true;\\n";
+      writeFileSync(join(location.rootPath, sourcePath), content);
+      capture("Source evidence " + name, {
+        sourcePath, sourceHash: createHash("sha256").update(content).digest("hex"),
+      });
+    }
+    const report = getMemoryHealth(location, { limit: 1 });
+    expect(report.sourceFreshness.sampled).toBe(1);
+    expect(report.sourceFreshness.total).toBe(2);
+    expect(report.sourceFreshness.status).toBe("unknown");
+    expect(report.sourceFreshness.truncated).toBe(true);
+    expect(report.warnings).toContain("The source-evidence sample is truncated; unexamined evidence is not asserted fresh.");
+  });
+
   it("detects orphaned relation references even when legacy/corrupt data bypassed foreign keys", () => {
     setup();
     const source = capture("Orphan relation source");
