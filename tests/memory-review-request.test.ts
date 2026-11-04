@@ -1,5 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -169,6 +170,56 @@ describe("memory reconciliation request_review", () => {
     // The child committed the event and idempotency row, then terminated before sending a result.
     const replay = requestMemoryReview(location, input);
     expect(replay).toMatchObject({ status: "applied", idempotentReplay: true, eventsCreated: 1 });
+    expect(counts().events).toBe(1);
+    expect(counts().idempotency).toBe(1);
+  });
+
+  it("rejects apply while an independent process holds a write lock, then succeeds on retry", async () => {
+    setup();
+    const item = capture("Cross-process lock contention", "capture-review-lock-contention");
+    const input = {
+      dryRun: false,
+      idempotencyKey: "review-cross-process-lock-1",
+      items: [{ knowledgeId: item.knowledgeId, expectedVersionId: item.versionId,
+        reasonCode: "manual_review" as const, reason: "Retry after the competing writer releases its lock" }],
+    };
+    const script = `
+      import { openDatabase } from "./src/storage/database.js";
+      const location = JSON.parse(process.env.CNM_TEST_LOCATION ?? "null");
+      const db = openDatabase(location);
+      db.exec("BEGIN IMMEDIATE");
+      process.stdout.write("LOCKED\\n");
+      setTimeout(() => {
+        db.exec("ROLLBACK");
+        db.close();
+        process.exit(0);
+      }, 6500);
+    `;
+    const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, CNM_TEST_LOCATION: JSON.stringify(location) },
+    });
+    child.stdout.setEncoding("utf8");
+    const lockAcquired = new Promise<void>((resolve, reject) => {
+      child.stdout.once("data", (chunk: string) => {
+        if (chunk.includes("LOCKED")) resolve();
+        else reject(new Error("Unexpected lock-holder output: " + chunk));
+      });
+      child.once("error", reject);
+    });
+    const childExit = once(child, "exit");
+    await lockAcquired;
+
+    const before = counts();
+    expect(() => requestMemoryReview(location, input)).toThrow(/database is locked/i);
+    expect(counts()).toEqual(before);
+
+    const [exitCode, signal] = await childExit as [number | null, NodeJS.Signals | null];
+    expect(exitCode).toBe(0);
+    expect(signal).toBeNull();
+
+    const retry = requestMemoryReview(location, input);
+    expect(retry).toMatchObject({ status: "applied", applied: true, idempotentReplay: false, eventsCreated: 1 });
     expect(counts().events).toBe(1);
     expect(counts().idempotency).toBe(1);
   });
