@@ -127,7 +127,7 @@ describe("database migrations", () => {
       CREATE TABLE knowledge_items (id TEXT PRIMARY KEY);
     `);
 
-    expect(() => migrate(database!, projectId)).toThrow(/no column named project_id/i);
+    expect(() => migrate(database!, projectId)).toThrow(/no (such )?column: project_id/i);
     expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = 13").get())
       .toEqual({ count: 0 });
     expect(database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='knowledge_versions'").get())
