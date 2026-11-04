@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly twenty-two tools and publishes the expected input schemas", async () => {
+  it("discovers exactly twenty-four tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -131,6 +131,8 @@ describe("MCP adapter protocol contract", () => {
       "memory_capture",
       "memory_correct",
       "memory_freshness",
+      "memory_get",
+      "memory_expand",
       "memory_history",
       "memory_propose",
       "memory_recall",
@@ -162,6 +164,8 @@ describe("MCP adapter protocol contract", () => {
       memory_capture: ["actor", "idempotencyKey", "items", "origin"],
       memory_correct: ["actor", "correctionSource", "epistemicState", "evidence", "expectedVersionId", "knowledgeId", "reason", "replacementContent", "targetFragmentId"],
       memory_history: ["beforeEventCreatedAt", "beforeEventId", "beforeVersionNumber", "eventLimit", "knowledgeId", "versionLimit"],
+      memory_get: ["includeEvidence", "knowledgeId", "versionId"],
+      memory_expand: ["beforeOrdinal", "fragmentIds", "knowledgeId", "limit", "maxChars", "versionId"],
       memory_update: ["actor", "aliases", "confidence", "confidenceReason", "content", "epistemicState", "evidence", "expectedVersionId", "fragments", "knowledgeId", "reason", "summary", "tags", "title"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
