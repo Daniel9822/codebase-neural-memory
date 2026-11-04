@@ -17,7 +17,7 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
   try {
     const totalCurrent = (db.prepare("SELECT COUNT(*) AS count FROM knowledge_items WHERE project_id=? AND lifecycle='active' AND current_version_id IS NOT NULL")
       .get(location.id) as { count: number }).count;
-    const rows = db.prepare(\`
+    const rows = db.prepare(`
       SELECT i.id AS knowledgeId, i.knowledge_type AS type, i.tags_json AS tagsJson, i.aliases_json AS aliasesJson,
         v.id AS versionId, v.version_number AS versionNumber, v.title, v.summary,
         v.epistemic_state AS epistemicState, v.confidence, i.updated_at AS updatedAt,
@@ -34,7 +34,7 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
         WHEN v.epistemic_state='inferred' THEN 5 ELSE 6 END,
         v.created_at DESC, i.id ASC
       LIMIT ?
-    \`).all(location.id, maxItems + 1) as Array<{
+    `).all(location.id, maxItems + 1) as Array<{
       knowledgeId: string; type: string; tagsJson: string; aliasesJson: string;
       versionId: string; versionNumber: number; title: string; summary: string;
       epistemicState: string; confidence: number | null; updatedAt: string; sourcePaths: string; sourceSymbols: string;
