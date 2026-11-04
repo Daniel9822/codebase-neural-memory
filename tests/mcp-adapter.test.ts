@@ -172,8 +172,8 @@ describe("MCP adapter protocol contract", () => {
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["category", "limit", "list", "query", "status"],
-      memory_search: ["createdAfter", "createdBefore", "epistemicState", "includeHistorical", "lifecycle", "limit", "maxChars", "query", "relatedKnowledgeId", "relationType", "type"],
-      memory_bootstrap: ["maxChars", "maxItems"],
+      memory_search: ["createdAfter", "createdBefore", "cursor", "epistemicState", "includeHistorical", "lifecycle", "limit", "maxChars", "path", "query", "relatedKnowledgeId", "relationType", "symbol", "tag", "type"],
+      memory_bootstrap: ["includePending", "limit", "maxChars", "types"],
       memory_transition: ["id", "status"],
     });
   });
@@ -194,7 +194,7 @@ describe("MCP adapter protocol contract", () => {
     const searchData = JSON.parse((searched.result as { content: Array<{ text: string }> }).content[0]!.text);
     expect(searchData.results[0]).toMatchObject({ title: "Verified MCP search fixture", epistemicState: "verified" });
     expect(searchData.results[0].matchedBy).toContain("lexical");
-    const bootstrap = await client.request("tools/call", { name: "memory_bootstrap", arguments: { maxItems: 10, maxChars: 3000 } });
+    const bootstrap = await client.request("tools/call", { name: "memory_bootstrap", arguments: { limit: 10, maxChars: 3000 } });
     expect((bootstrap.result as { isError?: boolean }).isError).not.toBe(true);
     const context = JSON.parse((bootstrap.result as { content: Array<{ text: string }> }).content[0]!.text);
     expect(context.highValue.some((item: { title: string }) => item.title === "Verified MCP search fixture")).toBe(true);
@@ -649,7 +649,7 @@ describe("MCP adapter protocol contract", () => {
       ["memory_freshness", {}],
       ["memory_recall", {}],
       ["memory_search", { query: "MCP adapter fixture" }],
-      ["memory_bootstrap", { maxItems: 5 }],
+      ["memory_bootstrap", { limit: 5 }],
     ] as Array<[string, Record<string, unknown>]>) {
       await client.request("tools/call", { name, arguments: args });
     }
