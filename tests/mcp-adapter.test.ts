@@ -621,11 +621,18 @@ describe("MCP adapter protocol contract", () => {
   it("does not change repository files, index revision, or durable memory records during read calls", async () => {
     createProject();
     const client = await connectClient();
+    const seed = await client.request("tools/call", { name: "memory_capture", arguments: {
+      idempotencyKey: "mcp-read-only-versioned-memory-seed",
+      items: [{ title: "Read-only search fixture", content: "This versioned knowledge must remain unchanged.", type: "behavior", epistemicState: "observed" }]
+    } });
+    expect((seed.result as { isError?: boolean }).isError).not.toBe(true);
     const sourceBefore = readFileSync(join(location.rootPath, "main.ts"), "utf8");
     const before = {
       memories: database!.prepare("SELECT id, title, content, status, source_path FROM memories ORDER BY id").all(),
       indexRevision: database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id),
       files: database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all(),
+      knowledgeItems: database!.prepare("SELECT id, current_version_id, lifecycle FROM knowledge_items ORDER BY id").all(),
+      knowledgeVersions: database!.prepare("SELECT id, knowledge_id, version_number FROM knowledge_versions ORDER BY id").all(),
     };
 
     for (const [name, args] of [
@@ -651,6 +658,8 @@ describe("MCP adapter protocol contract", () => {
     expect(database!.prepare("SELECT id, title, content, status, source_path FROM memories ORDER BY id").all()).toEqual(before.memories);
     expect(database!.prepare("SELECT index_revision FROM projects WHERE id = ?").get(location.id)).toEqual(before.indexRevision);
     expect(database!.prepare("SELECT path, content_hash FROM files ORDER BY path").all()).toEqual(before.files);
+    expect(database!.prepare("SELECT id, current_version_id, lifecycle FROM knowledge_items ORDER BY id").all()).toEqual(before.knowledgeItems);
+    expect(database!.prepare("SELECT id, knowledge_id, version_number FROM knowledge_versions ORDER BY id").all()).toEqual(before.knowledgeVersions);
   });
 
   it("supports explicit incremental index updates and stores agent memories as proposed", async () => {
