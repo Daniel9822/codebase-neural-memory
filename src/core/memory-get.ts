@@ -98,7 +98,9 @@ export function expandMemory(location: ProjectLocation, input: MemoryExpandInput
     const item = db.prepare("SELECT current_version_id AS currentVersionId FROM knowledge_items WHERE id=? AND project_id=?")
       .get(knowledgeId, location.id) as { currentVersionId: string | null } | undefined;
     if (!item) throw new Error("Knowledge item not found in this project");
-    const version = readVersion(db, knowledgeId, input.versionId);
+    const versionId = input.versionId ?? item.currentVersionId;
+    if (!versionId) throw new Error("Knowledge item has no current version in this project");
+    const version = readVersion(db, knowledgeId, versionId);
     const rows = ids
       ? db.prepare(`SELECT id, ordinal, heading, summary, content FROM knowledge_fragments
           WHERE version_id=? AND id IN (${ids.map(() => "?").join(",")}) ORDER BY ordinal`).all(version.id, ...ids)
@@ -120,6 +122,9 @@ export function expandMemory(location: ProjectLocation, input: MemoryExpandInput
       serializedChars += nextChars;
     }
     const omittedByBudget = fragments.length < page.length;
+    if (ids && omittedByBudget) {
+      throw new Error("Selected fragments exceed the memory expand character budget; request a smaller fragmentIds set");
+    }
     return {
       knowledgeId, selectedVersionId: version.id, currentVersionId: item.currentVersionId,
       fragments, returned: fragments.length, limit, maxChars, serializedChars,
