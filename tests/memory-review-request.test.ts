@@ -63,6 +63,12 @@ describe("memory reconciliation request_review", () => {
     const first = capture("First review", "capture-review-first");
     const second = capture("Second review", "capture-review-second");
     const before = counts();
+    const setupDb = openDatabase(location);
+    setupDb.prepare("INSERT INTO knowledge_evidence (id, version_id, evidence_type, metadata_json, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run("evidence-review-first", first.versionId, "test", "{}", "2026-11-04T00:00:00.000Z");
+    setupDb.prepare("INSERT INTO knowledge_relations (id, project_id, source_knowledge_id, target_knowledge_id, relation_type, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run("relation-review-first-second", location.id, first.knowledgeId, second.knowledgeId, "depends_on", "2026-11-04T00:00:00.000Z");
+    setupDb.close();
     const result = requestMemoryReview(location, {
       dryRun: false, idempotencyKey: "review-batch-1", actor: "agent",
       items: [
@@ -78,6 +84,9 @@ describe("memory reconciliation request_review", () => {
     expect(rows).toHaveLength(2);
     expect(rows.every((row) => row.eventType === "reconciliation_review_requested")).toBe(true);
     expect(rows.some((row) => JSON.parse(row.payload).reasonCode === "stale_evidence")).toBe(true);
+    const firstPayload = JSON.parse(rows.find((row) => row.versionId === first.versionId)!.payload);
+    expect(firstPayload.sourceEvidenceIds).toEqual(["evidence-review-first"]);
+    expect(firstPayload.relationIds).toEqual(["relation-review-first-second"]);
   });
 
   it("returns the stored result for same-key replay and rejects changed payloads", () => {
