@@ -10,6 +10,7 @@ import { getMemory, expandMemory } from "../../core/memory-get.js";
 import { searchMemories } from "../../core/memory-search.js";
 import { bootstrapMemory } from "../../core/memory-bootstrap.js";
 import { getMemoryHealth } from "../../core/memory-health.js";
+import { previewMemoryReconciliation } from "../../core/memory-reconcile.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -640,6 +641,15 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     })
   }, async (input) => ({
     content: [{ type: "text", text: JSON.stringify(getMemoryHealth(location, input), null, 2) }]
+  }));
+
+  server.registerTool("memory_reconcile", {
+    description: "Preview bounded memory consistency and freshness findings. This initial release is strictly read-only: it reports stale evidence, exact normalized-title duplicate candidates, contradictions, orphan relations, and dependent knowledge for review; it never merges, edits, archives, or deletes records.",
+    inputSchema: z.object({
+      limit: z.number().int().min(1).max(100).optional()
+    })
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(previewMemoryReconciliation(location, input), null, 2) }]
   }));
 
   return server;
