@@ -273,20 +273,20 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 ## E1. Search and bootstrap
 
-- [ ] Implement `memory_bootstrap` with a small configurable summary of high-value current knowledge, unresolved risks, and relevant freshness warnings.
-- [ ] Implement `memory_search` with lexical FTS5, exact identifiers, aliases/tags, category/type, paths/symbols, relations, and time filters.
-- [ ] Use stable relevance tie-breakers and expose why each result matched.
-- [ ] Return short summaries/snippets and stable IDs by default; enforce item/character budgets and truncation metadata.
-- [ ] Exclude superseded/archived/rejected content from current results by default, with explicit history filters.
-- [ ] Test empty, ambiguous, multilingual/basic normalization, wildcard, repeated-run, and exact-boundary cases.
+- [x] Implement `memory_bootstrap` with a small configurable summary of high-value current knowledge, unresolved risks, and relevant freshness warnings (PR #144).
+- [x] Implement `memory_search` with lexical FTS5, exact identifiers, aliases/tags, category/type, paths/symbols, relations, and time filters (PR #144).
+- [x] Use stable relevance tie-breakers and expose why each result matched (PR #144).
+- [x] Return short summaries/snippets and stable IDs by default; enforce item/character budgets and truncation metadata (PR #144).
+- [x] Exclude superseded/archived/rejected content from current results by default, with explicit history filters (PR #144).
+- [ ] Complete the full empty/ambiguous/multilingual-basic-normalization/wildcard/repeated-run/exact-boundary test matrix. Empty browse, filters, cursors, and project isolation are covered; remaining edge cases stay open.
 
-### E1 implementation under review — 2026-11-04 (PR #144)
+### E1 implementation merged — 2026-11-04 (PR #144)
 
 - Branch: `feat/memory-search-bootstrap`, based on main `76c41859181c79ea2698fe3a28f55a37b58371f8`.
 - Added `src/core/memory-search.ts`: lazy schema-v14 FTS5 index creation/backfill, project-scoped lexical search and empty-query high-value browse, current-version/lifecycle defaults, explicit historical search, type/tag/path/symbol/epistemic/time/relation filters, exact source/identity ranking, deterministic tie-breakers, 1,000-candidate windows, snapshot-bound cursors, and serialized-character budgets.
 - Added `src/core/memory-bootstrap.ts`: compact grouped startup context, epistemic labels, contract-aligned 1–20 item and 500–8,000 character budgets, type/include-pending filters, code-index freshness reporting, and explicit source-evidence freshness limitation.
 - Registered `memory_search` and `memory_bootstrap` in `src/adapters/mcp/server.ts`; added `tests/memory-search.test.ts` and MCP protocol/read-boundary coverage in `tests/mcp-adapter.test.ts`.
-- **Status: IN REVIEW, not IMPLEMENTED.** E1 acceptance boxes remain unchecked until final PR CI passes, review is complete, and the merge is verified on main. No local test execution is claimed.
+- **Status: PARTIAL on main.** PR #144 merged as `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`; CI run `41795181023` passed all five jobs. Both Ubuntu and Windows passed typecheck, all 239 tests, build, and smoke; Ubuntu/Windows/macOS benchmarks passed. Five of six E1 criteria are checked. The remaining edge-case matrix is explicitly open.
 
 ## E2. Get, expand, history
 
@@ -409,7 +409,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 |---|---|---|---|
 | 2026-11-02 | Initial documentation-level baseline review | `main`: product/architecture/roadmap/MCP/workflow docs and package metadata inspected | Source-level audit and CI verification were pending at baseline; subsequent implementation progress is recorded below. |
 | 2026-11-04 | Merge and documentation close-out for focused retrieval | PR #142 merge `b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`; `src/core/memory-get.ts`; MCP adapter; `tests/memory-get.test.ts`; MCP tests | `memory_get` and `memory_expand` are on main. Next implementation slice: lexical `memory_search` and compact `memory_bootstrap`; stale-source signaling, health/reconcile, dependent review, and integration/evaluation remain open. |
-| 2026-11-04 | Versioned memory search and bootstrap | PR #144; branch `feat/memory-search-bootstrap`; `src/core/memory-search.ts`, `src/core/memory-bootstrap.ts`, MCP adapter, focused core/protocol tests | Contract-aligned FTS5 search/browse, filters, snapshot cursors, and compact bootstrap are under review. Latest CI must pass and merge must be verified before checking E1 acceptance; E3 health/reconcile, source-evidence freshness, dependent review, and evaluation remain open. |
+| 2026-11-04 | Versioned memory search and bootstrap | PR #144 merged as `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`; CI `41795181023`; `src/core/memory-search.ts`, `src/core/memory-bootstrap.ts`, MCP adapter, focused core/protocol tests | Search/browse, filters, snapshot cursors, and compact bootstrap are on main; 239 tests pass on Ubuntu and Windows, all five CI jobs green. E1 remains PARTIAL only for the multilingual/wildcard/repeated-run/ambiguous/exact-boundary edge-case matrix. E3 health/reconcile, source-evidence freshness, dependent review, and evaluation remain open. |
 
 | 2026-11-02 | CNM-02 directory symlink replacement | PR #75; CI 41404323034; merge `3d7d94de32151b1f891308d7e661c945cfd694b9` | Targeted regression merged; broader symlink combinations remain open. |
 | 2026-11-02 | CNM-05 source-excerpt safe open/read | PR #76; CI 41404690251; merge `da7e7fd90a15a39af551237ca7c3ee6868ccc43a` | Descriptor-based read and identity checks merged; other path-based read sites still require audit. |
