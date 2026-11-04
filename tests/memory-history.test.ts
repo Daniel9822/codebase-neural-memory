@@ -137,7 +137,7 @@ describe("versioned memory history", () => {
 
     expect(seen).toHaveLength(7);
     expect(new Set(seen).size).toBe(7);
-    expect(seen).toEqual([...seen].sort((left, right) => right.localeCompare(left)));
+    expect(seen).toEqual(Array.from({ length: 7 }, (_, index) => `page-event-${index.toString().padStart(2, "0")}`).reverse());
   });
 
   it("reports and advances past an individually oversized event without exceeding the budget", () => {
