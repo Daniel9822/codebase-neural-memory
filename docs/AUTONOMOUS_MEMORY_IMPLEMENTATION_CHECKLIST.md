@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status (2026-11-04):** Contract v2, schema v14 and versioned memory operations are merged to `main` (PRs #136–#150). `memory_search`/`memory_bootstrap` (#144), `memory_health` (#146), read-only reconciliation preview (#147), and event-only `request_review` with bounded responses and related evidence/relation references (#149–#150) are available. Resolution workflows, durable dependent-knowledge review, and concurrency/crash-recovery verification remain open.
+**Status (2026-11-04):** Contract v2, schema v14 and versioned memory operations are merged to `main` (PRs #136–#153). `memory_search`/`memory_bootstrap` (#144), `memory_health` (#146), read-only reconciliation preview (#147), and event-only `request_review` with bounded responses and related evidence/relation references (#149–#150) are available. Resolution workflows, durable dependent-knowledge review, overlapping lock-contention verification, and power-loss durability remain open.
 
 ## How to use this checklist
 
@@ -310,8 +310,8 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [x] Enforce response-size budget and capture bounded evidence/relation references (PR #150; CI `41827470581`).
 - [x] Assert preservation of evidence, relations, fragments, current-version pointers, and append-only review events (PR #151; merge `c9a62b6fc0854fe536a01782f5a979200e0287df`; CI `41828848388`, all five jobs green).
 - [x] Simulate a lost response after commit and verify same-key retry replays the stored result without duplicate events (PR #152; CI `41833420368`, five jobs green).
-- [ ] Verify a version committed through an independent SQLite connection is detected as stale by `request_review`, with no review event/idempotency write (PR #153; awaiting CI).
-- [ ] Terminate a child process immediately after the apply commits but before it returns a response; verify parent retry replays the stored result without duplicate events (PR #153; awaiting CI). This tests process termination after commit, not power-loss durability.
+- [x] Verify a version committed through an independent SQLite connection is detected as stale by `request_review`, with no review event/idempotency write (PR #153; merge `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, five jobs green).
+- [x] Terminate a child process immediately after the apply commits but before it returns a response; verify parent retry replays the stored result without duplicate events (PR #153; merge `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, five jobs green). This tests process termination after commit, not power-loss durability.
 - [ ] Verify a truly overlapping concurrent writer/apply schedule with deterministic cross-process coordination and prove lock behavior under contention.
 - [ ] Test power-loss/filesystem durability boundaries; process termination is not a power-loss proof.
 - [ ] Test malformed/legacy data, orphan relations, incomplete discovery, and source snapshot changes.
