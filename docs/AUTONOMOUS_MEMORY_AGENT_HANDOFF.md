@@ -141,3 +141,10 @@ The checklist is authoritative for the individual checkboxes and acceptance deta
 ## Final source-of-truth rule
 
 This handoff is a navigation snapshot, not a substitute for fresh verification. The **master implementation checklist** remains the single progress ledger; the **contract** remains the intended-behavior authority; source/tests/CI on current `main` remain the authority for actual behavior. If any status in this handoff becomes stale, update it from evidence rather than guessing.
+
+
+## 2026-11-04 — Latest continuation after PR #160
+
+PR #160 is merged as `a430548943b55eed9a0cd15d5dd7aaff58d3e594`. `memory_history` now has compact serialized response budgeting, exact totals, explicit truncation/omission metadata, and independent version/event pagination. A source review found the original tests did not cover repeated constrained-page traversal or one event larger than the whole response budget. Follow-up branch `test/memory-history-budget-pagination` adds those regressions. Treat them as pending until the PR's Ubuntu/Windows CI passes; see the master checklist for evidence and limitations.
+
+Next after this test close-out: prioritize the migration compatibility/recovery matrix and independent-connection contention/rollback coverage for `memory_update` and `memory_correct`, then relationship-aware dependent-knowledge review and source-evidence freshness. Keep power-loss/filesystem durability explicitly unverified.
