@@ -157,3 +157,7 @@ CI follow-up for PR #161, run `41930510132`: Ubuntu and Windows failed only the 
 ## 2026-11-04 — PR #161 verification close-out
 
 PR #161 is merged to `main` as `e5e646efaa1f45efd73612afab64b81bbd0dfbce`. CI run `41931940923` passed all five jobs: Ubuntu and Windows verification (install, typecheck, full tests, build, smoke), and benchmarks on Ubuntu, Windows, and macOS. The merged tests in `tests/memory-history.test.ts` verify repeated constrained-page traversal without skips or duplicates and deterministic ordering, plus individually oversized-event omission and cursor advancement. Earlier “await CI” notes in this handoff are historical and are superseded by this verified result.
+
+## 2026-11-04 — Next reliability slice in progress
+
+Branch `test/memory-update-correct-rollback-atomicity` adds failure-injection coverage for `memory_update` and `memory_correct`: SQLite triggers abort immutable-version insertion, and tests assert that current pointers, version rows, fragments, evidence, and events remain identical snapshots of the queried fields. This is pending CI and review. It does not yet close independent-connection contention coverage for these operations.
