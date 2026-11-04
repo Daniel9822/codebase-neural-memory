@@ -151,3 +151,5 @@ Next after this test close-out: prioritize the migration compatibility/recovery 
 
 
 CI follow-up for PR #161: initial run `41929755942` failed on Ubuntu and Windows only in the repeated-page test because the fixture's 1,500-character budget excluded every 700-character event once response metadata was included. The fixture budget was raised to 2,500 so events can be returned over multiple constrained pages; await new CI before claiming pagination verified.
+
+CI follow-up for PR #161, run `41930510132`: Ubuntu and Windows failed only the repeated-page test because the page was configured for 2,500 characters while the assertion still capped it at 1,500 (actual serialized size 1,789). The assertion now matches the configured 2,500-character ceiling; pagination completeness, uniqueness, and ordering assertions remain unchanged. Await CI on the corrected head; do not merge before both verification jobs pass.
