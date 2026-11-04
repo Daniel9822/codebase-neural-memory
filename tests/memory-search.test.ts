@@ -120,6 +120,8 @@ describe("versioned memory search and bootstrap", () => {
     try {
       const indexed = verify.prepare("SELECT COUNT(*) AS count FROM memory_search_fts WHERE knowledge_id=?").get(id) as { count: number };
       expect(indexed.count).toBe(2);
+      const bookkeeping = verify.prepare("SELECT COUNT(*) AS count FROM memory_search_indexed_versions").get() as { count: number };
+      expect(bookkeeping.count).toBe(2);
     } finally { verify.close(); }
   });
 
