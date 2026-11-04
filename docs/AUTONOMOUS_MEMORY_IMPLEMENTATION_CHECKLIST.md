@@ -530,3 +530,9 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Added regression coverage in `tests/memory-history.test.ts` for traversing repeated character-constrained pages without skipped/duplicated fixture events and deterministic ordering, plus explicit handling of an individually oversized event with bounded serialization and a continuation cursor.
 - The two earlier CI failures were test-fixture/assertion mismatches, corrected without relaxing pagination completeness, uniqueness, or ordering assertions. The final CI run above supersedes the historical pending notes below.
 - **Still open:** broader exact fixed-point/digit-boundary response-budget review and cross-tool response-budget coverage remain separate acceptance items; this PR does not close them.
+
+## 2026-11-04 — Follow-up: update/correct rollback atomicity tests
+
+- **Pending CI:** branch `test/memory-update-correct-rollback-atomicity` adds failure-injection tests to `tests/memory-update.test.ts` and `tests/memory-correct.test.ts`.
+- Each test installs a SQLite trigger that aborts insertion of the next immutable version, then asserts the complete before/after database snapshot is identical across knowledge current pointers, versions, fragments, evidence, and events.
+- This is targeted rollback/atomicity coverage, not yet independent-process lock contention. Do not mark the broader concurrency requirement complete until a separate-connection contention test passes on supported platforms.

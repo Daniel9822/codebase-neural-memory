@@ -79,4 +79,34 @@ describe("versioned memory update",()=>{
     const other={...location,id:"other-project"};
     expect(()=>updateMemoryVersion(other,{...initial,reason:"cross-project"})).toThrow("not found in this project");
   });
+  it("rolls back the version, fragments, evidence, pointer, and event when a version insert fails",()=>{
+    setup(); const initial=create();
+    const db=openDatabase(location);
+    db.exec(`CREATE TRIGGER fail_memory_update_version BEFORE INSERT ON knowledge_versions
+      WHEN NEW.knowledge_id = (SELECT id FROM knowledge_items LIMIT 1)
+      BEGIN SELECT RAISE(ABORT, 'injected update version failure'); END;`);
+    db.close();
+    const beforeDb=openDatabase(location);
+    const before={
+      items:beforeDb.prepare("SELECT id,current_version_id,tags_json,aliases_json,updated_at FROM knowledge_items").all(),
+      versions:beforeDb.prepare("SELECT id,version_number FROM knowledge_versions ORDER BY version_number").all(),
+      fragments:beforeDb.prepare("SELECT id,version_id,content FROM knowledge_fragments ORDER BY id").all(),
+      evidence:beforeDb.prepare("SELECT id,version_id FROM knowledge_evidence ORDER BY id").all(),
+      events:beforeDb.prepare("SELECT id,event_type FROM knowledge_events ORDER BY id").all(),
+    };
+    beforeDb.close();
+    expect(()=>updateMemoryVersion(location,{...initial,reason:"Injected failure",content:"Must not persist",
+      evidence:[{evidenceType:"test_result",testCommand:"npm test",testResult:"must roll back"}]}))
+      .toThrow("injected update version failure");
+    const afterDb=openDatabase(location);
+    expect({
+      items:afterDb.prepare("SELECT id,current_version_id,tags_json,aliases_json,updated_at FROM knowledge_items").all(),
+      versions:afterDb.prepare("SELECT id,version_number FROM knowledge_versions ORDER BY version_number").all(),
+      fragments:afterDb.prepare("SELECT id,version_id,content FROM knowledge_fragments ORDER BY id").all(),
+      evidence:afterDb.prepare("SELECT id,version_id FROM knowledge_evidence ORDER BY id").all(),
+      events:afterDb.prepare("SELECT id,event_type FROM knowledge_events ORDER BY id").all(),
+    }).toEqual(before);
+    afterDb.close();
+  });
+
 });
