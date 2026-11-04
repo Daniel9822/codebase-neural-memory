@@ -153,3 +153,7 @@ Next after this test close-out: prioritize the migration compatibility/recovery 
 CI follow-up for PR #161: initial run `41929755942` failed on Ubuntu and Windows only in the repeated-page test because the fixture's 1,500-character budget excluded every 700-character event once response metadata was included. The fixture budget was raised to 2,500 so events can be returned over multiple constrained pages; await new CI before claiming pagination verified.
 
 CI follow-up for PR #161, run `41930510132`: Ubuntu and Windows failed only the repeated-page test because the page was configured for 2,500 characters while the assertion still capped it at 1,500 (actual serialized size 1,789). The assertion now matches the configured 2,500-character ceiling; pagination completeness, uniqueness, and ordering assertions remain unchanged. Await CI on the corrected head; do not merge before both verification jobs pass.
+
+## 2026-11-04 — PR #161 verification close-out
+
+PR #161 is merged to `main` as `e5e646efaa1f45efd73612afab64b81bbd0dfbce`. CI run `41931940923` passed all five jobs: Ubuntu and Windows verification (install, typecheck, full tests, build, smoke), and benchmarks on Ubuntu, Windows, and macOS. The merged tests in `tests/memory-history.test.ts` verify repeated constrained-page traversal without skips or duplicates and deterministic ordering, plus individually oversized-event omission and cursor advancement. Earlier “await CI” notes in this handoff are historical and are superseded by this verified result.

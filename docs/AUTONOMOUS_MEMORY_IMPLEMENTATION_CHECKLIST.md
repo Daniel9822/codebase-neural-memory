@@ -522,3 +522,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - **CI finding (run `41929755942`):** Ubuntu and Windows each failed only the new repeated-page test (262/263 passed); all typechecks and three benchmarks passed. The fixture's 1,500-character budget was too small for any of its 700-character-payload events plus response metadata, so it never observed a fixture event. Adjusted that traversal fixture to 2,500 characters so individual rows fit while the complete collection still requires multiple pages. This is a test-fixture correction, not a production fix; rerun CI must prove the traversal assertions.
 
 - **CI finding (run `41930510132`):** Ubuntu and Windows again failed only the repeated-page test (262/263 passed). The fixture budget had been raised to 2,500, but its serialized-size assertion still incorrectly capped the page at 1,500 (observed 1,789). Updated that assertion to enforce the configured 2,500-character budget; no pagination/count/order assertion was relaxed. Await CI on the corrected head.
+
+## 2026-11-04 — PR #161 merged: constrained memory-history pagination verified
+
+- **IMPLEMENTED / verified:** PR #161 merged to `main` as `e5e646efaa1f45efd73612afab64b81bbd0dfbce`.
+- CI run `41931940923` completed successfully: Ubuntu and Windows verification jobs passed `npm ci`, `npm run typecheck`, `npm test`, `npm run build`, and `npm run smoke`; Ubuntu, Windows, and macOS benchmark jobs also passed.
+- Added regression coverage in `tests/memory-history.test.ts` for traversing repeated character-constrained pages without skipped/duplicated fixture events and deterministic ordering, plus explicit handling of an individually oversized event with bounded serialization and a continuation cursor.
+- The two earlier CI failures were test-fixture/assertion mismatches, corrected without relaxing pagination completeness, uniqueness, or ordering assertions. The final CI run above supersedes the historical pending notes below.
+- **Still open:** broader exact fixed-point/digit-boundary response-budget review and cross-tool response-budget coverage remain separate acceptance items; this PR does not close them.
