@@ -194,6 +194,10 @@ describe("MCP adapter protocol contract", () => {
     const searchData = JSON.parse((searched.result as { content: Array<{ text: string }> }).content[0]!.text);
     expect(searchData.results[0]).toMatchObject({ title: "Verified MCP search fixture", epistemicState: "verified" });
     expect(searchData.results[0].matchedBy).toContain("lexical");
+    const browsed = await client.request("tools/call", { name: "memory_search", arguments: { limit: 1 } });
+    expect((browsed.result as { isError?: boolean }).isError).not.toBe(true);
+    const browseData = JSON.parse((browsed.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(browseData.browsing).toBe(true);
     const bootstrap = await client.request("tools/call", { name: "memory_bootstrap", arguments: { limit: 10, maxChars: 3000 } });
     expect((bootstrap.result as { isError?: boolean }).isError).not.toBe(true);
     const context = JSON.parse((bootstrap.result as { content: Array<{ text: string }> }).content[0]!.text);
