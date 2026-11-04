@@ -3,7 +3,7 @@
 CNM generates and maintains a managed instruction section in the target repository's root `AGENTS.md` during `cnm init`. If the file already contains project-authored instructions, CNM preserves them and adds or updates only its own marked section. Run `cnm agents-md --check` in CI to detect missing or outdated CNM instructions.
 
 
-> **Versioned memory status (2026-11-03):** Schema v13, `memory_capture`, optimistic `memory_update`, `memory_correct`, and `memory_history` are merged to `main` (PRs #137–#141). The versioned capture/update/correction/history APIs are available through MCP. `memory_get` and `memory_expand` are under implementation on `feat/memory-get-expand-api` and must not be called until merged. Legacy `memory_propose`/`memory_transition` remain for compatibility and retain their explicit-approval semantics. Bootstrap/search, dependent-knowledge review, reconciliation, and health tools are not implemented. See [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) for evidence and remaining work.
+> **Versioned memory status (2026-11-04):** Schema v13, `memory_capture`, optimistic `memory_update`, `memory_correct`, `memory_history`, `memory_get`, and `memory_expand` are merged to `main` (PRs #137–#142). The versioned capture/update/correction/history/get/expand APIs are available through MCP. `memory_get` returns bounded identity/version metadata; `memory_expand` retrieves selected fragments or a deterministic bounded page. Use `memory_recall` for legacy memory discovery until `memory_search` and `memory_bootstrap` are implemented. Legacy `memory_propose`/`memory_transition` remain compatibility tools with their explicit-approval semantics. Search/bootstrap, dependent-knowledge review, reconciliation, health, and source-freshness integration are still open. See [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) for evidence and remaining work.
 
 ## Correction handling (versioned memory rollout)
 
@@ -52,12 +52,12 @@ When using `memory_correct`, identify the exact current fragment being corrected
 CNM memory is stored in the project's local database and is independent of the agent currently connected. Any agent using the same initialized project can recall the same records.
 
 - The agent should actively recognize durable knowledge worth preserving: architecture and design decisions, stable conventions, non-obvious behavior, important workflows, recurring failure causes, and verified fixes.
-- Propose meaningful knowledge proactively with `memory_propose`; do not wait for the user to remember to ask. Include a precise title, reusable explanation, category (`decision`, `convention`, `architectural`, or `gotcha`), and `sourcePath` / `commitSha` when grounded.
-- Do not save transient task chatter, secrets, speculation, unverified guesses, or duplicate memories.
-- Proposed entries are immediately discoverable through `memory_recall`, but remain `proposed`. Always label them as pending and never present them as accepted project truth.
-- Ask the user whether they want the proposal confirmed. If the user clearly says yes (for example, “confirm it”, “approve this memory”, or an unambiguous equivalent), call `memory_transition` with `status: "confirmed"`. That explicit answer is sufficient; do not ask for a second confirmation.
-- Never transition a proposal to confirmed merely because the agent considers it useful. Explicit user authorization is the approval boundary. If the user declines, do not confirm it; reject only when that is the intended lifecycle decision.
-- On later tasks, freely consult relevant confirmed memories and review their provenance with `memory_freshness` when source/commit currency matters. Changed, missing, unsafe, or non-current provenance requires caution and review; it does not silently rewrite or delete the memory.
+- Capture durable reusable findings proactively with `memory_capture`; normal versioned capture does not require per-item human approval. Supply an accurate `epistemicState`, confidence rationale when confidence is provided, and bounded evidence such as `sourcePath`, `commitSha`, or test result when grounded.
+- Do not save transient task chatter, secrets, speculation, unverified guesses as verified facts, or duplicate memories. Use `hypothesis` or `pending_validation` when appropriate.
+- Treat exact-identity duplicates and conflicts returned by `memory_capture` explicitly; never auto-merge ambiguous or contradictory knowledge.
+- Use `memory_update` with the current `expectedVersionId` and a reason for intentional edits; use `memory_correct` for a provenance-aware correction of one current fragment. Preserve user intent separately from verified implementation truth.
+- Use `memory_history` to inspect immutable versions/events, `memory_get` for identity/version metadata, and `memory_expand` only for relevant fragment bodies. Until search/bootstrap exist, legacy `memory_recall` remains the available discovery path.
+- Legacy `memory_propose`/`memory_transition` remain for compatibility only and retain their old explicit-approval behavior; do not confuse them with versioned capture.
 
 ## Optional server policies
 
