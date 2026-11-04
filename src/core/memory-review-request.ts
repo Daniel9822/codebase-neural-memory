@@ -75,21 +75,21 @@ function boundResult(result: Omit<MemoryReviewRequestResult, "returnedItems" | "
   const totalItems = result.items.length;
   const bounded = { ...result, items: [...result.items], returnedItems: totalItems,
     totalItems, truncated: false, maxChars: RESPONSE_MAX_CHARS, serializedChars: 0 };
-  while (JSON.stringify(bounded).length > RESPONSE_MAX_CHARS && bounded.items.length > 0) {
+  while (true) {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const serializedChars = JSON.stringify(bounded).length;
+      if (bounded.serializedChars === serializedChars) break;
+      bounded.serializedChars = serializedChars;
+    }
+    const actualChars = JSON.stringify(bounded).length;
+    if (actualChars <= RESPONSE_MAX_CHARS) {
+      bounded.serializedChars = actualChars;
+      break;
+    }
+    if (bounded.items.length === 0) throw new Error("Memory review response metadata exceeds its character budget");
     bounded.items.pop();
-    bounded.truncated = true;
-    bounded.returnedItems = bounded.items.length;
-  }
-  bounded.truncated ||= bounded.returnedItems < totalItems;
-  while (JSON.stringify(bounded).length > RESPONSE_MAX_CHARS && bounded.items.length > 0) {
-    bounded.items.pop();
     bounded.returnedItems = bounded.items.length;
     bounded.truncated = true;
-  }
-  for (let attempt = 0; attempt < 3; attempt++) {
-    const serializedChars = JSON.stringify(bounded).length;
-    if (bounded.serializedChars === serializedChars) break;
-    bounded.serializedChars = serializedChars;
   }
   return bounded;
 }
