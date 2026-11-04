@@ -596,7 +596,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
 
 
   server.registerTool("memory_search", {
-    description: "Search current project knowledge with bounded FTS5 lexical ranking. Searches titles, summaries, fragments, aliases, tags, types, and source references; exact IDs, paths, and symbols receive explicit ranking signals. Current active versions are the default; historical versions and lifecycle/type/epistemic/time/relation filters are explicit.",
+    description: "Search or browse current project knowledge with bounded FTS5 ranking. An omitted/empty query browses high-value current items. Supports type/tag/path/symbol, lifecycle, epistemic, time, and relation filters; exact IDs and source locators receive explicit ranking signals. Snapshot-bound cursors paginate stable result sets; historical versions are opt-in.",
     inputSchema: z.object({
       query: z.string().trim().max(1000).optional(),
       limit: z.number().int().min(1).max(50).optional(),
@@ -621,7 +621,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }));
 
   server.registerTool("memory_bootstrap", {
-    description: "Return a compact project-scoped startup context grouped into high-value knowledge, open risks/questions, and pending validation. Includes bounded output, epistemic labels, and explicit code-index/source-evidence freshness limits.",
+    description: "Return a compact project-scoped startup context grouped into high-value knowledge, open risks/questions, and pending validation. Supports a 1–20 item limit, type filters, an include-pending switch, and a 500–8,000 character budget; freshness limits are explicit.",
     inputSchema: z.object({
       limit: z.number().int().min(1).max(20).optional(),
       maxChars: z.number().int().min(500).max(8000).optional(),
