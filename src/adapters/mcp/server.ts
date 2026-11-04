@@ -665,7 +665,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
         return { content: [{ type: "text", text: JSON.stringify({ status: "conflict", reason: "operation_must_be_request_review" }) }], isError: true };
       }
       const request = { dryRun: input.dryRun, idempotencyKey: input.idempotencyKey, actor: input.actor, items: input.items };
-      return { content: [{ type: "text", text: JSON.stringify(requestMemoryReview(location, request), null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify(requestMemoryReview(location, request)) }] };
     }
     if (input.operation || input.idempotencyKey || input.actor || input.dryRun === false) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "conflict", reason: "items_required_for_review_request" }) }], isError: true };
