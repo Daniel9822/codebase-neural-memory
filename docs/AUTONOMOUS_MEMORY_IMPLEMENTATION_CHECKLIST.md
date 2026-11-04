@@ -312,7 +312,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [x] Simulate a lost response after commit and verify same-key retry replays the stored result without duplicate events (PR #152; CI `41833420368`, five jobs green).
 - [x] Verify a version committed through an independent SQLite connection is detected as stale by `request_review`, with no review event/idempotency write (PR #153; merge `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, five jobs green).
 - [x] Terminate a child process immediately after the apply commits but before it returns a response; verify parent retry replays the stored result without duplicate events (PR #153; merge `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, five jobs green). This tests process termination after commit, not power-loss durability.
-- [ ] Verify a truly overlapping concurrent writer/apply schedule with deterministic cross-process coordination and prove lock behavior under contention.
+- [ ] Verify a truly overlapping concurrent writer/apply schedule with deterministic cross-process coordination and prove lock behavior under contention. PR #154 adds a child process that holds `BEGIN IMMEDIATE`; apply must fail without writes while the lock is held, then succeed on same-key retry after release (CI pending).
 - [ ] Test power-loss/filesystem durability boundaries; process termination is not a power-loss proof.
 - [ ] Test malformed/legacy data, orphan relations, incomplete discovery, and source snapshot changes.
 
