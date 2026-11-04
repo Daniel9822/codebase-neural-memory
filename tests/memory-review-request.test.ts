@@ -89,18 +89,20 @@ describe("memory reconciliation request_review", () => {
     expect(firstPayload.relationIds).toEqual(["relation-review-first-second"]);
   });
 
-  it("returns the stored result for same-key replay and rejects changed payloads", () => {
+  it("recovers a committed apply when the caller loses its response, and rejects changed payloads", () => {
     setup();
     const item = capture("Idempotent review", "capture-review-idempotent");
     const input = { dryRun: false, idempotencyKey: "review-replay-1", items: [{
       knowledgeId: item.knowledgeId, expectedVersionId: item.versionId,
       reasonCode: "manual_review" as const, reason: "Review once",
     }] };
-    const first = requestMemoryReview(location, input);
+    // Simulate the commit succeeding while the caller loses the response.
+    // Retrying with the same key must recover the stored result without another event.
+    requestMemoryReview(location, input);
     const replay = requestMemoryReview(location, input);
-    expect(first.status).toBe("applied");
     expect(replay).toMatchObject({ status: "applied", idempotentReplay: true, eventsCreated: 1 });
     expect(counts().events).toBe(1);
+    expect(counts().idempotency).toBe(1);
     const mismatch = requestMemoryReview(location, { ...input, items: [{ ...input.items[0]!, reason: "Different payload" }] });
     expect(mismatch).toMatchObject({ status: "conflict", applied: false, reason: "idempotency_key_payload_mismatch" });
     expect(counts().events).toBe(1);
