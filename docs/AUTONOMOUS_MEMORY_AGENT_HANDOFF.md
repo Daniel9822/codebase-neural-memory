@@ -49,6 +49,12 @@ The following autonomous-memory slices are recorded as merged to `main`:
 
 The implementation checklist contains the detailed semantics and evidence. Historical progress-log entries describe the state at the time they were written; later entries supersede earlier ones. Do not interpret a historical “pending” note as current without reading the latest status and checking `main`.
 
+
+
+### Latest verified storage update — PR #158
+
+PR #158 is merged as `5ea62b89ea2f348080d55396b288612a534568d9` (head `9b2d7c33b62564f087c3196faeaff1b49865922e`; CI `41919002890`, all five jobs green). `src/storage/database.ts` now explicitly sets `PRAGMA synchronous = FULL` on each opened WAL connection. `tests/memory-review-request.test.ts` asserts WAL mode and synchronous level `2`. The bounded recall fixture in `tests/memories.test.ts` batches its 5,001 inserts in one transaction, retaining its truncation assertions while avoiding per-row FULL-sync commits on Windows. This verifies SQLite configuration and CI behavior only; it does not prove physical power-loss, storage-controller, or filesystem durability. Keep that item open.
+
 ## Open autonomous-memory work
 
 These are known open items at this snapshot. They are not claims that every edge case has been exhaustively re-audited; verify the current branch and tests before acting.
@@ -73,7 +79,7 @@ Do not add embeddings, hosted services, LLM calls, or remote dependencies.
 
 **PARTIAL:**
 - `memory_health`: bounded schema/data integrity, broken references, conflicts, pending validation, and source-freshness diagnostics are merged; broader malformed/legacy and consistency matrix remains open.
-- `memory_reconcile`: bounded preview and event-only `request_review` are merged. Review completion/resolution and exact dependent-impact capture remain open. Response budgets and evidence/relation references are implemented. Stale-version detection, post-commit process-termination recovery, and cross-process lock contention specifically inside the apply transaction are verified (PR #156; CI `41913689539`, five jobs green). Power-loss/filesystem durability remains open.
+- `memory_reconcile`: bounded preview and event-only `request_review` are merged. Review completion/resolution and exact dependent-impact capture remain open. Response budgets and evidence/relation references are implemented. Stale-version detection, post-commit process-termination recovery, and cross-process lock contention specifically inside the apply transaction are verified (PR #156; CI `41913689539`, five jobs green). PR #158 additionally configures WAL `synchronous=FULL` and verifies the pragma (`5ea62b89ea2f348080d55396b288612a534568d9`; CI `41919002890`, all five jobs green). This does not establish physical power-loss/filesystem durability, which remains open.
 - relationship-aware dependent-knowledge impact/review when a source memory is corrected or superseded;
 - broader deterministic matching/enrichment/conflict/supersession/split behavior;
 - source freshness integration using existing file/symbol/Git/index mechanisms; stale evidence must mark claims for review, never silently delete knowledge;
