@@ -309,9 +309,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [x] Add focused tests for same-key replay/conflict, stale expected versions, foreign/missing project IDs, duplicate IDs, missing apply key, batch bounds, and injected event-insert rollback (`tests/memory-review-request.test.ts`; MCP integration in `tests/mcp-adapter.test.ts`). CI run `41825667650` passed all five jobs on Ubuntu, Windows, and macOS benchmark runners.
 - [x] Enforce response-size budget and capture bounded evidence/relation references (PR #150; CI `41827470581`).
 - [x] Assert preservation of evidence, relations, fragments, current-version pointers, and append-only review events (PR #151; merge `c9a62b6fc0854fe536a01782f5a979200e0287df`; CI `41828848388`, all five jobs green).
-- [x] Simulate a lost response after commit and verify same-key retry replays the stored result without duplicate events (current branch; PR/CI pending).
-- [ ] Verify concurrent apply/version changes through independent SQLite connections with deterministic coordination.
-- [ ] Test an actual process-crash boundary; lost-response simulation is not a process-crash proof.
+- [x] Simulate a lost response after commit and verify same-key retry replays the stored result without duplicate events (PR #152; CI `41833420368`, five jobs green).
+- [ ] Verify a version committed through an independent SQLite connection is detected as stale by `request_review`, with no review event/idempotency write (PR #153; awaiting CI).
+- [ ] Terminate a child process immediately after the apply commits but before it returns a response; verify parent retry replays the stored result without duplicate events (PR #153; awaiting CI). This tests process termination after commit, not power-loss durability.
+- [ ] Verify a truly overlapping concurrent writer/apply schedule with deterministic cross-process coordination and prove lock behavior under contention.
+- [ ] Test power-loss/filesystem durability boundaries; process termination is not a power-loss proof.
 - [ ] Test malformed/legacy data, orphan relations, incomplete discovery, and source snapshot changes.
 
 **Acceptance:** narrow queries return small relevant evidence-backed fragments; expansion is selective; history and health are bounded and truthful.
