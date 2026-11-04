@@ -43,7 +43,7 @@ The following autonomous-memory slices are recorded as merged to `main`:
 | `memory_history` | IMPLEMENTED with bounded independent version/event pagination | PR #141; merge `582161966b67a35ba83f8eddf128a97e0d2be9ed`; `src/core/memory-history.ts` |
 | `memory_get`, `memory_expand` | IMPLEMENTED with bounded metadata/evidence and selective fragment expansion | PR #142; merge `b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`; `src/core/memory-get.ts`; `tests/memory-get.test.ts` |
 | `memory_search`, `memory_bootstrap` | PARTIAL — merged core behavior; edge-case acceptance matrix remains open | PR #144; merge `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`; CI run `41795181023`; `src/core/memory-search.ts`, `src/core/memory-bootstrap.ts`; 239 tests passed on Ubuntu and Windows |
-| `memory_health` | IN REVIEW — bounded integrity and source-freshness report; no automatic repair | PR #146; `src/core/memory-health.ts`; `memory_health` MCP tool; core and protocol tests added; CI pending |
+| `memory_health` | MERGED — bounded integrity and source-freshness report; no automatic repair | PR #146; merge `5b55a443c910742dde07696503d3aed01e71d69c`; CI `41821794346` green; `src/core/memory-health.ts`; MCP tool and tests |
 
 The implementation checklist contains the detailed semantics and evidence. Historical progress-log entries describe the state at the time they were written; later entries supersede earlier ones. Do not interpret a historical “pending” note as current without reading the latest status and checking `main`.
 
