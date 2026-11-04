@@ -56,7 +56,7 @@ function decodeCursor(cursor: string): { offset: number; filterHash: string; sna
 /** Lazily create and backfill FTS5 so existing schema-v13 databases upgrade safely. */
 export function ensureMemorySearchIndex(db: MemoryDatabase): void {
   const setup = db.transaction(() => {
-    db.exec(\`
+    db.exec(`
       CREATE TABLE IF NOT EXISTS memory_search_indexed_versions (version_id TEXT PRIMARY KEY);
       CREATE VIRTUAL TABLE IF NOT EXISTS memory_search_fts USING fts5(
         knowledge_id, version_id UNINDEXED, project_id UNINDEXED, knowledge_type,
@@ -80,8 +80,8 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
         INSERT OR IGNORE INTO memory_search_indexed_versions(version_id)
           SELECT v.id FROM knowledge_versions v WHERE v.id = NEW.current_version_id AND v.knowledge_id = NEW.id;
       END;
-    \`);
-    db.exec(\`
+    `);
+    db.exec(`
       INSERT INTO memory_search_fts(
         knowledge_id, version_id, project_id, knowledge_type, title, summary, body, aliases, tags, source_paths, source_symbols
       )
@@ -96,7 +96,7 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
       INSERT OR IGNORE INTO memory_search_indexed_versions(version_id)
         SELECT f.version_id FROM memory_search_fts f;
       INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (14, datetime('now'));
-    \`);
+    `);
   });
   setup.immediate();
 }
@@ -139,13 +139,13 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
   const db = openDatabase(location);
   try {
     ensureMemorySearchIndex(db);
-    const snapshot = db.prepare(\`
+    const snapshot = db.prepare(`
       SELECT
         (SELECT COUNT(*) FROM knowledge_items WHERE project_id = ?) AS itemCount,
         (SELECT COALESCE(MAX(updated_at), '') FROM knowledge_items WHERE project_id = ?) AS itemUpdated,
         (SELECT COUNT(*) FROM knowledge_relations WHERE project_id = ?) AS relationCount,
         (SELECT COALESCE(MAX(created_at), '') FROM knowledge_relations WHERE project_id = ?) AS relationCreated
-    \`).get(location.id, location.id, location.id, location.id) as Record<string, number | string>;
+    `).get(location.id, location.id, location.id, location.id) as Record<string, number | string>;
     const snapshotHash = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
     const filterHash = createHash("sha256").update(JSON.stringify({
       query, includeHistorical: input.includeHistorical ?? false, lifecycle: input.lifecycle ?? "active",
@@ -190,7 +190,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
     const candidateLimit = 1000;
     const exactPath = input.path ?? (query.includes("/") || query.includes("\\") ? query.replaceAll("\\", "/") : "");
     const exactSymbol = input.symbol ?? query;
-    const rows = db.prepare(\`
+    const rows = db.prepare(`
       SELECT i.id AS knowledgeId, v.id AS versionId, i.knowledge_type AS type, i.lifecycle,
         v.version_number AS versionNumber, v.title, v.summary, v.epistemic_state AS epistemicState,
         v.confidence, v.created_at AS createdAt, i.tags_json AS tagsJson, i.aliases_json AS aliasesJson,
@@ -203,13 +203,13 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         CASE WHEN EXISTS (SELECT 1 FROM knowledge_evidence e WHERE e.version_id=v.id AND e.source_symbol=?) THEN 1 ELSE 0 END AS exactSymbol,
         COALESCE((SELECT group_concat(source_path, ', ') FROM knowledge_evidence WHERE version_id=v.id AND source_path IS NOT NULL), '') AS sourcePaths,
         COALESCE((SELECT group_concat(source_symbol, ', ') FROM knowledge_evidence WHERE version_id=v.id AND source_symbol IS NOT NULL), '') AS sourceSymbols
-      \${from}
+      ${from}
       ORDER BY exactId DESC, exactTitle DESC, exactPath DESC, exactSymbol DESC, rank ASC,
         CASE v.epistemic_state WHEN 'verified' THEN 0 WHEN 'user_asserted' THEN 1 WHEN 'observed' THEN 2
           WHEN 'inferred' THEN 3 WHEN 'pending_validation' THEN 4 WHEN 'hypothesis' THEN 5 ELSE 6 END,
         v.created_at DESC, i.id ASC, v.version_number DESC
       LIMIT ? OFFSET ?
-    \`).all(searching ? 1 : 0, searching ? 1 : 0, query, searching ? 1 : 0, query, searching ? 1 : 0,
+    `).all(searching ? 1 : 0, searching ? 1 : 0, query, searching ? 1 : 0, query, searching ? 1 : 0,
       exactPath, exactSymbol, ...whereParams, candidateLimit + 1, offset) as SearchRow[];
     const candidateWindowTruncated = rows.length > candidateLimit;
     const candidates = rows.slice(0, candidateLimit);
