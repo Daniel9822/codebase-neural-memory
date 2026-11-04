@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add event-only `request_review` apply mode to MCP `memory_reconcile` (PR #149, merge `db7ef0af725f81a1d70fe32a78a3cd203083f9f0`; CI `41825667650`, all five jobs green). Dry-run remains the default; explicit apply validates project-scoped knowledge IDs and expected versions, appends audit events atomically with idempotency results, and supports safe replay/conflict detection. It does not alter knowledge content, versions, lifecycle, evidence, or relations. Remaining hardening includes concurrency/crash-recovery coverage, response-size enforcement, and source evidence/relation reference population.
+
 - Add bounded `memory_health` integrity and source-evidence freshness reporting through MCP (PR #146, merged); reconciliation/repair remains separate.
 
 - Add FTS5-backed versioned memory search and compact agent bootstrap through MCP (PR #144, merged). Search supports empty-query high-value browse, lexical matching, type/tag/path/symbol and epistemic/lifecycle/time/relation filters, exact-locator ranking, snapshot-bound cursors, and explicit candidate/character truncation. Bootstrap groups high-value knowledge, open risks/questions, and pending validation with contract-aligned item/character bounds, type/include-pending filters, and explicit freshness limits.
