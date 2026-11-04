@@ -130,13 +130,13 @@ describe("versioned memory search and bootstrap", () => {
     capture("bootstrap-verified", { title: "Verified architecture", content: "Stable project design", epistemicState: "verified" });
     capture("bootstrap-risk", { title: "Open deployment risk", content: "Deployment behavior needs investigation", type: "risk", epistemicState: "inferred" });
     capture("bootstrap-pending", { title: "Pending validation item", content: "This hypothesis needs a test", epistemicState: "pending_validation" });
-    const result = bootstrapMemory(location, { maxItems: 10, maxChars: 3000 });
+    const result = bootstrapMemory(location, { limit: 10, maxChars: 3000 });
     expect(result.highValue.some((entry) => entry.title === "Verified architecture")).toBe(true);
     expect(result.openRisks.some((entry) => entry.title === "Open deployment risk")).toBe(true);
     expect(result.pendingValidation.some((entry) => entry.title === "Pending validation item")).toBe(true);
     expect(result.freshness.sourceEvidence).toBe("not_checked");
     expect(result.serializedChars).toBeLessThanOrEqual(3000);
-    expect(() => bootstrapMemory(location, { maxItems: 51 })).toThrow("maxItems");
-    expect(() => bootstrapMemory(location, { maxChars: 999 })).toThrow("maxChars");
+    expect(() => bootstrapMemory(location, { limit: 21 })).toThrow("limit");
+    expect(() => bootstrapMemory(location, { maxChars: 499 })).toThrow("maxChars");
   });
 });
