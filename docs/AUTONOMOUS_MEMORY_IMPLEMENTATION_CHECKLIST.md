@@ -500,3 +500,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - **Performance regression avoided:** the bounded memory recall fixture in `tests/memories.test.ts` now inserts its 5,001 rows in one transaction. It preserves the candidate-window assertions and avoids 5,001 separately synchronized commits on Windows.
 - **Evidence:** PR #158 merged as `5ea62b89ea2f348080d55396b288612a534568d9`; head `9b2d7c33b62564f087c3196faeaff1b49865922e`; CI run `41919002890` passed all five jobs (Ubuntu/Windows typecheck, tests, build and smoke; Ubuntu/Windows/macOS benchmarks).
 - **Not verified:** actual machine power-loss, storage-controller and filesystem durability. Keep the power-loss/filesystem acceptance item open.
+
+
+### 2026-11-04 — `memory_history` serialized response budget (PR pending)
+
+- Added an explicit 500–12,000 character `maxChars` budget (default 12,000) measured against compact serialized JSON, plus exact project-scoped version/event totals, returned counts, `serializedChars`, `truncated`, and per-stream budget omission counts.
+- Version and event ordering/cursors remain independent. If the character budget omits older tail rows, only that stream's cursor advances and the omitted count is explicit; historical records and payloads are never rewritten or field-truncated.
+- MCP emits compact JSON for this tool so the core's measured representation matches the wire text.
+- Acceptance evidence and CI are pending PR review; oversized single-row behavior and pagination under repeated constrained pages require CI verification.
