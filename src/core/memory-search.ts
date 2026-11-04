@@ -23,15 +23,15 @@ function parseList(value: string): string[] {
 function validDate(value: string | undefined, field: string): string | undefined {
   if (value === undefined) return undefined;
   if (value.length > 40 || !Number.isFinite(Date.parse(value))) throw new Error("Invalid memory search " + field);
-  return value;
+  return new Date(value).toISOString();
 }
 
 /** Lazily create and backfill FTS5 so existing schema-v13 databases upgrade safely. */
 export function ensureMemorySearchIndex(db: MemoryDatabase): void {
   const setup = db.transaction(() => {
-    db.exec(\`
+    db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS memory_search_fts USING fts5(
-        knowledge_id UNINDEXED, version_id UNINDEXED, project_id UNINDEXED, knowledge_type UNINDEXED,
+        knowledge_id UNINDEXED, version_id UNINDEXED, project_id UNINDEXED, knowledge_type,
         title, summary, body, aliases, tags, source_paths, source_symbols,
         tokenize = 'unicode61 remove_diacritics 2'
       );
@@ -50,8 +50,8 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
           COALESCE((SELECT group_concat(source_symbol, ' ') FROM knowledge_evidence WHERE version_id = v.id AND source_symbol IS NOT NULL), '')
         FROM knowledge_versions v WHERE v.id = NEW.current_version_id AND v.knowledge_id = NEW.id;
       END;
-    \`);
-    db.exec(\`
+    `);
+    db.exec(`
       INSERT INTO memory_search_fts(
         knowledge_id, version_id, project_id, knowledge_type, title, summary, body, aliases, tags, source_paths, source_symbols
       )
@@ -63,7 +63,8 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
       FROM knowledge_items i JOIN knowledge_versions v ON v.knowledge_id = i.id
       WHERE NOT EXISTS (SELECT 1 FROM memory_search_fts f WHERE f.version_id = v.id)
       ORDER BY i.project_id, i.id, v.version_number;
-    \`);
+      INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (14, datetime('now'));
+    `);
   });
   setup.immediate();
 }
@@ -113,12 +114,12 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
     ];
     const from = " FROM memory_search_fts JOIN knowledge_items i ON i.id=memory_search_fts.knowledge_id AND i.project_id=memory_search_fts.project_id JOIN knowledge_versions v ON v.id=memory_search_fts.version_id AND v.knowledge_id=i.id WHERE " + where.join(" AND ");
     const totalMatches = (db.prepare("SELECT COUNT(*) AS count" + from).get(...params) as { count: number }).count;
-    const rows = db.prepare(\`
+    const rows = db.prepare(`
       SELECT i.id AS knowledgeId, v.id AS versionId, i.knowledge_type AS type, i.lifecycle,
         v.version_number AS versionNumber, v.title, v.summary, v.epistemic_state AS epistemicState,
         v.confidence, v.created_at AS createdAt, i.tags_json AS tagsJson, i.aliases_json AS aliasesJson,
         snippet(memory_search_fts, 6, '[', ']', ' … ', 16) AS snippet,
-        bm25(memory_search_fts, 0, 0, 0, 0, 8, 5, 1, 7, 5, 6, 7) AS rank,
+        bm25(memory_search_fts, 0, 0, 0, 3, 8, 5, 1, 7, 5, 6, 7) AS rank,
         CASE WHEN memory_search_fts MATCH ? THEN 1 ELSE 0 END AS lexicalMatch,
         CASE WHEN i.id = ? THEN 1 ELSE 0 END AS exactId,
         CASE WHEN lower(v.title) = lower(?) THEN 1 ELSE 0 END AS exactTitle,
@@ -126,11 +127,11 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         CASE WHEN EXISTS (SELECT 1 FROM knowledge_evidence e WHERE e.version_id=v.id AND e.source_symbol=?) THEN 1 ELSE 0 END AS exactSymbol,
         COALESCE((SELECT group_concat(source_path, ', ') FROM knowledge_evidence WHERE version_id=v.id AND source_path IS NOT NULL), '') AS sourcePaths,
         COALESCE((SELECT group_concat(source_symbol, ', ') FROM knowledge_evidence WHERE version_id=v.id AND source_symbol IS NOT NULL), '') AS sourceSymbols
-      \${from}
+      ${from}
       ORDER BY exactId DESC, exactTitle DESC, exactPath DESC, exactSymbol DESC, rank ASC,
         v.created_at DESC, i.id ASC, v.version_number DESC
       LIMIT ?
-    \`).all(...params, query, query, query, query, limit + 1) as SearchRow[];
+    `).all(...params, query, query, query, query, limit + 1) as SearchRow[];
     const results = rows.slice(0, limit).map((row) => {
       const matchedBy: string[] = [];
       if (row.exactId) matchedBy.push("exact-knowledge-id");
