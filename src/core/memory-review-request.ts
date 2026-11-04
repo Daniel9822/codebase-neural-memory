@@ -32,8 +32,7 @@ function boundedText(value: unknown, field: string, max: number): string {
   return value.trim();
 }
 
-function validate(input: MemoryReviewRequestInput): Required<Pick<MemoryReviewRequestInput, "dryRun" | "items">> &
-  Pick<MemoryReviewRequestInput, "idempotencyKey" | "actor"> {
+function validate(input: MemoryReviewRequestInput): { dryRun: boolean; items: MemoryReviewRequestItem[]; idempotencyKey?: string; actor?: string } {
   if (!input || typeof input !== "object" || Array.isArray(input) || !Array.isArray(input.items) ||
       input.items.length < 1 || input.items.length > 100) {
     throw new Error("Memory review request requires 1–100 items");
