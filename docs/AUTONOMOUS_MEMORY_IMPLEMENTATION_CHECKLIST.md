@@ -298,11 +298,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 ## E3. Health and reconcile APIs
 
-### E3 implementation in review — 2026-11-04 (PR #146)
+### E3 implementation merged — 2026-11-04 (PR #146)
 
-`memory_health` is implemented on `feat/memory-health` with a bounded core report and MCP registration. It reports schema/migration state, lifecycle/epistemic counts, pending validation, contradictions, FK/project-boundary violations, FTS bookkeeping consistency, and sampled current/legacy source evidence using safe reads. It does not mutate knowledge. CI and merge are still pending; keep E3 acceptance boxes unchecked. `memory_reconcile`, idempotent repair semantics, and recovery tests remain open.
+`memory_health` is merged to `main` in commit `5b55a443c910742dde07696503d3aed01e71d69c` (head `c9c8fc80998045476d9a2a8eb21884120bbae63a`). CI run `41821794346` passed all five jobs, including typecheck, tests, build, and smoke on Ubuntu/Windows plus benchmarks on Ubuntu/Windows/macOS. The bounded core report and MCP tool inspect schema/migration state, lifecycle/epistemic counts, pending validation, contradictions, FK/project-boundary violations, FTS bookkeeping consistency, and sampled current/legacy source evidence using safe reads. It does not mutate knowledge.
 
-- [ ] Implement `memory_health` for schema status, counts, broken references, pending validation, conflicts, and source freshness.
+- [x] Implement `memory_health` for schema status, counts, broken references, pending validation, conflicts, and source freshness.
 - [ ] Implement `memory_reconcile` as a bounded, auditable operation with dry-run/reporting where destructive or broad changes could occur.
 - [ ] Define idempotency and safe behavior when discovery is incomplete or source snapshots change.
 - [ ] Test malformed/legacy data, orphan relations, and recoverability.
