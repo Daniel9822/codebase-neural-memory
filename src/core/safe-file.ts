@@ -21,6 +21,15 @@ function assertWithinRoot(root: string, target: string): void {
   }
 }
 
+/** Compare a by-handle stat against a by-path stat for identity.
+ * On Windows, stat-by-path and fstat-by-handle report different st_dev values
+ * for the same file (0 vs the volume serial number), so identity there is
+ * judged by the file index alone; st_ino still detects replacement. */
+export function sameFileIdentity(fdStats: Stats, pathStats: Stats): boolean {
+  if (process.platform === "win32") return fdStats.ino === pathStats.ino;
+  return fdStats.dev === pathStats.dev && fdStats.ino === pathStats.ino;
+}
+
 export function readFileWithinRoot(rootPath: string, candidatePath: string, options: SafeFileReadOptions = {}): SafeFileRead {
   const canonicalRoot = options.canonicalRoot ?? realpathSync(rootPath);
   const absolutePath = resolve(candidatePath);
@@ -43,7 +52,7 @@ export function readFileWithinRoot(rootPath: string, candidatePath: string, opti
     const afterOpenPath = realpathSync(absolutePath);
     assertWithinRoot(canonicalRoot, afterOpenPath);
     const pathStat = statSync(afterOpenPath);
-    if (openedStat.dev !== pathStat.dev || openedStat.ino !== pathStat.ino) {
+    if (!sameFileIdentity(openedStat, pathStat)) {
       throw new Error("File changed during safe open; retry the read.");
     }
     const content = readFileSync(descriptor);
@@ -58,7 +67,7 @@ export function readFileWithinRoot(rootPath: string, candidatePath: string, opti
       throw new Error("Symlink file paths are not allowed.");
     }
     const finalPathStat = statSync(afterReadPath);
-    if (afterReadStat.dev !== finalPathStat.dev || afterReadStat.ino !== finalPathStat.ino) {
+    if (!sameFileIdentity(afterReadStat, finalPathStat)) {
       throw new Error("File path changed during read; retry the read.");
     }
     return { canonicalPath: afterReadPath, stat: afterReadStat, content };

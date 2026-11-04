@@ -2,7 +2,7 @@ import { createHash } from "node:crypto";
 import { closeSync, constants, fstatSync, ftruncateSync, fsyncSync, lstatSync, openSync, realpathSync, statSync, writeFileSync } from "node:fs";
 import { isAbsolute, join, relative, resolve, sep } from "node:path";
 import type { ProjectLocation } from "./project.js";
-import { readFileWithinRoot, type SafeFileRead } from "./safe-file.js";
+import { readFileWithinRoot, sameFileIdentity, type SafeFileRead } from "./safe-file.js";
 
 export type AgentTool = "opencode" | "claude" | "cursor" | "generic";
 
@@ -47,7 +47,7 @@ function writeAgentFileSafely(rootPath: string, path: string, content: string, e
       throw new Error("AGENTS.md path resolves outside the project root.");
     }
     const pathStat = statSync(verifiedPath);
-    if (opened.dev !== pathStat.dev || opened.ino !== pathStat.ino) {
+    if (!sameFileIdentity(opened, pathStat)) {
       throw new Error("AGENTS.md changed during safe open; retry the operation.");
     }
 
@@ -63,7 +63,7 @@ function writeAgentFileSafely(rootPath: string, path: string, content: string, e
     }
     const finalStat = statSync(finalPath);
     const finalDescriptorStat = fstatSync(descriptor);
-    if (finalStat.dev !== finalDescriptorStat.dev || finalStat.ino !== finalDescriptorStat.ino) {
+    if (!sameFileIdentity(finalDescriptorStat, finalStat)) {
       throw new Error("AGENTS.md path changed during write; verify the file before retrying.");
     }
   } finally {

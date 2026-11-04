@@ -8,7 +8,7 @@ import { getGitSnapshot, sameGitSnapshot } from "./git.js";
 import { isSupportedSourceFile, parseTypeScriptFile } from "./typescript-parser.js";
 import { analyzeImportDiagnostics, inspectSemanticPackageManifests, type SemanticResolutionInput } from "./import-diagnostics.js";
 import type { IndexSummary } from "../shared/types.js";
-import { readFileWithinRoot } from "./safe-file.js";
+import { readFileWithinRoot, sameFileIdentity } from "./safe-file.js";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
 
 function assertDirectoryIdentity(
@@ -448,14 +448,14 @@ export function discoverFiles(
               throw new Error("Opened source path resolves outside the project root.");
             }
             const pathStat = statSync(verifiedPath);
-            if (stat.dev !== pathStat.dev || stat.ino !== pathStat.ino) {
+            if (!sameFileIdentity(stat, pathStat)) {
               throw new Error("Source file changed during safe open; retry indexing.");
             }
 
             const content = readFileSync(descriptor);
             const afterRead = fstatSync(descriptor);
             const pathAfterRead = lstatSync(absolutePath);
-            if (pathAfterRead.isSymbolicLink() || pathAfterRead.dev !== stat.dev || pathAfterRead.ino !== stat.ino ||
+            if (pathAfterRead.isSymbolicLink() || !sameFileIdentity(stat, pathAfterRead) ||
                 pathAfterRead.size !== stat.size || pathAfterRead.mtimeMs !== stat.mtimeMs ||
                 afterRead.dev !== stat.dev || afterRead.ino !== stat.ino ||
                 afterRead.size !== stat.size || afterRead.mtimeMs !== stat.mtimeMs) {
