@@ -100,6 +100,31 @@ describe("versioned memory search and bootstrap", () => {
     expect(() => searchMemories(location, { query: "x", createdAfter: "not-a-date" })).toThrow("createdAfter");
   });
 
+  it("browses high-value knowledge, filters metadata, and paginates with a snapshot-bound cursor", () => {
+    setup();
+    const first = capture("browse-first", {
+      title: "First browse fixture", content: "First searchable body", type: "decision",
+      tags: ["browse-tag"], sourcePath: "src/core/search-fixture.ts", sourceSymbol: "searchFixture",
+    });
+    const second = capture("browse-second", {
+      title: "Second browse fixture", content: "Second searchable body", type: "architecture",
+    });
+    const pageOne = searchMemories(location, { limit: 1 });
+    expect(pageOne.browsing).toBe(true);
+    expect(pageOne.results).toHaveLength(1);
+    expect(pageOne.nextCursor).toBeTruthy();
+    const pageTwo = searchMemories(location, { limit: 1, cursor: pageOne.nextCursor });
+    expect(pageTwo.results).toHaveLength(1);
+    expect(pageTwo.results[0]?.knowledgeId).not.toBe(pageOne.results[0]?.knowledgeId);
+    expect(() => searchMemories(location, { query: "different filter", limit: 1, cursor: pageOne.nextCursor }))
+      .toThrow("does not match");
+    expect(searchMemories(location, { tag: "browse-tag" }).results.map((item) => item.knowledgeId)).toContain(first);
+    expect(searchMemories(location, { path: "src/core/search-fixture.ts" }).results.map((item) => item.knowledgeId)).toContain(first);
+    expect(searchMemories(location, { symbol: "searchFixture" }).results.map((item) => item.knowledgeId)).toContain(first);
+    expect(searchMemories(location, { type: "decision" }).results.map((item) => item.knowledgeId)).toContain(first);
+    expect(searchMemories(location, { type: "architecture" }).results.map((item) => item.knowledgeId)).toContain(second);
+  });
+
   it("backfills existing versions and indexes later immutable versions through the update trigger", () => {
     setup();
     const id = capture("search-backfill", {
@@ -134,6 +159,9 @@ describe("versioned memory search and bootstrap", () => {
     expect(result.highValue.some((entry) => entry.title === "Verified architecture")).toBe(true);
     expect(result.openRisks.some((entry) => entry.title === "Open deployment risk")).toBe(true);
     expect(result.pendingValidation.some((entry) => entry.title === "Pending validation item")).toBe(true);
+    const withoutPending = bootstrapMemory(location, { limit: 10, maxChars: 3000, includePending: false });
+    expect(withoutPending.pendingValidation).toHaveLength(0);
+    expect(bootstrapMemory(location, { limit: 10, types: ["risk"] }).currentKnowledgeCount).toBe(1);
     expect(result.freshness.sourceEvidence).toBe("not_checked");
     expect(result.serializedChars).toBeLessThanOrEqual(3000);
     expect(() => bootstrapMemory(location, { limit: 21 })).toThrow("limit");
