@@ -1,4 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { spawn } from "node:child_process";
+import { once } from "node:events";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -107,6 +109,60 @@ describe("versioned memory update",()=>{
       events:afterDb.prepare("SELECT id,event_type FROM knowledge_events ORDER BY id").all(),
     }).toEqual(before);
     afterDb.close();
+  });
+
+  it("fails without writes while an independent process holds the write lock, then retries successfully", async () => {
+    setup(); const initial = create();
+    const snapshot = () => {
+      const db = openDatabase(location);
+      try {
+        return {
+          items: db.prepare("SELECT id,current_version_id,tags_json,aliases_json,updated_at FROM knowledge_items").all(),
+          versions: db.prepare("SELECT id,version_number FROM knowledge_versions ORDER BY version_number").all(),
+          fragments: db.prepare("SELECT id,version_id,content FROM knowledge_fragments ORDER BY id").all(),
+          evidence: db.prepare("SELECT id,version_id FROM knowledge_evidence ORDER BY id").all(),
+          events: db.prepare("SELECT id,event_type FROM knowledge_events ORDER BY id").all(),
+        };
+      } finally { db.close(); }
+    };
+    const before = snapshot();
+    const script = `
+      import { openDatabase } from "./src/storage/database.js";
+      const location = JSON.parse(process.env.CNM_TEST_LOCATION ?? "null");
+      const db = openDatabase(location);
+      db.exec("BEGIN IMMEDIATE");
+      process.stdout.write("LOCKED\\n");
+      setTimeout(() => { try { db.exec("ROLLBACK"); } finally { db.close(); } }, 6500);
+    `;
+    const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], {
+      stdio: ["ignore", "pipe", "pipe"], env: { ...process.env, CNM_TEST_LOCATION: JSON.stringify(location) },
+    });
+    child.stdout.setEncoding("utf8");
+    const childExit = once(child, "exit") as Promise<[number | null, NodeJS.Signals | null]>;
+    try {
+      await new Promise<void>((resolve, reject) => {
+        child.stdout.once("data", (chunk: string) => chunk.includes("LOCKED") ? resolve() : reject(new Error("Unexpected lock-holder output: " + chunk)));
+        child.once("error", reject);
+        child.once("exit", (code, signal) => reject(new Error("Lock-holder exited before acquiring lock: " + code + "/" + signal)));
+      });
+      const probe = openDatabase(location); probe.close();
+      let lockError: unknown;
+      try {
+        updateMemoryVersion(location, { ...initial, reason: "Contended update", content: "Must not be committed." });
+      } catch (error) { lockError = error; }
+      const [exitCode, signal] = await childExit;
+      expect(exitCode).toBe(0);
+      expect(signal).toBeNull();
+      expect(lockError).toBeInstanceOf(Error);
+      expect(String(lockError)).toMatch(/database is locked/i);
+      expect(snapshot()).toEqual(before);
+      expect(updateMemoryVersion(location, { ...initial, reason: "Retry after lock release", content: "Committed after retry." }))
+        .toMatchObject({ status: "updated", versionNumber: 2 });
+      expect(snapshot().versions).toHaveLength(2);
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill();
+      if (child.exitCode === null && child.signalCode === null) await childExit;
+    }
   });
 
 });
