@@ -195,6 +195,8 @@ The following are adapter-level bounds for the first implementation. They are de
 | `memory_update` | `id`, `expectedVersionId`, `reason` 1–1,000 chars | Partial version fields with the same per-field limits as capture; actor/origin metadata |
 | `memory_correct` | `id`, `targetVersionId`, `reason` 1–1,000 chars, `correctionSource` = user/agent | Corrected title/summary/content or fragment; epistemic state; evidence; expected current version |
 | `memory_history` | `knowledgeId` (1–128 chars) | `versionLimit` and `eventLimit` 1–50 (default 20); `beforeVersionNumber`; paired `beforeEventCreatedAt` / `beforeEventId` cursors |
+| `memory_get` | `knowledgeId` | optional `versionId`; optional `includeEvidence` (bounded evidence metadata) |
+| `memory_expand` | `knowledgeId` | optional `versionId`; `fragmentIds` 1–20 or `beforeOrdinal`; `limit` 1–20; `maxChars` 500–12,000 |
 | `memory_reconcile` | none | `dryRun` default true; selected IDs or scope; `limit` 1–100; explicit operation kinds |
 | `memory_health` | none | `limit` 1–100; include bounded source freshness/conflict samples |
 
@@ -211,10 +213,11 @@ Structured errors use stable codes: `invalid_input`, `not_found`, `version_confl
 1. **Contract (this document):** settle semantics, authority, migration mapping, idempotency, bounds, and compatibility.
 2. **Schema/history:** add normalized identity/version/fragment/evidence/relation/event storage and transactional migration. v13 DDL/backfill is merged to main (PR #137, merge `c1abe4160ff7a5c9503e42901b2c6e4e21476778`). Current-version ownership is constrained by a composite foreign key; triggers enforce immutable versions/fragments and append-only evidence/events. Post-merge CI run `41729315788` passed all five jobs (verify Ubuntu/Windows; benchmark Ubuntu/Windows/macOS). The broader older-schema upgrade, crash/reopen, invalid-data, FTS-integrity, and query-plan matrix remains open.
 3. **Core operations (partially implemented):** bounded `memory_capture` (PR #138), optimistic immutable `memory_update` (PR #139), and provenance-aware selective `memory_correct` (PR #140) are merged. Broader matching, full lifecycle transition policy, idempotent updates, independent-connection race tests, and failure-injection rollback tests remain open.
-4. **History slice:** `memory_history` is implemented on branch `feat/memory-history-api` with project-scoped, bounded version/event pagination; it is not released until its PR and CI pass.
-5. **Retrieval:** implement bootstrap/search/get/expand/health with bounded FTS5 retrieval and source freshness.
-6. **Reconciliation and impact:** implement bounded duplicate/contradiction reconciliation and relationship-aware dependent-knowledge review; do not silently rewrite dependent items.
-7. **MCP/workflow and evaluation:** continue agent integration, preserve compatibility, and run repeatable reuse, correction, source-change, broad retrieval, and cross-session scenarios against a control.
+4. **History slice:** `memory_history` is merged in PR #141 with project-scoped, bounded version/event pagination.
+5. **Focused retrieval:** implement `memory_get` and `memory_expand` as separate bounded reads; currently under development on `feat/memory-get-expand-api`.
+6. **Search/bootstrap:** implement lexical FTS5 search and compact project bootstrap with deterministic ranking, budgets, and freshness warnings.
+7. **Health/reconciliation and impact:** implement health, dry-run reconciliation, and relationship-aware dependent-knowledge review; do not silently rewrite dependent items.
+8. **MCP/workflow and evaluation:** continue agent integration, preserve compatibility, and run repeatable reuse, correction, source-change, broad retrieval, and cross-session scenarios against a control.
 
 No phase is complete because a tool name or schema exists. Completion requires focused tests, migration evidence, clean-checkout CI, reviewed diffs, and measured acceptance results.
 
