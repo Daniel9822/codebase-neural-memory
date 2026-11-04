@@ -247,11 +247,14 @@ describe("explicit memory lifecycle", () => {
     const insert = database!.prepare(`INSERT INTO memories
       (id, category, title, content, status, source_path, commit_sha, source_hash, author, updated_by, created_at, updated_at)
       VALUES (?, ?, ?, ?, ?, NULL, NULL, NULL, NULL, NULL, ?, ?)`);
-    for (let index = 0; index < 5_000; index += 1) {
-      const timestamp = new Date(Date.UTC(2025, 0, 1, 0, 0, index % 60)).toISOString();
-      insert.run(`bulk-${String(index).padStart(4, "0")}`, "note", `Unrelated note ${index}`, "No matching terms here.", "confirmed", timestamp, timestamp);
-    }
-    insert.run("old-match", "decision", "Legacy deployment invariant", "The deployment invariant must remain stable.", "confirmed", "2020-01-01T00:00:00.000Z", "2020-01-01T00:00:00.000Z");
+    const insertBulkMemories = database!.transaction(() => {
+      for (let index = 0; index < 5_000; index += 1) {
+        const timestamp = new Date(Date.UTC(2025, 0, 1, 0, 0, index % 60)).toISOString();
+        insert.run(`bulk-${String(index).padStart(4, "0")}`, "note", `Unrelated note ${index}`, "No matching terms here.", "confirmed", timestamp, timestamp);
+      }
+      insert.run("old-match", "decision", "Legacy deployment invariant", "The deployment invariant must remain stable.", "confirmed", "2020-01-01T00:00:00.000Z", "2020-01-01T00:00:00.000Z");
+    });
+    insertBulkMemories();
 
     const report = recallMemoriesReport(location, "deployment invariant", 20);
     expect(report.records).toEqual([]);

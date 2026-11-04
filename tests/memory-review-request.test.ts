@@ -51,6 +51,14 @@ function counts() {
 }
 
 describe("memory reconciliation request_review", () => {
+  it("opens the WAL database with FULL synchronous commit durability", () => {
+    setup();
+    const db = openDatabase(location);
+    expect(db.pragma("journal_mode", { simple: true })).toBe("wal");
+    expect(db.pragma("synchronous", { simple: true })).toBe(2);
+    db.close();
+  });
+
   it("defaults to dry-run and creates neither events nor idempotency rows", () => {
     setup();
     const item = capture("Review me", "capture-review-dry");
