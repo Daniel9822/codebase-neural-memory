@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status (2026-11-04):** Contract v2, schema v14 and versioned memory operations are merged to `main` (PRs #136–#156). `memory_search`/`memory_bootstrap` (#144), `memory_health` (#146), read-only reconciliation preview (#147), and event-only `request_review` with bounded responses and related evidence/relation references (#149–#150) are available. Apply-transaction lock contention/retry is verified by PR #156. Resolution workflows, durable dependent-knowledge review and power-loss/filesystem durability remain open.
+**Status (2026-11-04):** Contract v2, schema v14 and versioned memory operations are merged to `main` (PRs #136–#158). `memory_search`/`memory_bootstrap` (#144), `memory_health` (#146), read-only reconciliation preview (#147), and event-only `request_review` with bounded responses and related evidence/relation references (#149–#150) are available. Apply-transaction lock contention/retry is verified by PR #156. PR #158 explicitly configures SQLite WAL `synchronous=FULL` and tests the effective pragma (merge `5ea62b89ea2f348080d55396b288612a534568d9`; CI `41919002890`, all five jobs green, including Windows). This verifies the configured SQLite policy, not physical power-loss/filesystem durability. Resolution workflows, durable dependent-knowledge review and power-loss/filesystem durability remain open.
 
 ## How to use this checklist
 
@@ -314,7 +314,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [x] Terminate a child process immediately after the apply commits but before it returns a response; verify parent retry replays the stored result without duplicate events (PR #153; merge `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, five jobs green). This tests process termination after commit, not power-loss durability.
 - [x] Verify deterministic cross-process database-open contention and retry: PR #154 merge `875112ca6ad92d9e919ec0321cb14093295b8ba4`, CI `41839728294` (five jobs green). This established safe failure/no writes and retry, but did not isolate the apply transaction.
 - [x] Verify the current-schema open fast path and contention specifically inside `requestMemoryReview` apply: PR #156 merge `55d663aae0da7b4a2a68696f0c74ae1a328cff1a`; head `4df8d05e722212316af73f7ffdae553d4fd118d9`; CI run `41913689539` passed all five jobs (Ubuntu/Windows typecheck, tests, build, smoke; Ubuntu/Windows/macOS benchmarks). `migrate()` now returns read-only when migration v13 is present, avoiding repeated migration DDL/marker writes on ordinary opens. The test proves `openDatabase()` succeeds while another process holds `BEGIN IMMEDIATE`, then `requestMemoryReview()` fails at apply without writes and succeeds with same-key retry after release. The test awaits child exit before assertions/cleanup to avoid Windows WAL-handle cleanup races.
-- [ ] Test power-loss/filesystem durability boundaries; process termination is not a power-loss proof.
+- [ ] Test power-loss/filesystem durability boundaries; process termination is not a power-loss proof. PR #158 configures WAL `synchronous=FULL` on each opened connection and asserts `journal_mode=wal` plus `synchronous=2`; CI `41919002890` passed Ubuntu/Windows verification and all three platform benchmarks. This is configuration verification only, not a physical power-loss/filesystem test.
 - [ ] Test malformed/legacy data, orphan relations, incomplete discovery, and source snapshot changes.
 
 **Acceptance:** narrow queries return small relevant evidence-backed fragments; expansion is selective; history and health are bounded and truthful.
@@ -492,3 +492,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - The reader returns immutable version metadata and append-only events for one project-scoped knowledge identity. Version pagination uses descending version numbers; event pagination uses descending `(created_at, id)` cursors. Limits are independently bounded to 1–50.
 - Tests cover capture → update → correction history, independent cursors, stable older-page retrieval, project isolation, and invalid bounds. Character-budget enforcement and stale-evidence warnings are not part of this slice.
 - PR/CI status is pending; do not treat this API as available on `main` until merged.
+
+
+## 2026-11-04 verification update — PR #158
+
+- **Verified behavior:** `openDatabase()` sets `PRAGMA synchronous = FULL` after enabling WAL on each connection. `tests/memory-review-request.test.ts` asserts WAL mode and synchronous level `2`.
+- **Performance regression avoided:** the bounded memory recall fixture in `tests/memories.test.ts` now inserts its 5,001 rows in one transaction. It preserves the candidate-window assertions and avoids 5,001 separately synchronized commits on Windows.
+- **Evidence:** PR #158 merged as `5ea62b89ea2f348080d55396b288612a534568d9`; head `9b2d7c33b62564f087c3196faeaff1b49865922e`; CI run `41919002890` passed all five jobs (Ubuntu/Windows typecheck, tests, build and smoke; Ubuntu/Windows/macOS benchmarks).
+- **Not verified:** actual machine power-loss, storage-controller and filesystem durability. Keep the power-loss/filesystem acceptance item open.
