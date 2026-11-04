@@ -522,3 +522,9 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - **CI finding (run `41929755942`):** Ubuntu and Windows each failed only the new repeated-page test (262/263 passed); all typechecks and three benchmarks passed. The fixture's 1,500-character budget was too small for any of its 700-character-payload events plus response metadata, so it never observed a fixture event. Adjusted that traversal fixture to 2,500 characters so individual rows fit while the complete collection still requires multiple pages. This is a test-fixture correction, not a production fix; rerun CI must prove the traversal assertions.
 
 - **CI finding (run `41930510132`):** Ubuntu and Windows again failed only the repeated-page test (262/263 passed). The fixture budget had been raised to 2,500, but its serialized-size assertion still incorrectly capped the page at 1,500 (observed 1,789). Updated that assertion to enforce the configured 2,500-character budget; no pagination/count/order assertion was relaxed. Await CI on the corrected head.
+
+## 2026-11-04 — Follow-up: update/correct rollback atomicity tests
+
+- **Pending CI:** branch `test/memory-update-correct-rollback-atomicity` adds failure-injection tests to `tests/memory-update.test.ts` and `tests/memory-correct.test.ts`.
+- Each test installs a SQLite trigger that aborts insertion of the next immutable version, then asserts the complete before/after database snapshot is identical across knowledge current pointers, versions, fragments, evidence, and events.
+- This is targeted rollback/atomicity coverage, not yet independent-process lock contention. Do not mark the broader concurrency requirement complete until a separate-connection contention test passes on supported platforms.
