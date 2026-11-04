@@ -88,7 +88,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
       mode: "dry_run" as const,
       applied: false,
       summary: {
-        staleEvidence: health.sourceFreshness.counts.stale,
+        staleEvidenceSampled: health.sourceFreshness.counts.stale,
         duplicateCandidateGroups: duplicateTotal,
         contradictions: health.conflicts.total,
         orphanRelations: health.brokenReferences.orphanRelations,
@@ -110,7 +110,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
       limit,
       maxChars: 12000,
     };
-    while (JSON.stringify(result).length > result.maxChars &&
+    while (JSON.stringify(result, null, 2).length > result.maxChars &&
       (result.dependentReview.length || result.duplicateCandidates.length || result.staleEvidence.length || result.contradictions.length || result.orphanRelations.length)) {
       if (result.dependentReview.length) result.dependentReview.pop();
       else if (result.duplicateCandidates.length) result.duplicateCandidates.pop();
@@ -118,7 +118,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
       else if (result.contradictions.length) result.contradictions.pop();
       else result.orphanRelations.pop();
     }
-    return { ...result, serializedChars: JSON.stringify(result).length };
+    result.truncation.dependentReview ||= result.dependentReview.length < dependentReviewTotal;\n    result.truncation.duplicateCandidates ||= result.duplicateCandidates.length < duplicateTotal;\n    result.truncation.staleEvidence ||= result.staleEvidence.length < health.sourceFreshness.samples.filter((sample) => sample.status === "stale").length;\n    result.truncation.contradictions ||= result.contradictions.length < health.conflicts.samples.length;\n    result.truncation.orphanRelations ||= result.orphanRelations.length < health.brokenReferences.samples.filter((sample) => typeof sample === "object" && sample !== null && "kind" in sample && sample.kind === "orphan_relation").length;\n    return { ...result, serializedChars: JSON.stringify(result, null, 2).length };
   } finally {
     db.close();
   }
