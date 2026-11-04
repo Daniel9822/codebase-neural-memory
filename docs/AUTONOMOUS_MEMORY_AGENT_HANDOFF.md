@@ -36,7 +36,7 @@ The following autonomous-memory slices are recorded as merged to `main`:
 | Capability | Status | Evidence / implementation |
 |---|---|---|
 | Contract v2 | IMPLEMENTED (specification) | PR #136; merge `4f66aad688bd62bf6b480160584b5231b057b879`; `docs/AUTONOMOUS_MEMORY_CONTRACT.md` |
-| Schema v13 and legacy migration | IMPLEMENTED, with broader migration matrix still open | PR #137; merge `c1abe4160ff7a5c9503e42901b2c6e4e21476778`; `src/storage/database.ts` |
+| Base schema v13 and legacy migration (with the lazy schema-v14 FTS5 search-index migration) | IMPLEMENTED, with broader migration matrix still open | PR #137; merge `c1abe4160ff7a5c9503e42901b2c6e4e21476778`; `src/storage/database.ts` |
 | `memory_capture` | IMPLEMENTED for current bounded deterministic capture semantics | PR #138; merge `7faf875f0166bc2e496d099039cb625dde5ba832`; `src/core/memory-capture.ts` |
 | `memory_update` | IMPLEMENTED with optimistic expected-version update | PR #139; merge `f73e1a4022c8b61a6854af2e24c7405dabc3d24c`; `src/core/memory-update.ts` |
 | `memory_correct` | IMPLEMENTED for targeted fragment correction | PR #140; merge `7ca7441059299a228c4889cb5ccbd542637cab58`; `src/core/memory-correct.ts` |
