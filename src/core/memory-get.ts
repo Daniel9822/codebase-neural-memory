@@ -23,14 +23,13 @@ function requiredText(value: unknown, field: string, max = 128): string {
   if (typeof value !== "string" || !value.trim() || value.length > max) throw new Error(`Invalid memory ${field}`);
   return value.trim();
 }
-function readVersion(db: ReturnType<typeof openDatabase>, knowledgeId: string, versionId?: string): VersionRow {
+function readVersion(db: ReturnType<typeof openDatabase>, knowledgeId: string, versionId: string): VersionRow {
   const row = db.prepare(`
     SELECT id, version_number AS versionNumber, title, summary,
       epistemic_state AS epistemicState, confidence, confidence_reason AS confidenceReason,
       created_by AS createdBy, change_reason AS changeReason, created_at AS createdAt
-    FROM knowledge_versions WHERE knowledge_id = ? ${versionId ? "AND id = ?" : ""}
-    ORDER BY version_number DESC LIMIT 1
-  `).get(...(versionId ? [knowledgeId, versionId] : [knowledgeId])) as VersionRow | undefined;
+    FROM knowledge_versions WHERE knowledge_id = ? AND id = ?
+  `).get(knowledgeId, versionId) as VersionRow | undefined;
   if (!row) throw new Error(versionId ? "Memory version not found in this project" : "Memory has no version in this project");
   return row;
 }
@@ -50,7 +49,9 @@ export function getMemory(location: ProjectLocation, input: MemoryGetInput) {
       tagsJson: string; aliasesJson: string; createdAt: string; updatedAt: string;
     } | undefined;
     if (!item) throw new Error("Knowledge item not found in this project");
-    const version = readVersion(db, knowledgeId, input.versionId);
+    const versionId = input.versionId ?? item.currentVersionId;
+    if (!versionId) throw new Error("Knowledge item has no current version in this project");
+    const version = readVersion(db, knowledgeId, versionId);
     const fragmentCount = (db.prepare("SELECT COUNT(*) AS count FROM knowledge_fragments WHERE version_id = ?")
       .get(version.id) as { count: number }).count;
     const evidence = input.includeEvidence ? db.prepare(`
