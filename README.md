@@ -202,9 +202,9 @@ Use `cnm components` or MCP `component_map` to aggregate the indexed import grap
 
 ## Autonomous memory development status
 
-Autonomous Memory Contract v2 and its staged implementation plan are documented in [docs/AUTONOMOUS_MEMORY_CONTRACT.md](docs/AUTONOMOUS_MEMORY_CONTRACT.md) and [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md). The schema-v13 migration is merged. An initial versioned `memory_capture` core/MCP slice is under review; existing legacy memory commands remain compatibility surfaces while update/correction and retrieval are implemented. Planned v2 capabilities must not be treated as fully released behavior.
+Autonomous Memory Contract v2 and its staged implementation plan are documented in [docs/AUTONOMOUS_MEMORY_CONTRACT.md](docs/AUTONOMOUS_MEMORY_CONTRACT.md) and [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md). Schema v13 and the versioned `memory_capture`, `memory_update`, `memory_correct`, `memory_history`, `memory_get`, and `memory_expand` operations are merged. PR #144 adds FTS5-backed `memory_search` and compact `memory_bootstrap`; these tools remain under review and are not part of `main` until merged. Health, reconciliation, dependent-knowledge review, source-evidence freshness, broader reliability coverage, and real-client integration remain open.
 
 
-### Autonomous memory capture (transition)
+### Autonomous memory v2 rollout
 
-The versioned memory schema (v13) is merged. An initial `memory_capture` core/MCP implementation is under development on `feat/memory-capture-core`; the existing legacy memory tools remain the active compatibility surface until versioned update/correction and retrieval operations are completed and reviewed. Do not treat the schema migration alone as a completed autonomous-memory system.
+The versioned capture/update/correction/history/get/expand APIs are available on `main`. PR #144 adds FTS5 search and compact bootstrap, pending review and CI. Until it merges, agents on `main` must continue using legacy `memory_recall` for discovery. The complete system is not finished: source-evidence freshness, health/reconciliation, dependent-knowledge impact review, migration/concurrency/rollback hardening, evaluation, and real-client integration remain tracked in the master checklist.
