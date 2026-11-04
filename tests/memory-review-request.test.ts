@@ -1,5 +1,6 @@
 import { mkdtempSync, rmSync } from "node:fs";
-import { spawnSync } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
+import { once } from "node:events";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -171,6 +172,71 @@ describe("memory reconciliation request_review", () => {
     expect(replay).toMatchObject({ status: "applied", idempotentReplay: true, eventsCreated: 1 });
     expect(counts().events).toBe(1);
     expect(counts().idempotency).toBe(1);
+  });
+
+  it("rejects apply while an independent process holds a write lock, then succeeds on retry", async () => {
+    setup();
+    const item = capture("Cross-process lock contention", "capture-review-lock-contention");
+    const input = {
+      dryRun: false,
+      idempotencyKey: "review-cross-process-lock-1",
+      items: [{ knowledgeId: item.knowledgeId, expectedVersionId: item.versionId,
+        reasonCode: "manual_review" as const, reason: "Retry after the competing writer releases its lock" }],
+    };
+    const before = counts();
+    const script = `
+      import { openDatabase } from "./src/storage/database.js";
+      const location = JSON.parse(process.env.CNM_TEST_LOCATION ?? "null");
+      const db = openDatabase(location);
+      db.exec("BEGIN IMMEDIATE");
+      process.stdout.write("LOCKED\\n");
+      setTimeout(() => {
+        try { db.exec("ROLLBACK"); } finally { db.close(); }
+        process.exit(0);
+      }, 6500);
+    `;
+    const child = spawn(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], {
+      stdio: ["ignore", "pipe", "pipe"],
+      env: { ...process.env, CNM_TEST_LOCATION: JSON.stringify(location) },
+    });
+    child.stdout.setEncoding("utf8");
+    const childExit = once(child, "exit") as Promise<[number | null, NodeJS.Signals | null]>;
+    try {
+      const lockAcquired = new Promise<void>((resolve, reject) => {
+        child.stdout.once("data", (chunk: string) => {
+          if (chunk.includes("LOCKED")) resolve();
+          else reject(new Error("Unexpected lock-holder output: " + chunk));
+        });
+        child.once("error", reject);
+        child.once("exit", (code, signal) => reject(new Error("Lock-holder exited before acquiring lock: " + code + "/" + signal)));
+      });
+      await lockAcquired;
+
+      // Do not reopen the database while the writer owns the lock: openDatabase performs migrations.
+      // Capture the failure but wait for the lock-holder to close its SQLite handle before asserting;
+      // otherwise a failed assertion can trigger Windows cleanup while the child still owns the WAL.
+      let lockError: unknown;
+      try {
+        requestMemoryReview(location, input);
+      } catch (error) {
+        lockError = error;
+      }
+
+      const [exitCode, signal] = await childExit;
+      expect(exitCode).toBe(0);
+      expect(signal).toBeNull();
+      expect(lockError).toBeInstanceOf(Error);
+      expect(String(lockError)).toMatch(/database is locked/i);
+      expect(counts()).toEqual(before);
+
+      const retry = requestMemoryReview(location, input);
+      expect(retry).toMatchObject({ status: "applied", applied: true, idempotentReplay: false, eventsCreated: 1 });
+      expect(counts().events).toBe(1);
+      expect(counts().idempotency).toBe(1);
+    } finally {
+      if (child.exitCode === null && child.signalCode === null) child.kill();
+      if (child.exitCode === null && child.signalCode === null) await childExit;
+    }
   });
 
   it("aborts the whole batch if any expected version is stale or an item is outside the project", () => {
