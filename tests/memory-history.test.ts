@@ -97,7 +97,71 @@ describe("versioned memory history", () => {
     expect(page.budgetOmittedEvents).toBeGreaterThan(0);
     expect(page.pagination.hasMoreEvents).toBe(true);
     expect(page.serializedChars).toBe(JSON.stringify(page).length);
-    expect(page.serializedChars).toBeLessThanOrEqual(1500);
+    expect(page.serializedChars).toBeLessThanOrEqual(2500);
+  });
+
+  it("continues through every event across repeated character-constrained pages without skips or duplicates", () => {
+    setup();
+    const initial = create();
+    const db = openDatabase(location);
+    try {
+      const now = new Date().toISOString();
+      const insert = db.prepare(`
+        INSERT INTO knowledge_events
+          (id, project_id, knowledge_id, version_id, event_type, actor, reason, payload_json, created_at)
+        VALUES (?, ?, ?, ?, 'history_page_fixture', NULL, NULL, ?, ?)
+      `);
+      const add = db.transaction(() => {
+        for (let index = 0; index < 7; index++) {
+          insert.run(`page-event-${index.toString().padStart(2, "0")}`, location.id, initial.knowledgeId,
+            initial.versionId, JSON.stringify({ detail: "p".repeat(700) }), now);
+        }
+      });
+      add();
+    } finally { db.close(); }
+
+    const seen: string[] = [];
+    let cursor: { createdAt: string; id: string } | null = null;
+    for (let pageNumber = 0; pageNumber < 12; pageNumber++) {
+      const page = getMemoryHistory(location, {
+        knowledgeId: initial.knowledgeId, eventLimit: 20, maxChars: 2500,
+        ...(cursor ? { beforeEventCreatedAt: cursor.createdAt, beforeEventId: cursor.id } : {}),
+      });
+      expect(page.serializedChars).toBe(JSON.stringify(page).length);
+      expect(page.serializedChars).toBeLessThanOrEqual(2500);
+      seen.push(...page.events.filter((event) => event.eventType === "history_page_fixture").map((event) => event.id));
+      if (!page.pagination.hasMoreEvents) break;
+      expect(page.pagination.nextBeforeEvent).not.toBeNull();
+      cursor = page.pagination.nextBeforeEvent;
+    }
+
+    expect(seen).toHaveLength(7);
+    expect(new Set(seen).size).toBe(7);
+    expect(seen).toEqual(Array.from({ length: 7 }, (_, index) => `page-event-${index.toString().padStart(2, "0")}`).reverse());
+  });
+
+  it("reports and advances past an individually oversized event without exceeding the budget", () => {
+    setup();
+    const initial = create();
+    const oversizedId = "zz-oversized-history-event";
+    const db = openDatabase(location);
+    try {
+      db.prepare(`
+        INSERT INTO knowledge_events
+          (id, project_id, knowledge_id, version_id, event_type, actor, reason, payload_json, created_at)
+        VALUES (?, ?, ?, ?, 'oversized_fixture', NULL, NULL, ?, ?)
+      `).run(oversizedId, location.id, initial.knowledgeId, initial.versionId,
+        JSON.stringify({ detail: "z".repeat(4_000) }), "2026-11-04T23:59:59.000Z");
+    } finally { db.close(); }
+
+    const page = getMemoryHistory(location, { knowledgeId: initial.knowledgeId, eventLimit: 20, maxChars: 1_000 });
+    expect(page.truncated).toBe(true);
+    expect(page.budgetOmittedEvents).toBeGreaterThan(0);
+    expect(page.events.some((event) => event.id === oversizedId)).toBe(false);
+    expect(page.pagination.hasMoreEvents).toBe(true);
+    expect(page.pagination.nextBeforeEvent).toEqual({ createdAt: "2026-11-04T23:59:59.000Z", id: oversizedId });
+    expect(page.serializedChars).toBe(JSON.stringify(page).length);
+    expect(page.serializedChars).toBeLessThanOrEqual(1_000);
   });
 
   it("rejects character budgets below the supported minimum", () => {

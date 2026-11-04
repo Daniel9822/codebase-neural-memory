@@ -141,3 +141,15 @@ The checklist is authoritative for the individual checkboxes and acceptance deta
 ## Final source-of-truth rule
 
 This handoff is a navigation snapshot, not a substitute for fresh verification. The **master implementation checklist** remains the single progress ledger; the **contract** remains the intended-behavior authority; source/tests/CI on current `main` remain the authority for actual behavior. If any status in this handoff becomes stale, update it from evidence rather than guessing.
+
+
+## 2026-11-04 — Latest continuation after PR #160
+
+PR #160 is merged as `a430548943b55eed9a0cd15d5dd7aaff58d3e594`. `memory_history` now has compact serialized response budgeting, exact totals, explicit truncation/omission metadata, and independent version/event pagination. A source review found the original tests did not cover repeated constrained-page traversal or one event larger than the whole response budget. Follow-up branch `test/memory-history-budget-pagination` adds those regressions. Treat them as pending until the PR's Ubuntu/Windows CI passes; see the master checklist for evidence and limitations.
+
+Next after this test close-out: prioritize the migration compatibility/recovery matrix and independent-connection contention/rollback coverage for `memory_update` and `memory_correct`, then relationship-aware dependent-knowledge review and source-evidence freshness. Keep power-loss/filesystem durability explicitly unverified.
+
+
+CI follow-up for PR #161: initial run `41929755942` failed on Ubuntu and Windows only in the repeated-page test because the fixture's 1,500-character budget excluded every 700-character event once response metadata was included. The fixture budget was raised to 2,500 so events can be returned over multiple constrained pages; await new CI before claiming pagination verified.
+
+CI follow-up for PR #161, run `41930510132`: Ubuntu and Windows failed only the repeated-page test because the page was configured for 2,500 characters while the assertion still capped it at 1,500 (actual serialized size 1,789). The assertion now matches the configured 2,500-character ceiling; pagination completeness, uniqueness, and ordering assertions remain unchanged. Await CI on the corrected head; do not merge before both verification jobs pass.

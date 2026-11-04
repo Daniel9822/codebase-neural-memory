@@ -509,3 +509,16 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - MCP emits compact JSON for this tool so the core's measured representation matches the wire text.
 - Initial CI run `41921639444` failed on both Ubuntu and Windows because the MCP adapter's exact tool-schema contract had not been updated to include `memory_history.maxChars`; the `memory_history` unit tests themselves passed (4 tests). The schema expectation was corrected in follow-up commit `da962b7979486a6a53e05f06d1d6de8308bd6ce6`; CI must rerun.
 - Still requires dedicated coverage/review for an individually oversized row and repeated constrained-page cursor progression before merge.
+
+
+## 2026-11-04 — PR #160 merged; serialized-history edge coverage follow-up
+
+- **Verified:** PR #160 is merged to `main` as `a430548943b55eed9a0cd15d5dd7aaff58d3e594`. It adds the compact-JSON `maxChars` budget (500–12,000), serialized-size metadata, total counts, explicit budget omission counts, and independent cursors.
+- **Source review finding:** the merged `tests/memory-history.test.ts` covers the basic serialized ceiling but did not exercise repeated constrained pages or a single event larger than the entire budget. These are acceptance gaps, not evidence of a confirmed production defect.
+- **Follow-up branch:** `test/memory-history-budget-pagination`; tests added for repeated constrained-page traversal (no skipped/duplicated fixture events) and an individually oversized event (bounded response, explicit omission and continuation cursor).
+- **Pending:** PR/CI review. Do not mark these edge cases verified until Ubuntu and Windows test jobs pass. If either test exposes a defect, fix the implementation without weakening assertions.
+- **Additional open concern:** review that `totalVersions` is correctly scoped by the globally unique knowledge identity and that `serializedChars` is an exact fixed-point value at digit-boundary sizes. This follow-up does not claim either concern is a defect.
+
+- **CI finding (run `41929755942`):** Ubuntu and Windows each failed only the new repeated-page test (262/263 passed); all typechecks and three benchmarks passed. The fixture's 1,500-character budget was too small for any of its 700-character-payload events plus response metadata, so it never observed a fixture event. Adjusted that traversal fixture to 2,500 characters so individual rows fit while the complete collection still requires multiple pages. This is a test-fixture correction, not a production fix; rerun CI must prove the traversal assertions.
+
+- **CI finding (run `41930510132`):** Ubuntu and Windows again failed only the repeated-page test (262/263 passed). The fixture budget had been raised to 2,500, but its serialized-size assertion still incorrectly capped the page at 1,500 (observed 1,789). Updated that assertion to enforce the configured 2,500-character budget; no pagination/count/order assertion was relaxed. Await CI on the corrected head.
