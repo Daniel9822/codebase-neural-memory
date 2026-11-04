@@ -124,7 +124,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
   validateFilter(input.tag, "tag", 64);
   validateFilter(input.path, "path", 1024);
   validateFilter(input.symbol, "symbol", 512);
-  if (input.path && (input.path.startsWith("/") || input.path.startsWith("\\") || input.path.split(/[\\/]/).includes(".."))) {
+  if (input.path && (input.path.startsWith("/") || input.path.startsWith("\\") || /^[A-Za-z]:[\\/]/.test(input.path) || input.path.split(/[\\/]/).includes(".."))) {
     throw new Error("Memory search path must be project-relative");
   }
   const states = ["observed", "verified", "inferred", "user_asserted", "planned", "hypothesis", "pending_validation"];
