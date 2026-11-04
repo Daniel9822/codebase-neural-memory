@@ -20,7 +20,7 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
     const rows = db.prepare(\`
       SELECT i.id AS knowledgeId, i.knowledge_type AS type, i.tags_json AS tagsJson, i.aliases_json AS aliasesJson,
         v.id AS versionId, v.version_number AS versionNumber, v.title, v.summary,
-        v.epistemic_state AS epistemicState, v.confidence, v.created_at AS createdAt,
+        v.epistemic_state AS epistemicState, v.confidence, i.updated_at AS updatedAt,
         COALESCE((SELECT group_concat(source_path, ', ') FROM knowledge_evidence WHERE version_id=v.id AND source_path IS NOT NULL), '') AS sourcePaths,
         COALESCE((SELECT group_concat(source_symbol, ', ') FROM knowledge_evidence WHERE version_id=v.id AND source_symbol IS NOT NULL), '') AS sourceSymbols
       FROM knowledge_items i JOIN knowledge_versions v ON v.id=i.current_version_id AND v.knowledge_id=i.id
@@ -37,14 +37,14 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
     \`).all(location.id, maxItems + 1) as Array<{
       knowledgeId: string; type: string; tagsJson: string; aliasesJson: string;
       versionId: string; versionNumber: number; title: string; summary: string;
-      epistemicState: string; confidence: number | null; createdAt: string; sourcePaths: string; sourceSymbols: string;
+      epistemicState: string; confidence: number | null; updatedAt: string; sourcePaths: string; sourceSymbols: string;
     }>;
     const highValue: Array<Record<string, unknown>> = [], openRisks: Array<Record<string, unknown>> = [], pendingValidation: Array<Record<string, unknown>> = [];
     for (const row of rows.slice(0, maxItems)) {
       const item = {
         knowledgeId: row.knowledgeId, versionId: row.versionId, versionNumber: row.versionNumber,
         type: row.type, title: row.title, summary: row.summary, epistemicState: row.epistemicState,
-        confidence: row.confidence, updatedAt: row.createdAt, tags: parseList(row.tagsJson), aliases: parseList(row.aliasesJson),
+        confidence: row.confidence, updatedAt: row.updatedAt, tags: parseList(row.tagsJson), aliases: parseList(row.aliasesJson),
         sourcePaths: row.sourcePaths ? row.sourcePaths.split(", ").slice(0, 3) : [],
         sourceSymbols: row.sourceSymbols ? row.sourceSymbols.split(", ").slice(0, 3) : []
       };
@@ -67,12 +67,12 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
     }
     result.freshness.warnings.push("Source-file and Git evidence attached to knowledge items has not yet been reconciled by memory_health.");
     const groups = [highValue, openRisks, pendingValidation];
-    let serializedChars = JSON.stringify(result).length;
+    let serializedChars = JSON.stringify({ ...result, serializedChars: 0 }).length;
     while (serializedChars > maxChars && groups.some((group) => group.length)) {
       [...groups].reverse().find((group) => group.length)!.pop();
       result = { ...result, returned: highValue.length + openRisks.length + pendingValidation.length, truncated: true };
-      serializedChars = JSON.stringify(result).length;
+      serializedChars = JSON.stringify({ ...result, serializedChars: 0 }).length;
     }
-    return { ...result, serializedChars };
+    return { ...result, serializedChars: JSON.stringify({ ...result, serializedChars: 0 }).length };
   } finally { db.close(); }
 }
