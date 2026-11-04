@@ -1,21 +1,21 @@
 # Memory Reconciliation Apply — Safety Design
 
-**Status:** Proposed implementation contract; no apply behavior is implemented by this document.  
+**Status:** Implemented baseline contract for event-only `request_review` (PR #149); follow-up hardening in review adds response-budget enforcement and related evidence/relation references.  
 **Baseline:** PR #147 merged to `main` as `754b7dddd74afc8b3be5353cdc838568e0ba7283`; CI `41823553294` passed all five jobs.  
 **Scope:** Define the first safe write-capable reconciliation operation without merging, rewriting, archiving, or deleting knowledge.
 
 ## 1. Current boundary
 
-The shipped `memory_reconcile` operation is a strictly read-only preview. It reports sampled stale evidence, exact normalized-title duplicate candidate groups, existing contradictions, orphan relations, and related dependent-review candidates. It must remain read-only unless a separately reviewed implementation explicitly adds an apply mode.
+The `memory_reconcile` tool provides a bounded read-only preview and an explicit event-only `request_review` apply mode. The apply mode is separate from preview selection and is constrained by the invariants below.
 
 This design does not authorize duplicate merging, automatic contradiction resolution, evidence deletion, relation deletion, lifecycle changes, or automatic epistemic-state promotion/demotion.
 
 ## 2. First permitted operation
 
-The only proposed first write operation is **`request_review`**:
+The only implemented write operation is **`request_review`**:
 
 - Append an auditable review-request event for an explicitly selected, existing knowledge item.
-- Include the triggering reason and evidence references in the event payload (for example, stale source evidence or a dependent item whose linked source became stale).
+- Include the triggering reason and up to 20 related evidence IDs and 20 relation IDs in the event payload when available; include explicit truncation flags for either reference list.
 - Preserve the knowledge item, current version pointer, every immutable version, fragment, evidence row, and relation unchanged.
 - Do not claim that a human has reviewed or resolved the item. A review-request event is a queue signal, not a validation result.
 - Do not infer or apply the operation to every preview candidate. The caller must submit an explicit bounded list of IDs and the expected current version ID for each item.
@@ -69,23 +69,22 @@ Events are append-only. The operation must not update/delete prior events or evi
 ## 7. Bounds and response safety
 
 - At most 100 explicitly selected items per operation.
-- Enforce a serialized response budget (target 12,000 characters) after formatting; report truncation explicitly.
+- Enforce a serialized response budget of 12,000 characters; report `totalItems`, `returnedItems`, `truncated`, `maxChars`, and `serializedChars` explicitly. The event append remains atomic for all selected items even when the returned per-item detail list is truncated.
 - Stable ordering by knowledge ID; never rely on SQLite's implicit row order.
 - Return exact counts only when computed; otherwise label counts as sampled/lower-bound.
 - Keep preview sampling and apply selection distinct. Preview `limit` must not silently become an apply selection.
 
-## 8. Required tests before merge
+## 8. Verification status and remaining tests
 
-1. Default dry-run creates no event and no idempotency row.
-2. Successful apply appends exactly one event per selected item and preserves item/version/fragment/evidence/relation counts and pointers.
-3. Same-key/same-payload retry returns the stored result and creates no duplicate events.
-4. Same-key/different-payload retry conflicts without writes.
-5. Stale expected version, foreign-project ID, missing ID, duplicate ID, and invalid bounds abort the whole batch.
-6. Independent SQLite connection changes a selected current version between preflight and apply; transaction detects conflict.
-7. Failure injection after event insertion but before idempotency result commit rolls back the entire batch.
-8. Failure injection after commit followed by retry returns the stored result.
-9. Project isolation and append-only event trigger behavior are preserved.
-10. Response character budget, deterministic ordering, and Windows/Ubuntu/macOS CI are verified.
+Implemented and merged in PR #149: default dry-run creates no event/idempotency row; successful apply appends one event per item and preserves knowledge/version rows; same-key replay and mismatch conflict; stale/missing/foreign IDs abort the batch; duplicate IDs, missing apply key and invalid batch size are rejected; event-insert failure rolls back events and idempotency; MCP integration applies a review request. CI run `41825667650` passed all five jobs.
+
+Follow-up hardening in this branch adds response-budget/truncation coverage and event payload references for related evidence/relations.
+
+Still required:
+- Independent SQLite connection changes a selected current version during a concurrent apply; transaction detects conflict.
+- Failure injection after commit followed by retry returns the stored result.
+- Explicit append-only event trigger behavior and full evidence/relation count/pointer preservation assertions.
+- Windows/Ubuntu/macOS CI for the response-budget/reference hardening branch.
 
 ## 9. Explicitly deferred
 
