@@ -1,6 +1,6 @@
 # Memory Reconciliation Apply — Safety Design
 
-**Status:** Implemented event-only `request_review` contract (PRs #149–#150 merged); PR #151 adds preservation and append-only assertions; PR #152 verifies lost-response replay; PR #153 adds independent-connection stale-version and child-process termination-after-commit tests (merged as `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, all five jobs green).  
+**Status:** Implemented event-only `request_review` contract (PRs #149–#150 merged); PR #151 adds preservation and append-only assertions; PR #152 verifies lost-response replay; PR #153 adds independent-connection stale-version and child-process termination-after-commit tests (merged as `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, all five jobs green); PR #156 verifies contention at the apply transaction (merge `55d663aae0da7b4a2a68696f0c74ae1a328cff1a`; CI `41913689539`, all five jobs green).  
 **Baseline:** PR #147 merged to `main` as `754b7dddd74afc8b3be5353cdc838568e0ba7283`; CI `41823553294` passed all five jobs.  
 **Scope:** Define the first safe write-capable reconciliation operation without merging, rewriting, archiving, or deleting knowledge.
 
@@ -81,9 +81,9 @@ Implemented and merged in PR #149: default dry-run creates no event/idempotency 
 PR #150 merged as `2279edd954bdeedea2c7cd9d1e5d014c05eccb24`; CI `41827470581` passed all five jobs. It enforces the 12,000-character serialized response budget and records up to 20 related evidence IDs and 20 project-scoped relation IDs per event, with truncation flags.
 
 Still required:
-- A deterministic overlapping writer/apply test that proves the lock is encountered inside `requestMemoryReview`'s apply transaction, not during `openDatabase()` migration setup.
-- [x] Deterministic cross-process database-open contention/retry is covered by PR #154 (merge `875112ca6ad92d9e919ec0321cb14093295b8ba4`; CI `41839728294`, all five jobs green). A child holds `BEGIN IMMEDIATE`; the request fails without writes and succeeds after release. **Limitation:** repeated migration-marker `INSERT OR IGNORE` statements in `openDatabase()` may cause the failure before the apply transaction is entered. A separate test that reaches and contends specifically at the `request_review` apply transaction is still required.
-- Power-loss/filesystem durability testing; the child-process termination test covers process exit after commit, not machine/power failure.
+- [x] Deterministic cross-process database-open contention/retry is covered by PR #154 (merge `875112ca6ad92d9e919ec0321cb14093295b8ba4`; CI `41839728294`, all five jobs green). The initial test did not isolate the apply transaction.
+- [x] Deterministic contention specifically at `requestMemoryReview`'s immediate apply transaction is covered by PR #156 (merge `55d663aae0da7b4a2a68696f0c74ae1a328cff1a`; head `4df8d05e722212316af73f7ffdae553d4fd118d9`; CI `41913689539`, all five jobs green). The schema-v13 read-only fast path allows `openDatabase()` to succeed while a child holds `BEGIN IMMEDIATE`; the apply then fails without writes and same-key retry succeeds after release.
+- [ ] Power-loss/filesystem durability testing; the child-process termination test covers process exit after commit, not machine/power failure.
 
 
 ## 9. Explicitly deferred
