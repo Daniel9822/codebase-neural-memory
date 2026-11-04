@@ -51,7 +51,7 @@ The implementation checklist contains the detailed semantics and evidence. Histo
 
 
 
-### Latest verified storage update — PR #158
+### Latest verified storage and transaction update — PR #164
 
 PR #158 is merged as `5ea62b89ea2f348080d55396b288612a534568d9` (head `9b2d7c33b62564f087c3196faeaff1b49865922e`; CI `41919002890`, all five jobs green). `src/storage/database.ts` now explicitly sets `PRAGMA synchronous = FULL` on each opened WAL connection. `tests/memory-review-request.test.ts` asserts WAL mode and synchronous level `2`. The bounded recall fixture in `tests/memories.test.ts` batches its 5,001 inserts in one transaction, retaining its truncation assertions while avoiding per-row FULL-sync commits on Windows. This verifies SQLite configuration and CI behavior only; it does not prove physical power-loss, storage-controller, or filesystem durability. Keep that item open.
 
@@ -90,7 +90,7 @@ Do not add embeddings, hosted services, LLM calls, or remote dependencies.
 **PENDING / NOT VERIFIED until evidenced:**
 - migration matrix from all supported prior schema versions, including interruption/reopen/retry and malformed legacy data;
 - deterministic overlapping SQLite-connection writer/apply contention tests for `memory_update`, `memory_correct`, and reconciliation apply;
-- failure-injection and rollback/atomicity tests;
+- failure-injection and rollback/atomicity tests (targeted rollback injection merged in PR #164; broader matrix remains open);
 - relation/evidence/current-version/FTS consistency checks and repairability;
 - serialized response-budget coverage across history/search/bootstrap and adversarial boundary cases;
 - retrieval quality corpus and deterministic ranking evaluation.
