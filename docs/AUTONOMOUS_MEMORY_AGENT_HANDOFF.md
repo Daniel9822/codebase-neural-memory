@@ -148,3 +148,6 @@ This handoff is a navigation snapshot, not a substitute for fresh verification. 
 PR #160 is merged as `a430548943b55eed9a0cd15d5dd7aaff58d3e594`. `memory_history` now has compact serialized response budgeting, exact totals, explicit truncation/omission metadata, and independent version/event pagination. A source review found the original tests did not cover repeated constrained-page traversal or one event larger than the whole response budget. Follow-up branch `test/memory-history-budget-pagination` adds those regressions. Treat them as pending until the PR's Ubuntu/Windows CI passes; see the master checklist for evidence and limitations.
 
 Next after this test close-out: prioritize the migration compatibility/recovery matrix and independent-connection contention/rollback coverage for `memory_update` and `memory_correct`, then relationship-aware dependent-knowledge review and source-evidence freshness. Keep power-loss/filesystem durability explicitly unverified.
+
+
+CI follow-up for PR #161: initial run `41929755942` failed on Ubuntu and Windows only in the repeated-page test because the fixture's 1,500-character budget excluded every 700-character event once response metadata was included. The fixture budget was raised to 2,500 so events can be returned over multiple constrained pages; await new CI before claiming pagination verified.
