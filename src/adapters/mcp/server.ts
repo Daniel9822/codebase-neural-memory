@@ -598,12 +598,16 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   server.registerTool("memory_search", {
     description: "Search current project knowledge with bounded FTS5 lexical ranking. Searches titles, summaries, fragments, aliases, tags, types, and source references; exact IDs, paths, and symbols receive explicit ranking signals. Current active versions are the default; historical versions and lifecycle/type/epistemic/time/relation filters are explicit.",
     inputSchema: z.object({
-      query: z.string().trim().min(1).max(1000),
+      query: z.string().trim().max(1000).optional(),
       limit: z.number().int().min(1).max(50).optional(),
-      maxChars: z.number().int().min(1000).max(20000).optional(),
+      maxChars: z.number().int().min(500).max(12000).optional(),
       includeHistorical: z.boolean().optional(),
       lifecycle: z.enum(["active", "superseded", "archived"]).optional(),
       type: z.string().trim().min(1).max(64).optional(),
+      tag: z.string().trim().min(1).max(64).optional(),
+      path: z.string().trim().min(1).max(1024).optional(),
+      symbol: z.string().trim().min(1).max(512).optional(),
+      cursor: z.string().min(1).max(2048).optional(),
       epistemicState: z.enum(["observed", "verified", "inferred", "user_asserted", "planned", "hypothesis", "pending_validation"]).optional(),
       createdAfter: z.string().min(1).max(40).optional(),
       createdBefore: z.string().min(1).max(40).optional(),
@@ -619,8 +623,10 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   server.registerTool("memory_bootstrap", {
     description: "Return a compact project-scoped startup context grouped into high-value knowledge, open risks/questions, and pending validation. Includes bounded output, epistemic labels, and explicit code-index/source-evidence freshness limits.",
     inputSchema: z.object({
-      maxItems: z.number().int().min(1).max(50).optional(),
-      maxChars: z.number().int().min(1000).max(16000).optional()
+      limit: z.number().int().min(1).max(20).optional(),
+      maxChars: z.number().int().min(500).max(8000).optional(),
+      types: z.array(z.string().trim().min(1).max(64)).max(20).optional(),
+      includePending: z.boolean().optional()
     })
   }, async (input) => ({
     content: [{ type: "text", text: JSON.stringify(bootstrapMemory(location, input), null, 2) }]
