@@ -113,7 +113,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
       input.relationType ?? null, input.relationType ?? null
     ];
     const from = " FROM memory_search_fts JOIN knowledge_items i ON i.id=memory_search_fts.knowledge_id AND i.project_id=memory_search_fts.project_id JOIN knowledge_versions v ON v.id=memory_search_fts.version_id AND v.knowledge_id=i.id WHERE " + where.join(" AND ");
-    const totalMatches = (db.prepare("SELECT COUNT(*) AS count" + from).get(...params) as { count: number }).count;
+    const candidateLimit = 1000;
     const rows = db.prepare(`
       SELECT i.id AS knowledgeId, v.id AS versionId, i.knowledge_type AS type, i.lifecycle,
         v.version_number AS versionNumber, v.title, v.summary, v.epistemic_state AS epistemicState,
@@ -130,8 +130,10 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
       ORDER BY exactId DESC, exactTitle DESC, exactPath DESC, exactSymbol DESC, rank ASC,
         v.created_at DESC, i.id ASC, v.version_number DESC
       LIMIT ?
-    `).all(query, query, query, query, ...params, limit + 1) as SearchRow[];
-    const results = rows.slice(0, limit).map((row) => {
+    `).all(query, query, query, query, ...params, candidateLimit + 1) as SearchRow[];
+    const candidateWindowTruncated = rows.length > candidateLimit;
+    const candidates = rows.slice(0, candidateLimit);
+    const results = candidates.slice(0, limit).map((row) => {
       const matchedBy: string[] = [];
       if (row.exactId) matchedBy.push("exact-knowledge-id");
       if (row.exactTitle) matchedBy.push("exact-title");
@@ -148,8 +150,10 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         snippet: (row.snippet ?? "").slice(0, 500), matchedBy, relevance: Number((-(row.rank ?? 0)).toFixed(6))
       };
     });
-    const buildResult = () => ({ query, results, returned: results.length, totalMatches, limit, maxChars,
-      serializedChars: 0, truncated: results.length < totalMatches, includeHistorical: input.includeHistorical ?? false,
+    const buildResult = () => ({ query, results, returned: results.length,
+      totalMatches: candidateWindowTruncated ? null : candidates.length,
+      candidateWindow: candidateLimit, candidateWindowTruncated, limit, maxChars,
+      serializedChars: 0, truncated: results.length < candidates.length || candidateWindowTruncated, includeHistorical: input.includeHistorical ?? false,
       sourceEvidenceFreshness: "not_checked" as const });
     let serializedChars = JSON.stringify(buildResult()).length;
     while (results.length && serializedChars > maxChars) {
