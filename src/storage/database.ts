@@ -9,11 +9,19 @@ export type MemoryDatabase = InstanceType<typeof Database>;
 export function openDatabase(location: ProjectLocation): MemoryDatabase {
   mkdirSync(dirname(location.databasePath), { recursive: true });
   const db = new Database(location.databasePath);
-  db.pragma("journal_mode = WAL");
-  db.pragma("foreign_keys = ON");
-  db.pragma("busy_timeout = 5000");
-  migrate(db, location.id);
-  return db;
+  try {
+    db.pragma("journal_mode = WAL");
+    db.pragma("foreign_keys = ON");
+    db.pragma("busy_timeout = 5000");
+    migrate(db, location.id);
+    return db;
+  } catch (error) {
+    // A failed pragma or migration must not leak the connection. In particular,
+    // lock contention during migration otherwise leaves the SQLite file open
+    // and prevents cleanup/recovery on Windows.
+    db.close();
+    throw error;
+  }
 }
 
 export function migrate(db: MemoryDatabase, projectId?: string): void {
