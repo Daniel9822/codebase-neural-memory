@@ -11,6 +11,10 @@ export function openDatabase(location: ProjectLocation): MemoryDatabase {
   const db = new Database(location.databasePath);
   try {
     db.pragma("journal_mode = WAL");
+    // Keep SQLite's strongest portable commit synchronization policy explicit.
+    // In WAL mode FULL syncs the WAL at each transaction commit; this does not
+    // simulate or independently prove physical power-loss/filesystem behavior.
+    db.pragma("synchronous = FULL");
     db.pragma("foreign_keys = ON");
     db.pragma("busy_timeout = 5000");
     migrate(db, location.id);
