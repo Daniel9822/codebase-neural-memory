@@ -31,7 +31,7 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
   const setup = db.transaction(() => {
     db.exec(`
       CREATE VIRTUAL TABLE IF NOT EXISTS memory_search_fts USING fts5(
-        knowledge_id UNINDEXED, version_id UNINDEXED, project_id UNINDEXED, knowledge_type,
+        knowledge_id, version_id UNINDEXED, project_id UNINDEXED, knowledge_type,
         title, summary, body, aliases, tags, source_paths, source_symbols,
         tokenize = 'unicode61 remove_diacritics 2'
       );
@@ -76,7 +76,8 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
   if (!query || query.length > 1000) throw new Error("Memory search query must contain 1–1000 characters");
   const tokens = [...new Set(query.normalize("NFKC").match(/[\p{L}\p{N}_]+/gu) ?? [])].slice(0, 12);
   if (tokens.length === 0) throw new Error("Memory search query must contain searchable letters or numbers");
-  const matchExpression = tokens.map((token) => '"' + token.replaceAll('"', '""') + '"*').join(" OR ");
+  const structuredQuery = query.includes("/") || query.includes("\\") || query.includes(".") || /^knowledge:/i.test(query);
+  const matchExpression = tokens.map((token) => '"' + token.replaceAll('"', '""') + '"*').join(structuredQuery ? " AND " : " OR ");
   const limit = input.limit ?? 20, maxChars = input.maxChars ?? 12000;
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error("Invalid memory search limit");
   if (!Number.isInteger(maxChars) || maxChars < 1000 || maxChars > 20000) throw new Error("Invalid memory search maxChars");
@@ -95,7 +96,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
     ensureMemorySearchIndex(db);
     const where = [
       "memory_search_fts.project_id = ?",
-      "(memory_search_fts MATCH ? OR i.id = ? OR EXISTS (SELECT 1 FROM knowledge_evidence e WHERE e.version_id = v.id AND (e.source_path = ? OR e.source_symbol = ?)))",
+      "memory_search_fts MATCH ?",
       "(? = 1 OR v.id = i.current_version_id)",
       "i.lifecycle = COALESCE(?, 'active')",
       "(? IS NULL OR i.knowledge_type = ?)",
@@ -105,7 +106,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
       "(? IS NULL OR EXISTS (SELECT 1 FROM knowledge_relations r WHERE r.project_id = i.project_id AND ((r.source_knowledge_id = i.id AND r.target_knowledge_id = ?) OR (r.target_knowledge_id = i.id AND r.source_knowledge_id = ?)) AND (? IS NULL OR r.relation_type = ?)))"
     ];
     const params = [
-      location.id, matchExpression || '""', query, query, query,
+      location.id, matchExpression,
       input.includeHistorical ? 1 : 0, input.lifecycle ?? null,
       input.type ?? null, input.type ?? null, input.epistemicState ?? null, input.epistemicState ?? null,
       createdAfter ?? null, createdAfter ?? null, createdBefore ?? null, createdBefore ?? null,
