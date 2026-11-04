@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status (2026-11-04):** Contract v2, schema v13/migration, `memory_capture`, optimistic `memory_update`, selective `memory_correct`, and bounded `memory_history` are merged to `main` (PRs #136–#141). PR #141 merge commit: `582161966b67a35ba83f8eddf128a97e0d2be9ed`. `memory_get` and `memory_expand` are implemented in PR #142 (`feat/memory-get-expand-api`), awaiting CI/review; retrieval search/bootstrap, dependent-knowledge impact review, reconciliation, broader agent integration, and remaining concurrency/rollback coverage remain open.
+**Status (2026-11-04):** Contract v2, schema v13/migration, `memory_capture`, optimistic `memory_update`, selective `memory_correct`, bounded `memory_history`, `memory_get`, and `memory_expand` are merged to `main` (PRs #136–#142). PR #142 merge commit: `b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`. Focused identity/version reads and selective fragment expansion are available; lexical search/bootstrap, health/reconciliation, dependent-knowledge impact review, source-freshness integration, broader agent integration, and remaining migration/concurrency/rollback coverage remain open.
 
 ## How to use this checklist
 
@@ -282,11 +282,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 ## E2. Get, expand, history
 
-- [ ] Implement `memory_get` for one knowledge identity/current version (implemented in `src/core/memory-get.ts`; PR #142 awaiting CI/review).
-- [ ] Implement `memory_expand` for selected fragments only, with stable fragment IDs and paging (implemented in `src/core/memory-get.ts`; PR #142 awaiting CI/review).
+- [x] Implement `memory_get` for one knowledge identity/current version with optional bounded evidence metadata (`src/core/memory-get.ts`; PR #142, merge `b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`).
+- [x] Implement `memory_expand` for selected stable fragment IDs or deterministic ordinal paging with item/serialized-character budgets (`src/core/memory-get.ts`; PR #142, merge `b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`).
 - [x] Implement bounded `memory_history` for immutable versions and append-only events with independent version/event cursors (`src/core/memory-history.ts`; PR #141 merge `582161966b67a35ba83f8eddf128a97e0d2be9ed`). Source freshness invalidation and broader supersession workflows remain open.
 - [x] Ensure history depth is explicit and bounded (version/event page limits 1–50; project-scoped lookup; deterministic cursor ordering).
-- [x] Test version/event pagination, ordering, project isolation, and invalid bounds; [ ] character-budget enforcement and stale-provenance warnings remain open.
+- [x] Test version/event pagination, ordering, project isolation, and invalid bounds; [ ] serialized character-budget enforcement and stale-provenance warnings remain open.
 
 ## E3. Health and reconcile APIs
 
@@ -399,7 +399,8 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 | Date | Work item | Evidence / commit / PR / CI | Outcome / next action |
 |---|---|---|---|
-| 2026-11-02 | Initial documentation-level baseline review | `main`: `docs/ROADMAP.md`, `docs/PRODUCT_SPEC.md`, `docs/ACCEPTANCE_CRITERIA.md`, `docs/PHASE_6_MCP_CONTRACT.md`, `docs/AGENT_WORKFLOW.md`, `AGENTS.md`, `package.json` inspected | Source-level audit and CI verification were pending at baseline; subsequent implementation progress is recorded below. |
+| 2026-11-02 | Initial documentation-level baseline review | `main`: product/architecture/roadmap/MCP/workflow docs and package metadata inspected | Source-level audit and CI verification were pending at baseline; subsequent implementation progress is recorded below. |
+| 2026-11-04 | Merge and documentation close-out for focused retrieval | PR #142 merge `b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`; `src/core/memory-get.ts`; MCP adapter; `tests/memory-get.test.ts`; MCP tests | `memory_get` and `memory_expand` are on main. Next implementation slice: lexical `memory_search` and compact `memory_bootstrap`; stale-source signaling, health/reconcile, dependent review, and integration/evaluation remain open. |
 
 | 2026-11-02 | CNM-02 directory symlink replacement | PR #75; CI 41404323034; merge `3d7d94de32151b1f891308d7e661c945cfd694b9` | Targeted regression merged; broader symlink combinations remain open. |
 | 2026-11-02 | CNM-05 source-excerpt safe open/read | PR #76; CI 41404690251; merge `da7e7fd90a15a39af551237ca7c3ee6868ccc43a` | Descriptor-based read and identity checks merged; other path-based read sites still require audit. |
