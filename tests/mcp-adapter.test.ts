@@ -134,6 +134,7 @@ describe("MCP adapter protocol contract", () => {
       "memory_expand",
       "memory_freshness",
       "memory_get",
+      "memory_health",
       "memory_history",
       "memory_propose",
       "memory_recall",
