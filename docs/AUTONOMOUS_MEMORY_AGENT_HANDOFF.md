@@ -54,7 +54,7 @@ These are known open items at this snapshot. They are not claims that every edge
 
 ### Next implementation slice
 
-**`memory_health` is merged in PR #146** (merge `5b55a443c910742dde07696503d3aed01e71d69c`; CI `41821794346` green). Its report is read-only with respect to knowledge and includes bounded integrity/source-freshness samples. The next implementation slice is the explicitly scoped mutating reconciliation design, only after idempotency, audit events, optimistic concurrency, dry-run/apply separation, and recovery guarantees are specified; do not silently rewrite dependent knowledge.
+**`memory_health` and the read-only `memory_reconcile` preview are merged** (PRs #146/#147; CI runs `41821794346` and `41823553294`, all five jobs green for each). The next slice is a design-first specification for any mutating reconciliation: operation allowlist, immutable version/event behavior, idempotency, optimistic concurrency, dry-run/apply separation, bounded response, and interrupted-operation recovery. No mutation should be implemented until those invariants and failure semantics are testable.
 
 Merge: `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`. CI run `41795181023` passed all five jobs: typecheck, 239 tests, build, and smoke on Ubuntu/Windows, plus benchmarks on Ubuntu/Windows/macOS. Core search/browse, filters, snapshot cursors, bounded bootstrap, FTS migration/backfill, and MCP protocol coverage are on `main`. E1 remains PARTIAL because the full multilingual/basic-normalization, wildcard, repeated-run, ambiguous-query, and exact-boundary acceptance matrix is not yet complete. Source-evidence freshness, health/reconcile, and dependent-knowledge review remain open.
 
@@ -123,9 +123,9 @@ The checklist is authoritative for the individual checkboxes and acceptance deta
 ## Required sequence for the next agent
 
 1. Read this handoff, the contract, the full master checklist, `AGENTS.md`, and the relevant sections of `AGENT_WORKFLOW.md`.
-2. Inspect GitHub state: current `main` HEAD, open PRs, branch HEADs, and CI. Confirm whether `feat/memory-search-bootstrap` still exists and whether it is based on current `main`.
-3. Inspect `src/storage/database.ts`, capture/update/correct/get/history core modules, MCP registration, and migration/test patterns before designing search/bootstrap.
-4. Implement only the next coherent slice on a feature branch. Add focused core, migration, boundary, project-isolation, and MCP tests.
+2. Inspect GitHub state: current `main` HEAD, open PRs, branch HEADs, and CI. Confirm whether the merged PR #147 and documentation close-out are present.
+3. Inspect `src/storage/database.ts`, `memory-health.ts`, `memory-reconcile.ts`, capture/update/correct/history core modules, MCP registration, idempotency storage, and migration/test patterns before designing reconciliation apply semantics.
+4. Specify mutating reconciliation invariants and failure/recovery behavior before implementation. Implement only a separately reviewable slice on a feature branch; add focused core, migration, boundary, project-isolation, concurrency, rollback, and MCP tests.
 5. Update the master checklist with exact code paths, tests, PR, merge commit, CI run, limitations, and next action. Keep historical log entries intact; add a dated superseding entry instead of rewriting history.
 6. Synchronize only affected documents. At minimum, when adding MCP tools, update the MCP contract and agent workflow; when behavior changes, update architecture/product/acceptance/README/changelog as applicable.
 7. Review the entire diff. Run the repository's required checks and report the actual outcomes. Do not merge until required CI is green.
