@@ -142,4 +142,49 @@ describe("memory reconciliation request_review", () => {
     expect(() => requestMemoryReview(location, { items: [entry, entry] })).toThrow("duplicate");
     expect(() => requestMemoryReview(location, { items: [] })).toThrow("1–100");
   });
+  it("preserves evidence, relations, fragments, and current-version pointers during apply", () => {
+    setup();
+    const first = capture("Preserve graph first", "capture-preserve-first");
+    const second = capture("Preserve graph second", "capture-preserve-second");
+    const db = openDatabase(location);
+    db.prepare("INSERT INTO knowledge_evidence (id, version_id, evidence_type, metadata_json, created_at) VALUES (?, ?, ?, ?, ?)")
+      .run("evidence-preserve", first.versionId, "test", "{}", "2026-11-04T00:00:00.000Z");
+    db.prepare("INSERT INTO knowledge_relations (id, project_id, source_knowledge_id, target_knowledge_id, relation_type, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+      .run("relation-preserve", location.id, first.knowledgeId, second.knowledgeId, "depends_on", "2026-11-04T00:00:00.000Z");
+    const snapshot = () => ({
+      evidence: db.prepare("SELECT id, version_id AS versionId FROM knowledge_evidence ORDER BY id").all(),
+      relations: db.prepare("SELECT id, source_knowledge_id AS sourceId, target_knowledge_id AS targetId FROM knowledge_relations ORDER BY id").all(),
+      fragments: db.prepare("SELECT id, version_id AS versionId, content FROM knowledge_fragments ORDER BY id").all(),
+      pointers: db.prepare("SELECT id, current_version_id AS versionId FROM knowledge_items ORDER BY id").all(),
+    });
+    const before = snapshot();
+    db.close();
+    const result = requestMemoryReview(location, { dryRun: false, idempotencyKey: "preserve-graph-1", items: [
+      { knowledgeId: first.knowledgeId, expectedVersionId: first.versionId, reasonCode: "manual_review", reason: "Check preservation" },
+    ] });
+    expect(result.status).toBe("applied");
+    const verify = openDatabase(location);
+    expect({
+      evidence: verify.prepare("SELECT id, version_id AS versionId FROM knowledge_evidence ORDER BY id").all(),
+      relations: verify.prepare("SELECT id, source_knowledge_id AS sourceId, target_knowledge_id AS targetId FROM knowledge_relations ORDER BY id").all(),
+      fragments: verify.prepare("SELECT id, version_id AS versionId, content FROM knowledge_fragments ORDER BY id").all(),
+      pointers: verify.prepare("SELECT id, current_version_id AS versionId FROM knowledge_items ORDER BY id").all(),
+    }).toEqual(before);
+    verify.close();
+  });
+
+  it("enforces append-only behavior for reconciliation review events", () => {
+    setup();
+    const item = capture("Append-only review event", "capture-append-only-review");
+    request(item, { dryRun: false, idempotencyKey: "append-only-review-1" });
+    const db = openDatabase(location);
+    const eventId = (db.prepare("SELECT id FROM knowledge_events WHERE event_type='reconciliation_review_requested'").get() as { id: string }).id;
+    expect(() => db.prepare("UPDATE knowledge_events SET reason='rewritten' WHERE id=?").run(eventId))
+      .toThrow("knowledge events are append-only");
+    expect(() => db.prepare("DELETE FROM knowledge_events WHERE id=?").run(eventId))
+      .toThrow("knowledge events are append-only");
+    db.close();
+    expect(counts().events).toBe(1);
+  });
+
 });
