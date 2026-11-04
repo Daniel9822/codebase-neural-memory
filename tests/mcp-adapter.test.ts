@@ -130,9 +130,9 @@ describe("MCP adapter protocol contract", () => {
       "index_update",
       "memory_capture",
       "memory_correct",
+      "memory_expand",
       "memory_freshness",
       "memory_get",
-      "memory_expand",
       "memory_history",
       "memory_propose",
       "memory_recall",
@@ -172,6 +172,28 @@ describe("MCP adapter protocol contract", () => {
       memory_recall: ["category", "limit", "list", "query", "status"],
       memory_transition: ["id", "status"],
     });
+  });
+
+  it("retrieves current memory metadata and selectively expands fragments through MCP", async () => {
+    createProject();
+    const client = await connectClient();
+    const captured = await client.request("tools/call", { name: "memory_capture", arguments: {
+      idempotencyKey: "mcp-get-expand-seed",
+      items: [{ title: "Get expand fixture", content: "Primary body", type: "behavior", epistemicState: "observed",
+        fragments: [{ heading: "Detail", content: "Expanded body" }] }],
+    } });
+    const knowledgeId = JSON.parse((captured.result as { content: Array<{ text: string }> }).content[0]!.text)
+      .outcomes[0].knowledgeId as string;
+    const get = await client.request("tools/call", { name: "memory_get", arguments: { knowledgeId } });
+    expect((get.result as { isError?: boolean }).isError).not.toBe(true);
+    const metadata = JSON.parse((get.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(metadata).toMatchObject({ knowledgeId, version: { title: "Get expand fixture" }, fragmentCount: 2 });
+    const expanded = await client.request("tools/call", { name: "memory_expand", arguments: {
+      knowledgeId, fragmentIds: [metadata.selectedVersionId ? (database!.prepare(
+        "SELECT id FROM knowledge_fragments WHERE version_id=? AND ordinal=1").get(metadata.selectedVersionId) as { id: string }).id : ""],
+    } });
+    expect((expanded.result as { isError?: boolean }).isError).not.toBe(true);
+    expect((expanded.result as { content: Array<{ text: string }> }).content[0]!.text).toContain("Expanded body");
   });
 
   it("returns bounded version and event history through MCP with stable cursors", async () => {
