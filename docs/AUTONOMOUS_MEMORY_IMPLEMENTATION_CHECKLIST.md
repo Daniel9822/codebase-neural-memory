@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status (2026-11-04):** Contract v2, schema v14 and versioned memory operations are merged to `main` (PRs #136–#158). `memory_search`/`memory_bootstrap` (#144), `memory_health` (#146), read-only reconciliation preview (#147), and event-only `request_review` with bounded responses and related evidence/relation references (#149–#150) are available. Apply-transaction lock contention/retry is verified by PR #156. PR #158 explicitly configures SQLite WAL `synchronous=FULL` and tests the effective pragma (merge `5ea62b89ea2f348080d55396b288612a534568d9`; CI `41919002890`, all five jobs green, including Windows). This verifies the configured SQLite policy, not physical power-loss/filesystem durability. Resolution workflows, durable dependent-knowledge review and power-loss/filesystem durability remain open.
+**Status (2026-11-04):** Contract v2, schema v14 and versioned memory operations are merged to `main` (PRs #136–#164). PR #164 adds rollback-injection atomicity tests for `memory_update` and `memory_correct`; independent-process contention coverage for those operations is the next active slice. `memory_search`/`memory_bootstrap` (#144), `memory_health` (#146), read-only reconciliation preview (#147), and event-only `request_review` with bounded responses and related evidence/relation references (#149–#150) are available. Apply-transaction lock contention/retry is verified by PR #156. PR #158 explicitly configures SQLite WAL `synchronous=FULL` and tests the effective pragma (merge `5ea62b89ea2f348080d55396b288612a534568d9`; CI `41919002890`, all five jobs green, including Windows). This verifies the configured SQLite policy, not physical power-loss/filesystem durability. Resolution workflows, durable dependent-knowledge review and power-loss/filesystem durability remain open.
 
 ## How to use this checklist
 
@@ -416,6 +416,13 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [ ] Multiple compatible agents can use the same local project memory across sessions.
 - [ ] No mandatory network/cloud/LLM/embedding dependency is introduced.
 - [ ] The measured evaluation demonstrates improvement against the control; no unsupported productivity claim is made.
+
+## 2026-11-04 — PR #164 rollback atomicity verified; next concurrency slice active
+
+- **IMPLEMENTED / verified:** PR #164 merged to `main` as `f9ff199321ce240c052a431ed0897b5196004d79`; PR head `81307794d6f3db8567ba3772a51bbb2eeebfb3bc`; CI run `41934624316` passed all five jobs (Ubuntu/Windows verification and Ubuntu/Windows/macOS benchmarks).
+- `tests/memory-update.test.ts` and `tests/memory-correct.test.ts` now inject a failure at immutable-version insertion and compare before/after snapshots of the queried knowledge pointers, versions, fragments, evidence, and events. This verifies those queried fields remain unchanged for that injected failure; it is not a byte-for-byte database image comparison.
+- **Active branch:** `test/memory-update-correct-cross-process-contention` adds independent-process `BEGIN IMMEDIATE` contention tests for both operations. Acceptance: fail without writes while the lock is held, wait for child handle closure, then retry successfully. Pending PR review and Ubuntu/Windows CI.
+- **Still open:** simultaneous same-identity writer scheduling, wider migration/recovery matrix, relational impact propagation, evidence freshness, and physical power-loss/filesystem durability.
 
 ## Progress log
 
