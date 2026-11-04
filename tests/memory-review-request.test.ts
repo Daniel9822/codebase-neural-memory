@@ -153,8 +153,8 @@ describe("memory reconciliation request_review", () => {
     }] };
     const script = `
       import { requestMemoryReview } from "./src/core/memory-review-request.js";
-      const location = JSON.parse(process.env.CNM_TEST_LOCATION);
-      const input = JSON.parse(process.env.CNM_TEST_INPUT);
+      const location = JSON.parse(process.env.CNM_TEST_LOCATION!);
+      const input = JSON.parse(process.env.CNM_TEST_INPUT!);
       requestMemoryReview(location, input);
       process.exit(73);
     `;
