@@ -66,8 +66,8 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
       CREATE TRIGGER IF NOT EXISTS knowledge_items_memory_search_update
       AFTER UPDATE OF current_version_id, tags_json, aliases_json, knowledge_type ON knowledge_items
       WHEN NEW.current_version_id IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM memory_search_indexed_versions WHERE version_id = NEW.current_version_id)
       BEGIN
-        DELETE FROM memory_search_fts WHERE version_id = NEW.current_version_id;
         INSERT INTO memory_search_fts(
           knowledge_id, version_id, project_id, knowledge_type, title, summary, body, aliases, tags, source_paths, source_symbols
         )
