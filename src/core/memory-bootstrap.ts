@@ -86,16 +86,21 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
     }
     result.freshness.warnings.push("Source evidence freshness not checked.");
     const groups = [highValue, openRisks, pendingValidation];
-    let serializedChars = JSON.stringify({ ...result, serializedChars: 0 }, null, 2).length;
-    while (serializedChars > maxChars && groups.some((group) => group.length)) {
+    const finalize = () => {
+      const value = { ...result, serializedChars: 0 };
+      for (let attempt = 0; attempt < 3; attempt++) value.serializedChars = JSON.stringify(value, null, 2).length;
+      return value;
+    };
+    let finalResult = finalize();
+    while (finalResult.serializedChars > maxChars && groups.some((group) => group.length)) {
       [...groups].reverse().find((group) => group.length)!.pop();
       result = { ...result, returned: highValue.length + openRisks.length + pendingValidation.length, truncated: true };
-      serializedChars = JSON.stringify({ ...result, serializedChars: 0 }, null, 2).length;
+      finalResult = finalize();
     }
-    while (serializedChars > maxChars && result.freshness.warnings.length > 0) {
+    while (finalResult.serializedChars > maxChars && result.freshness.warnings.length > 0) {
       result.freshness.warnings.pop();
-      serializedChars = JSON.stringify({ ...result, serializedChars: 0 }, null, 2).length;
+      finalResult = finalize();
     }
-    return { ...result, serializedChars: JSON.stringify({ ...result, serializedChars: 0 }, null, 2).length };
+    return finalResult;
   } finally { db.close(); }
 }
