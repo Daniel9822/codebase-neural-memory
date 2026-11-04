@@ -461,6 +461,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       knowledgeId: z.string().trim().min(1).max(128),
       versionLimit: z.number().int().min(1).max(50).optional(),
       eventLimit: z.number().int().min(1).max(50).optional(),
+      maxChars: z.number().int().min(500).max(12000).optional(),
       beforeVersionNumber: z.number().int().min(1).optional(),
       beforeEventCreatedAt: z.string().min(1).max(40).optional(),
       beforeEventId: z.string().min(1).max(128).optional(),
@@ -468,7 +469,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       message: "beforeEventCreatedAt and beforeEventId must be supplied together",
     }),
   }, async (input) => ({
-    content: [{ type: "text", text: JSON.stringify(getMemoryHistory(location, input), null, 2) }],
+    content: [{ type: "text", text: JSON.stringify(getMemoryHistory(location, input)) }],
   }));
   server.registerTool("memory_get", {
     description: "Retrieve one project-scoped knowledge identity and its current immutable version metadata. Historical version selection and evidence are explicit; fragment bodies are retrieved separately with memory_expand.",

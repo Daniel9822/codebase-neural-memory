@@ -167,7 +167,7 @@ describe("MCP adapter protocol contract", () => {
       task_context: ["anchors", "dependencyLimit", "fileLimit", "maxCharacters", "maxItems", "memoryLimit", "symbolLimit", "task", "testLimit"],
       memory_capture: ["actor", "idempotencyKey", "items", "origin"],
       memory_correct: ["actor", "correctionSource", "epistemicState", "evidence", "expectedVersionId", "knowledgeId", "reason", "replacementContent", "targetFragmentId"],
-      memory_history: ["beforeEventCreatedAt", "beforeEventId", "beforeVersionNumber", "eventLimit", "knowledgeId", "versionLimit"],
+      memory_history: ["beforeEventCreatedAt", "beforeEventId", "beforeVersionNumber", "eventLimit", "knowledgeId", "maxChars", "versionLimit"],
       memory_get: ["includeEvidence", "knowledgeId", "versionId"],
       memory_expand: ["beforeOrdinal", "fragmentIds", "knowledgeId", "limit", "maxChars", "versionId"],
       memory_update: ["actor", "aliases", "confidence", "confidenceReason", "content", "epistemicState", "evidence", "expectedVersionId", "fragments", "knowledgeId", "reason", "summary", "tags", "title"],

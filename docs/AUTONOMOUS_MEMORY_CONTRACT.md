@@ -204,7 +204,7 @@ All string fields are trimmed and validated; required text cannot be blank. Path
 
 ### 8.2 Response and error contract
 
-Every list/search/bootstrap/history/reconcile/health response includes a stable ordering rule, returned count, total when safely computable, applied limit, and an explicit truncation indicator. Character budgets apply to the serialized response, not only to individual content fields. Pagination cursors are opaque, deterministic for a stable database snapshot, and bound to the query/filter set.
+Every list/search/bootstrap/history/reconcile/health response includes a stable ordering rule, returned count, total when safely computable, applied limit, and an explicit truncation indicator. Character budgets apply to the serialized response, not only to individual content fields. Pagination cursors are opaque, deterministic for a stable database snapshot, and bound to the query/filter set. `memory_history` accepts `maxChars` from 500 to 12,000 (default 12,000), measures compact serialized JSON, and reports `serializedChars`, exact version/event totals, `truncated`, and per-stream budget-omitted counts. Its version and event cursors remain independent; history payloads are never field-truncated or rewritten.
 
 Structured errors use stable codes: `invalid_input`, `not_found`, `version_conflict`, `idempotency_conflict`, `limit_exceeded`, `stale_evidence`, and `integrity_error`. Error messages are actionable but must not expose absolute local paths, source contents, credentials, or database internals. A version conflict returns the current version identifier without overwriting either writer's data.
 
