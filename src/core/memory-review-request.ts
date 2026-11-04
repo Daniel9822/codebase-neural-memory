@@ -57,7 +57,7 @@ function validate(input: MemoryReviewRequestInput): { dryRun: boolean; items: Me
     throw new Error("Memory review request contains duplicate knowledge IDs");
   }
   items.sort((a, b) => a.knowledgeId.localeCompare(b.knowledgeId, "en"));
-  return { dryRun, idempotencyKey, actor, items };
+  return { dryRun, items, ...(idempotencyKey === undefined ? {} : { idempotencyKey }), ...(actor === undefined ? {} : { actor }) };
 }
 
 function hashRequest(value: unknown): string {
