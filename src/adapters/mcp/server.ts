@@ -6,6 +6,7 @@ import { captureMemories } from "../../core/memory-capture.js";
 import { updateMemoryVersion } from "../../core/memory-update.js";
 import { correctMemory } from "../../core/memory-correct.js";
 import { getMemoryHistory } from "../../core/memory-history.js";
+import { getMemory, expandMemory } from "../../core/memory-get.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -463,6 +464,32 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     }),
   }, async (input) => ({
     content: [{ type: "text", text: JSON.stringify(getMemoryHistory(location, input), null, 2) }],
+  }));
+  server.registerTool("memory_get", {
+    description: "Retrieve one project-scoped knowledge identity and its current immutable version metadata. Historical version selection and evidence are explicit; fragment bodies are retrieved separately with memory_expand.",
+    inputSchema: z.object({
+      knowledgeId: z.string().trim().min(1).max(128),
+      versionId: z.string().trim().min(1).max(128).optional(),
+      includeEvidence: z.boolean().optional(),
+    }),
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(getMemory(location, input), null, 2) }],
+  }));
+
+  server.registerTool("memory_expand", {
+    description: "Expand selected stable fragment IDs or retrieve one bounded ordinal page from a knowledge version. Use memory_get first; expansion is limited by item count and serialized character budget.",
+    inputSchema: z.object({
+      knowledgeId: z.string().trim().min(1).max(128),
+      versionId: z.string().trim().min(1).max(128).optional(),
+      fragmentIds: z.array(z.string().trim().min(1).max(128)).min(1).max(20).optional(),
+      beforeOrdinal: z.number().int().min(0).optional(),
+      limit: z.number().int().min(1).max(20).optional(),
+      maxChars: z.number().int().min(500).max(12000).optional(),
+    }).refine((input) => !(input.fragmentIds && input.beforeOrdinal !== undefined), {
+      message: "Use fragmentIds or beforeOrdinal, not both",
+    }),
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(expandMemory(location, input), null, 2) }],
   }));
   server.registerTool("memory_capture", {
     description: "Capture bounded, reusable project knowledge into the versioned memory store. Agent capture does not require item-by-item user approval; epistemic state and evidence must accurately describe certainty. Retries with the same idempotencyKey and payload return the original result. Exact identity matches are reported as duplicates or conflicts; ambiguous content is never silently merged.",

@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly twenty-two tools and publishes the expected input schemas", async () => {
+  it("discovers exactly twenty-four tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -130,7 +130,9 @@ describe("MCP adapter protocol contract", () => {
       "index_update",
       "memory_capture",
       "memory_correct",
+      "memory_expand",
       "memory_freshness",
+      "memory_get",
       "memory_history",
       "memory_propose",
       "memory_recall",
@@ -162,12 +164,36 @@ describe("MCP adapter protocol contract", () => {
       memory_capture: ["actor", "idempotencyKey", "items", "origin"],
       memory_correct: ["actor", "correctionSource", "epistemicState", "evidence", "expectedVersionId", "knowledgeId", "reason", "replacementContent", "targetFragmentId"],
       memory_history: ["beforeEventCreatedAt", "beforeEventId", "beforeVersionNumber", "eventLimit", "knowledgeId", "versionLimit"],
+      memory_get: ["includeEvidence", "knowledgeId", "versionId"],
+      memory_expand: ["beforeOrdinal", "fragmentIds", "knowledgeId", "limit", "maxChars", "versionId"],
       memory_update: ["actor", "aliases", "confidence", "confidenceReason", "content", "epistemicState", "evidence", "expectedVersionId", "fragments", "knowledgeId", "reason", "summary", "tags", "title"],
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["category", "limit", "list", "query", "status"],
       memory_transition: ["id", "status"],
     });
+  });
+
+  it("retrieves current memory metadata and selectively expands fragments through MCP", async () => {
+    createProject();
+    const client = await connectClient();
+    const captured = await client.request("tools/call", { name: "memory_capture", arguments: {
+      idempotencyKey: "mcp-get-expand-seed",
+      items: [{ title: "Get expand fixture", content: "Primary body", type: "behavior", epistemicState: "observed",
+        fragments: [{ heading: "Detail", content: "Expanded body" }] }],
+    } });
+    const knowledgeId = JSON.parse((captured.result as { content: Array<{ text: string }> }).content[0]!.text)
+      .outcomes[0].knowledgeId as string;
+    const get = await client.request("tools/call", { name: "memory_get", arguments: { knowledgeId } });
+    expect((get.result as { isError?: boolean }).isError).not.toBe(true);
+    const metadata = JSON.parse((get.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(metadata).toMatchObject({ knowledgeId, version: { title: "Get expand fixture" }, fragmentCount: 2 });
+    const expanded = await client.request("tools/call", { name: "memory_expand", arguments: {
+      knowledgeId, fragmentIds: [metadata.selectedVersionId ? (database!.prepare(
+        "SELECT id FROM knowledge_fragments WHERE version_id=? AND ordinal=1").get(metadata.selectedVersionId) as { id: string }).id : ""],
+    } });
+    expect((expanded.result as { isError?: boolean }).isError).not.toBe(true);
+    expect((expanded.result as { content: Array<{ text: string }> }).content[0]!.text).toContain("Expanded body");
   });
 
   it("returns bounded version and event history through MCP with stable cursors", async () => {
