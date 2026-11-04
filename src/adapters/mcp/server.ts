@@ -11,6 +11,7 @@ import { searchMemories } from "../../core/memory-search.js";
 import { bootstrapMemory } from "../../core/memory-bootstrap.js";
 import { getMemoryHealth } from "../../core/memory-health.js";
 import { previewMemoryReconciliation } from "../../core/memory-reconcile.js";
+import { requestMemoryReview } from "../../core/memory-review-request.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -644,13 +645,33 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }));
 
   server.registerTool("memory_reconcile", {
-    description: "Preview bounded memory consistency and freshness findings. This initial release is strictly read-only: it reports stale evidence, exact normalized-title duplicate candidates, contradictions, orphan relations, and dependent knowledge for review; it never merges, edits, archives, or deletes records.",
+    description: "Preview bounded consistency/freshness findings, or explicitly request review for selected knowledge IDs. Dry-run is the default. Apply only appends reconciliation_review_requested events with expected-version checks and idempotency; it never edits knowledge, merges duplicates, resolves contradictions, changes lifecycle, or deletes records.",
     inputSchema: z.object({
-      limit: z.number().int().min(1).max(100).optional()
-    })
-  }, async (input) => ({
-    content: [{ type: "text", text: JSON.stringify(previewMemoryReconciliation(location, input), null, 2) }]
-  }));
+      limit: z.number().int().min(1).max(100).optional(),
+      dryRun: z.boolean().optional(),
+      operation: z.literal("request_review").optional(),
+      idempotencyKey: z.string().trim().min(1).max(128).optional(),
+      actor: z.string().trim().min(1).max(200).optional(),
+      items: z.array(z.object({
+        knowledgeId: z.string().trim().min(1).max(128),
+        expectedVersionId: z.string().trim().min(1).max(128),
+        reasonCode: z.enum(["stale_evidence", "dependent_stale_evidence", "manual_review"]),
+        reason: z.string().trim().min(1).max(500),
+      }).strict()).min(1).max(100).optional(),
+    }).strict()
+  }, async (input) => {
+    if (input.items) {
+      if (input.operation !== "request_review") {
+        return { content: [{ type: "text", text: JSON.stringify({ status: "conflict", reason: "operation_must_be_request_review" }) }], isError: true };
+      }
+      const request = { dryRun: input.dryRun, idempotencyKey: input.idempotencyKey, actor: input.actor, items: input.items };
+      return { content: [{ type: "text", text: JSON.stringify(requestMemoryReview(location, request), null, 2) }] };
+    }
+    if (input.operation || input.idempotencyKey || input.actor || input.dryRun === false) {
+      return { content: [{ type: "text", text: JSON.stringify({ status: "conflict", reason: "items_required_for_review_request" }) }], isError: true };
+    }
+    return { content: [{ type: "text", text: JSON.stringify(previewMemoryReconciliation(location, { limit: input.limit }), null, 2) }] };
+  });
 
   return server;
 }
