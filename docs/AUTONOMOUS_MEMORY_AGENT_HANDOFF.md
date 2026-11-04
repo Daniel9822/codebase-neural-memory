@@ -44,7 +44,8 @@ The following autonomous-memory slices are recorded as merged to `main`:
 | `memory_get`, `memory_expand` | IMPLEMENTED with bounded metadata/evidence and selective fragment expansion | PR #142; merge `b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`; `src/core/memory-get.ts`; `tests/memory-get.test.ts` |
 | `memory_search`, `memory_bootstrap` | PARTIAL — merged core behavior; edge-case acceptance matrix remains open | PR #144; merge `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`; CI run `41795181023`; `src/core/memory-search.ts`, `src/core/memory-bootstrap.ts`; 239 tests passed on Ubuntu and Windows |
 | `memory_health` | MERGED — bounded integrity and source-freshness report; no automatic repair | PR #146; merge `5b55a443c910742dde07696503d3aed01e71d69c`; CI `41821794346` green; `src/core/memory-health.ts`; MCP tool and tests |
-| `memory_reconcile` | MERGED — bounded, strictly read-only preview; no repair, merge, archive, or deletion | PR #147; merge `754b7dddd74afc8b3be5353cdc838568e0ba7283`; CI `41823553294` all five jobs green; `src/core/memory-reconcile.ts`; MCP tool and tests |
+| `memory_reconcile` preview | IMPLEMENTED — bounded read-only findings preview | PR #147; merge `754b7dddd74afc8b3be5353cdc838568e0ba7283`; CI `41823553294`; `src/core/memory-reconcile.ts` |
+| `memory_reconcile` `request_review` | IMPLEMENTED — event-only apply; does not edit knowledge/version/lifecycle/evidence/relations | PR #149; merge `db7ef0af725f81a1d70fe32a78a3cd203083f9f0`; CI `41825667650` all five jobs green; `src/core/memory-review-request.ts`; `tests/memory-review-request.test.ts`; MCP adapter |
 
 The implementation checklist contains the detailed semantics and evidence. Historical progress-log entries describe the state at the time they were written; later entries supersede earlier ones. Do not interpret a historical “pending” note as current without reading the latest status and checking `main`.
 
@@ -54,7 +55,7 @@ These are known open items at this snapshot. They are not claims that every edge
 
 ### Next implementation slice
 
-**`memory_health` and the read-only `memory_reconcile` preview are merged** (PRs #146/#147; CI runs `41821794346` and `41823553294`, all five jobs green for each). The design-first specification is proposed in [Memory Reconciliation Apply Design](MEMORY_RECONCILIATION_APPLY_DESIGN.md) on branch `docs/memory-reconciliation-apply-contract`. It limits the first apply operation to explicit event-only `request_review`, with expected-version checks, idempotency, all-or-nothing transaction, and recovery tests. The first event-only implementation is in progress on `feat/memory-reconcile-request-review` (`src/core/memory-review-request.ts`, `tests/memory-review-request.test.ts`, MCP `memory_reconcile`). It adds default dry-run, explicit expected-version checks, idempotent atomic event append, and rollback/replay tests. It is not merged; verify CI and review before treating it as available. No knowledge content, version, lifecycle, evidence, or relation mutation is intended.
+**`memory_health`, the read-only `memory_reconcile` preview, and event-only `request_review` are merged** (PRs #146, #147, #149; CI runs `41821794346`, `41823553294`, and `41825667650`; all five jobs passed for #149, including Windows verification). `request_review` lives in `src/core/memory-review-request.ts` and is exposed through MCP `memory_reconcile`. It defaults to dry-run; apply requires explicit selected IDs, expected current-version IDs, and an idempotency key. It validates project ownership/current versions inside an immediate transaction, appends `reconciliation_review_requested` events and the idempotency result atomically, and supports same-key replay plus mismatch conflict. It does not modify knowledge content, versions, current pointers, lifecycle, epistemic state, evidence, or relations. Focused tests are in `tests/memory-review-request.test.ts` and MCP integration coverage in `tests/mcp-adapter.test.ts`. Known gaps: independent-connection concurrency/crash-recovery tests, response-size enforcement, and population of source evidence/relation references (currently empty arrays).
 
 Merge: `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`. CI run `41795181023` passed all five jobs: typecheck, 239 tests, build, and smoke on Ubuntu/Windows, plus benchmarks on Ubuntu/Windows/macOS. Core search/browse, filters, snapshot cursors, bounded bootstrap, FTS migration/backfill, and MCP protocol coverage are on `main`. E1 remains PARTIAL because the full multilingual/basic-normalization, wildcard, repeated-run, ambiguous-query, and exact-boundary acceptance matrix is not yet complete. Source-evidence freshness, health/reconcile, and dependent-knowledge review remain open.
 
@@ -70,9 +71,9 @@ Do not add embeddings, hosted services, LLM calls, or remote dependencies.
 
 ### Memory lifecycle and coherence
 
-**PENDING / PARTIAL:**
-- `memory_health`: schema and data integrity, broken references, conflicts, pending validation, and truthful freshness diagnostics.
-- `memory_reconcile`: bounded, auditable reconciliation with dry-run/reporting and safe behavior on incomplete discovery.
+**PARTIAL:**
+- `memory_health`: bounded schema/data integrity, broken references, conflicts, pending validation, and source-freshness diagnostics are merged; broader malformed/legacy and consistency matrix remains open.
+- `memory_reconcile`: bounded preview and event-only `request_review` are merged. Review completion/resolution, response budgets, exact dependent-impact capture, evidence/relation references, and concurrency/crash recovery remain open.
 - relationship-aware dependent-knowledge impact/review when a source memory is corrected or superseded;
 - broader deterministic matching/enrichment/conflict/supersession/split behavior;
 - source freshness integration using existing file/symbol/Git/index mechanisms; stale evidence must mark claims for review, never silently delete knowledge;
