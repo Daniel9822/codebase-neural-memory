@@ -1,6 +1,6 @@
 # Memory Reconciliation Apply — Safety Design
 
-**Status:** Implemented event-only `request_review` contract (PRs #149–#150 merged); PR #151 adds preservation and append-only assertions; PR #152 verifies lost-response replay; PR #153 adds independent-connection stale-version and child-process termination-after-commit tests (CI pending).  
+**Status:** Implemented event-only `request_review` contract (PRs #149–#150 merged); PR #151 adds preservation and append-only assertions; PR #152 verifies lost-response replay; PR #153 adds independent-connection stale-version and child-process termination-after-commit tests (merged as `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, all five jobs green).  
 **Baseline:** PR #147 merged to `main` as `754b7dddd74afc8b3be5353cdc838568e0ba7283`; CI `41823553294` passed all five jobs.  
 **Scope:** Define the first safe write-capable reconciliation operation without merging, rewriting, archiving, or deleting knowledge.
 
@@ -81,8 +81,7 @@ Implemented and merged in PR #149: default dry-run creates no event/idempotency 
 PR #150 merged as `2279edd954bdeedea2c7cd9d1e5d014c05eccb24`; CI `41827470581` passed all five jobs. It enforces the 12,000-character serialized response budget and records up to 20 related evidence IDs and 20 project-scoped relation IDs per event, with truncation flags.
 
 Still required:
-- Deterministic overlapping independent-connection writer/apply schedule, including lock contention and retry behavior.
-- Failure injection after commit followed by retry returns the stored result.
+- Deterministic overlapping independent-connection writer/apply schedule, including lock contention and retry behavior (not covered by the stale-version-before-apply test).
 - Power-loss/filesystem durability testing; the child-process termination test covers process exit after commit, not machine/power failure.
 
 
