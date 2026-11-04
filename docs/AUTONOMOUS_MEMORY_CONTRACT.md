@@ -135,7 +135,7 @@ Dependent knowledge is intended to be marked for review through bounded impact d
 
 ### 5.4 Reconciliation
 
-Reconciliation is bounded, deterministic, and reportable. It can identify stale evidence, duplicate candidates, contradictions, orphan relations, and dependent entries requiring review. Broad or destructive actions must support dry-run/reporting. Source changes never justify deleting knowledge by themselves. Version and event history has no automatic time-based deletion in the initial implementation; any future pruning policy must be explicit, auditable, recoverable, and must preserve the latest version and required provenance. History queries remain bounded and paginated.
+Reconciliation is bounded, deterministic, and reportable. It can identify stale evidence, duplicate candidates, contradictions, orphan relations, and dependent entries requiring review. Broad or destructive actions must support dry-run/reporting. Source changes never justify deleting knowledge by themselves. The initial preview is read-only. Any first apply-capable slice is limited to an explicit `request_review` operation that appends an audit event for caller-selected IDs without changing knowledge, versions, evidence, relations, lifecycle, or epistemic state. It requires explicit expected current-version IDs, project-scoped idempotency, all-or-nothing transactions, and bounded responses. Duplicate merge, contradiction resolution, lifecycle/state changes, and deletion are explicitly excluded. See [Memory Reconciliation Apply Design](MEMORY_RECONCILIATION_APPLY_DESIGN.md). Version and event history has no automatic time-based deletion in the initial implementation; any future pruning policy must be explicit, auditable, recoverable, and must preserve the latest version and required provenance. History queries remain bounded and paginated.
 
 ## 6. Progressive retrieval contract
 
@@ -197,7 +197,7 @@ The following are adapter-level bounds for the first implementation. They are de
 | `memory_history` | `knowledgeId` (1–128 chars) | `versionLimit` and `eventLimit` 1–50 (default 20); `beforeVersionNumber`; paired `beforeEventCreatedAt` / `beforeEventId` cursors |
 | `memory_get` | `knowledgeId` | optional `versionId`; optional `includeEvidence` (bounded evidence metadata) |
 | `memory_expand` | `knowledgeId` | optional `versionId`; `fragmentIds` 1–20 or `beforeOrdinal`; `limit` 1–20; `maxChars` 500–12,000 |
-| `memory_reconcile` | none | Current preview: `limit` 1–100; strictly read-only. Future mutating operations require explicit operation kinds, selected scope, dry-run default true, idempotency, audit events, and recovery guarantees before implementation |
+| `memory_reconcile` | none | Current preview: `limit` 1–100; strictly read-only. Proposed first apply operation: `request_review` only, with explicit IDs and expected versions, dry-run default true, project-scoped idempotency, append-only events, all-or-nothing transaction, and recovery guarantees per the apply design |
 | `memory_health` | none | `limit` 1–100; include bounded source freshness/conflict samples |
 
 All string fields are trimmed and validated; required text cannot be blank. Paths must be project-relative and pass the existing safe-file/path policy. Evidence metadata must be structured and bounded; raw source contents, secrets, arbitrary binary data, and full conversation transcripts are not accepted. Batch capture is all-or-nothing and uses one idempotency key scoped to the project and operation.
