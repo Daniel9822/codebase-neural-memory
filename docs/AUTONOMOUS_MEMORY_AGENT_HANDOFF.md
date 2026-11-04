@@ -51,7 +51,7 @@ The implementation checklist contains the detailed semantics and evidence. Histo
 
 
 
-### Latest verified storage and transaction update — PR #164
+### Latest verified SQLite durability policy — PR #158
 
 PR #158 is merged as `5ea62b89ea2f348080d55396b288612a534568d9` (head `9b2d7c33b62564f087c3196faeaff1b49865922e`; CI `41919002890`, all five jobs green). `src/storage/database.ts` now explicitly sets `PRAGMA synchronous = FULL` on each opened WAL connection. `tests/memory-review-request.test.ts` asserts WAL mode and synchronous level `2`. The bounded recall fixture in `tests/memories.test.ts` batches its 5,001 inserts in one transaction, retaining its truncation assertions while avoiding per-row FULL-sync commits on Windows. This verifies SQLite configuration and CI behavior only; it does not prove physical power-loss, storage-controller, or filesystem durability. Keep that item open.
 
