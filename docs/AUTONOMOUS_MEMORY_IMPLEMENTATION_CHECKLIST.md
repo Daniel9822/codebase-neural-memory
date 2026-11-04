@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status (2026-11-04):** Contract v2, schema v13/migration, `memory_capture`, optimistic `memory_update`, selective `memory_correct`, and bounded `memory_history` are merged to `main` (PRs #136–#141). PR #141 merge commit: `582161966b67a35ba83f8eddf128a97e0d2be9ed`. `memory_get` and `memory_expand` are in progress on `feat/memory-get-expand-api`; retrieval search/bootstrap, dependent-knowledge impact review, reconciliation, broader agent integration, and remaining concurrency/rollback coverage remain open.
+**Status (2026-11-04):** Contract v2, schema v13/migration, `memory_capture`, optimistic `memory_update`, selective `memory_correct`, and bounded `memory_history` are merged to `main` (PRs #136–#141). PR #141 merge commit: `582161966b67a35ba83f8eddf128a97e0d2be9ed`. `memory_get` and `memory_expand` are implemented in PR #142 (`feat/memory-get-expand-api`), awaiting CI/review; retrieval search/bootstrap, dependent-knowledge impact review, reconciliation, broader agent integration, and remaining concurrency/rollback coverage remain open.
 
 ## How to use this checklist
 
@@ -282,8 +282,8 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 ## E2. Get, expand, history
 
-- [ ] Implement `memory_get` for one knowledge identity/current version (in progress: `src/core/memory-get.ts`, PR not yet opened).
-- [ ] Implement `memory_expand` for selected fragments only, with stable fragment IDs and paging (in progress: `src/core/memory-get.ts`, PR not yet opened).
+- [ ] Implement `memory_get` for one knowledge identity/current version (implemented in `src/core/memory-get.ts`; PR #142 awaiting CI/review).
+- [ ] Implement `memory_expand` for selected fragments only, with stable fragment IDs and paging (implemented in `src/core/memory-get.ts`; PR #142 awaiting CI/review).
 - [x] Implement bounded `memory_history` for immutable versions and append-only events with independent version/event cursors (`src/core/memory-history.ts`; PR #141 merge `582161966b67a35ba83f8eddf128a97e0d2be9ed`). Source freshness invalidation and broader supersession workflows remain open.
 - [x] Ensure history depth is explicit and bounded (version/event page limits 1–50; project-scoped lookup; deterministic cursor ordering).
 - [x] Test version/event pagination, ordering, project isolation, and invalid bounds; [ ] character-budget enforcement and stale-provenance warnings remain open.
