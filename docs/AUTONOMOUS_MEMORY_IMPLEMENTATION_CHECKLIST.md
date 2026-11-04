@@ -307,7 +307,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [x] Specify first apply-capable operation as explicit event-only `request_review`; define project-scoped idempotency, expected-version concurrency, dry-run/apply separation, atomicity, bounds, and recovery requirements in [Memory Reconciliation Apply Design](MEMORY_RECONCILIATION_APPLY_DESIGN.md). Specification only; no apply code is implemented.
 - [x] Implement event-only `request_review` with all-or-nothing transaction, append-only audit events, project-scoped idempotency, expected-version checks, and dry-run default (PR #149; merge `db7ef0af725f81a1d70fe32a78a3cd203083f9f0`; `src/core/memory-review-request.ts`; MCP `memory_reconcile`).
 - [x] Add focused tests for same-key replay/conflict, stale expected versions, foreign/missing project IDs, duplicate IDs, missing apply key, batch bounds, and injected event-insert rollback (`tests/memory-review-request.test.ts`; MCP integration in `tests/mcp-adapter.test.ts`). CI run `41825667650` passed all five jobs on Ubuntu, Windows, and macOS benchmark runners.
-- [ ] Add independent-connection concurrency/race tests, response-size enforcement, evidence/relation reference capture where available, and recovery/crash-boundary coverage. Current event payload leaves `sourceEvidenceIds` and `relationIds` empty; this is a known limitation, not evidence that related records were captured.
+- [x] Enforce response-size budget and capture bounded evidence/relation references (PR #150; CI `41827470581`).
+- [x] Assert preservation of evidence, relations, fragments, current-version pointers, and append-only review events (PR #151; merge `c9a62b6fc0854fe536a01782f5a979200e0287df`; CI `41828848388`, all five jobs green).
+- [x] Simulate a lost response after commit and verify same-key retry replays the stored result without duplicate events (current branch; PR/CI pending).
+- [ ] Verify concurrent apply/version changes through independent SQLite connections with deterministic coordination.
+- [ ] Test an actual process-crash boundary; lost-response simulation is not a process-crash proof.
 - [ ] Test malformed/legacy data, orphan relations, incomplete discovery, and source snapshot changes.
 
 **Acceptance:** narrow queries return small relevant evidence-backed fragments; expansion is selective; history and health are bounded and truthful.
