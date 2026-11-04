@@ -58,9 +58,9 @@ The implementation is on `feat/memory-search-bootstrap`, based directly on `main
 Expected scope:
 - deterministic, project-scoped lexical FTS5 search over versioned knowledge;
 - current-version/lifecycle filtering by default, with explicit historical options where specified by the contract;
-- support for relevant titles, summaries, fragments, tags/aliases and exact identifiers without exposing raw FTS syntax errors;
+- support for relevant titles, summaries, fragments, types, tags/aliases, paths/symbols and exact identifiers; empty-query browse; snapshot-bound cursors; no raw FTS syntax errors;
 - bounded snippets/results, stable tie-breakers, match explanations, and truncation metadata;
-- compact bootstrap context with explicit epistemic labels and no invented freshness guarantees;
+- compact bootstrap context with explicit epistemic labels, contract-aligned item/character bounds, type/include-pending filters, and no invented freshness guarantees;
 - migration/backfill and FTS consistency tests, plus MCP schema/protocol tests.
 
 Do not add embeddings, hosted services, LLM calls, or remote dependencies.
