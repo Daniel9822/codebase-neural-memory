@@ -35,9 +35,20 @@ function capture(title: string, key: string, source?: { path: string; hash: stri
 describe("memory reconciliation preview", () => {
   it("reports conservative duplicate-title candidates deterministically and never mutates knowledge", () => {
     setup();
-    const first = capture("Same decision", "reconcile-one");
-    const second = capture(" same DECISION ", "reconcile-two");
+    const first = "reconcile-duplicate-one";
+    const second = "reconcile-duplicate-two";
     const db = openDatabase(location);
+    const now = new Date().toISOString();
+    for (const [id, versionId, title] of [
+      [first, first + "-v1", "Same decision"],
+      [second, second + "-v1", " same DECISION "],
+    ]) {
+      db.prepare("INSERT INTO knowledge_items(id, project_id, knowledge_type, lifecycle, created_at, updated_at) VALUES (?, ?, 'decision', 'active', ?, ?)")
+        .run(id, location.id, now, now);
+      db.prepare("INSERT INTO knowledge_versions(id, knowledge_id, version_number, epistemic_state, title, created_at) VALUES (?, ?, 1, 'verified', ?, ?)")
+        .run(versionId, id, title, now);
+      db.prepare("UPDATE knowledge_items SET current_version_id=? WHERE id=?").run(versionId, id);
+    }
     const before = {
       items: (db.prepare("SELECT COUNT(*) AS count FROM knowledge_items").get() as { count: number }).count,
       versions: (db.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get() as { count: number }).count,
