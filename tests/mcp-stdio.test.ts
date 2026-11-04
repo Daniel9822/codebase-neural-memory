@@ -117,7 +117,7 @@ describe("MCP stdio process lifecycle", () => {
 
     const list = await first.request("tools/list");
     const tools = (list.result as { tools: Array<{ name: string }> }).tools;
-    expect(tools).toHaveLength(22);
+    expect(tools).toHaveLength(24);
     expect(tools.map((tool) => tool.name)).toContain("source_excerpt");
     expect(tools.map((tool) => tool.name)).toContain("git_blame");
     expect(tools.map((tool) => tool.name)).toContain("git_history");
@@ -126,6 +126,8 @@ describe("MCP stdio process lifecycle", () => {
     expect(tools.map((tool) => tool.name)).toContain("memory_correct");
     expect(tools.map((tool) => tool.name)).toContain("memory_update");
     expect(tools.map((tool) => tool.name)).toContain("memory_history");
+    expect(tools.map((tool) => tool.name)).toContain("memory_get");
+    expect(tools.map((tool) => tool.name)).toContain("memory_expand");
     expect(tools.map((tool) => tool.name)).toContain("symbol_impact");
     expect(tools.map((tool) => tool.name)).toContain("component_map");
 
