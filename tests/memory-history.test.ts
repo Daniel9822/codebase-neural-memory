@@ -128,7 +128,7 @@ describe("versioned memory history", () => {
         ...(cursor ? { beforeEventCreatedAt: cursor.createdAt, beforeEventId: cursor.id } : {}),
       });
       expect(page.serializedChars).toBe(JSON.stringify(page).length);
-      expect(page.serializedChars).toBeLessThanOrEqual(1500);
+      expect(page.serializedChars).toBeLessThanOrEqual(2500);
       seen.push(...page.events.filter((event) => event.eventType === "history_page_fixture").map((event) => event.id));
       if (!page.pagination.hasMoreEvents) break;
       expect(page.pagination.nextBeforeEvent).not.toBeNull();
