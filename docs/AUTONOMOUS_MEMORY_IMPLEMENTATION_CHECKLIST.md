@@ -4,7 +4,7 @@
 **Baseline branch:** `main`  
 **Tracking branch:** `docs/autonomous-memory-implementation-plan`  
 **Plan created:** 2026-11-02  
-**Status (2026-11-04):** Contract v2, schema v14 and versioned memory operations are merged to `main` (PRs #136–#153). `memory_search`/`memory_bootstrap` (#144), `memory_health` (#146), read-only reconciliation preview (#147), and event-only `request_review` with bounded responses and related evidence/relation references (#149–#150) are available. Resolution workflows, durable dependent-knowledge review, overlapping lock-contention verification, and power-loss durability remain open.
+**Status (2026-11-04):** Contract v2, schema v14 and versioned memory operations are merged to `main` (PRs #136–#154). `memory_search`/`memory_bootstrap` (#144), `memory_health` (#146), read-only reconciliation preview (#147), and event-only `request_review` with bounded responses and related evidence/relation references (#149–#150) are available. Resolution workflows, durable dependent-knowledge review, apply-transaction lock-contention verification and power-loss durability remain open.
 
 ## How to use this checklist
 
@@ -312,7 +312,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [x] Simulate a lost response after commit and verify same-key retry replays the stored result without duplicate events (PR #152; CI `41833420368`, five jobs green).
 - [x] Verify a version committed through an independent SQLite connection is detected as stale by `request_review`, with no review event/idempotency write (PR #153; merge `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, five jobs green).
 - [x] Terminate a child process immediately after the apply commits but before it returns a response; verify parent retry replays the stored result without duplicate events (PR #153; merge `a85ef0235bbe05cbdf4ba788c584e8c6c20848d9`; CI `41834609758`, five jobs green). This tests process termination after commit, not power-loss durability.
-- [ ] Verify a truly overlapping concurrent writer/apply schedule with deterministic cross-process coordination and prove lock behavior under contention. PR #154 adds a child process that holds `BEGIN IMMEDIATE`; apply must fail without writes while the lock is held, then succeed on same-key retry after release (CI pending).
+- [x] Verify deterministic cross-process database-open contention and retry: PR #154 merge `875112ca6ad92d9e919ec0321cb14093295b8ba4`, CI `41839728294` (five jobs green). The child holds `BEGIN IMMEDIATE`; the request fails without writes and succeeds on same-key retry after release. **Scope limitation:** schema migration marker `INSERT OR IGNORE` statements still execute on every `openDatabase()` call, so the observed lock failure can occur before `requestMemoryReview` enters its apply transaction. The stricter apply-transaction contention case remains open.
 - [ ] Test power-loss/filesystem durability boundaries; process termination is not a power-loss proof.
 - [ ] Test malformed/legacy data, orphan relations, incomplete discovery, and source snapshot changes.
 
