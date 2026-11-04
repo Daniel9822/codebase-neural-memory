@@ -3,7 +3,7 @@
 CNM generates and maintains a managed instruction section in the target repository's root `AGENTS.md` during `cnm init`. If the file already contains project-authored instructions, CNM preserves them and adds or updates only its own marked section. Run `cnm agents-md --check` in CI to detect missing or outdated CNM instructions.
 
 
-> **Versioned memory status (2026-11-04):** Schema v13, `memory_capture`, optimistic `memory_update`, `memory_correct`, `memory_history`, `memory_get`, and `memory_expand` are merged to `main` (PRs #137–#142). The versioned capture/update/correction/history/get/expand APIs are available through MCP. `memory_get` returns bounded identity/version metadata; `memory_expand` retrieves selected fragments or a deterministic bounded page. Use `memory_recall` for legacy memory discovery until `memory_search` and `memory_bootstrap` are implemented. Legacy `memory_propose`/`memory_transition` remain compatibility tools with their explicit-approval semantics. Search/bootstrap, dependent-knowledge review, reconciliation, health, and source-freshness integration are still open. See [docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) for evidence and remaining work.
+> **Versioned memory status (2026-11-04):** Schema v13, `memory_capture`, optimistic `memory_update`, `memory_correct`, `memory_history`, `memory_get`, and `memory_expand` are merged to `main` (PRs #137–#142). The versioned capture/update/correction/history/get/expand APIs are available through MCP. `memory_get` returns bounded identity/version metadata; `memory_expand` retrieves selected fragments or a deterministic bounded page. Use `memory_recall` for legacy discovery until `memory_search` and `memory_bootstrap` are implemented. Legacy `memory_propose`/`memory_transition` remain compatibility tools with their explicit-approval semantics. Search/bootstrap, dependent-knowledge review, reconciliation, health, source-freshness integration, broader migration/concurrency/rollback coverage, and real-client integration remain open. Start with [Autonomous Memory Agent Handoff](AUTONOMOUS_MEMORY_AGENT_HANDOFF.md), then use the [master checklist](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) as the canonical progress ledger.
 
 ## Correction handling (versioned memory rollout)
 
@@ -56,7 +56,7 @@ CNM memory is stored in the project's local database and is independent of the a
 - Do not save transient task chatter, secrets, speculation, unverified guesses as verified facts, or duplicate memories. Use `hypothesis` or `pending_validation` when appropriate.
 - Treat exact-identity duplicates and conflicts returned by `memory_capture` explicitly; never auto-merge ambiguous or contradictory knowledge.
 - Use `memory_update` with the current `expectedVersionId` and a reason for intentional edits; use `memory_correct` for a provenance-aware correction of one current fragment. Preserve user intent separately from verified implementation truth.
-- Use `memory_history` to inspect immutable versions/events, `memory_get` for identity/version metadata, and `memory_expand` only for relevant fragment bodies. Until search/bootstrap exist, legacy `memory_recall` remains the available discovery path.
+- Use `memory_history` to inspect immutable versions/events, `memory_get` for identity/version metadata, and `memory_expand` only for relevant fragment bodies. Until search/bootstrap exist, legacy `memory_recall` remains the available discovery path. Consult [AUTONOMOUS_MEMORY_AGENT_HANDOFF.md](AUTONOMOUS_MEMORY_AGENT_HANDOFF.md) for the current implementation snapshot and next-agent sequence.
 - Legacy `memory_propose`/`memory_transition` remain for compatibility only and retain their old explicit-approval behavior; do not confuse them with versioned capture.
 
 ## Optional server policies
@@ -75,12 +75,14 @@ Broad task:
 
 `memory_recall → index_freshness → task_context(anchors) → file_details/source_excerpt → tests`
 
-After a durable verified discovery:
+After a durable discovery:
 
-`memory_propose → tell user proposal is pending → memory_transition(confirmed only after explicit user approval)`
+`memory_capture(epistemicState + grounded evidence) → memory_get → memory_expand(only relevant fragments)`
+
+Use `memory_update` for intentional versioned edits and `memory_correct` for a provenance-aware correction. Do not route normal versioned capture through legacy proposal/approval tools.
 
 ## Scope boundary
 
 This is a workflow recommendation, not a guarantee of complete program understanding. CNM indexes supported JavaScript/TypeScript structures. Runtime behavior, dynamic imports, framework magic, generated code, reflection, external package validity, and unindexed files still require direct inspection and tests.
 
-> **Versioned memory implementation note (2026-11-03):** schema v13 and the `memory_capture`, `memory_update`, and `memory_correct` core/MCP operations are merged to `main`. For new durable knowledge, agents should use `memory_capture` without per-item approval, supplying accurate epistemic state and evidence; use `memory_update` with the current expected version for intentional edits; use `memory_correct` for a provenance-aware correction of one current fragment. Do not treat legacy `memory_propose`/`memory_transition` as the versioned API: they remain compatibility tools with their existing approval behavior. Retrieval/history, dependent review, reconciliation, and health are still pending.
+> **Historical implementation note (2026-11-03):** this note records the rollout state at that date and is superseded by the 2026-11-04 status above. The current canonical status and remaining work are in [AUTONOMOUS_MEMORY_AGENT_HANDOFF.md](AUTONOMOUS_MEMORY_AGENT_HANDOFF.md) and the master checklist.
