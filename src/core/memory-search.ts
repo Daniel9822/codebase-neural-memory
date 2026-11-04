@@ -226,6 +226,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
       if (input.symbol) matchedBy.push("symbol-filter");
       if (input.epistemicState) matchedBy.push("epistemic-filter");
       if (input.relatedKnowledgeId) matchedBy.push("relation-filter");
+      if (!searching && matchedBy.length === 0) matchedBy.push("high-value-current-browse");
       return {
         knowledgeId: row.knowledgeId, versionId: row.versionId, type: row.type, lifecycle: row.lifecycle,
         versionNumber: row.versionNumber, title: row.title, summary: row.summary,
@@ -250,13 +251,16 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         budgetExceeded: results.length === 0 && candidates.length > 0
       };
     };
-    let serializedChars = JSON.stringify(buildResult(), null, 2).length;
-    while (results.length > 0 && serializedChars > maxChars) {
+    const finalize = () => {
+      const value = buildResult();
+      for (let attempt = 0; attempt < 3; attempt++) value.serializedChars = JSON.stringify(value, null, 2).length;
+      return value;
+    };
+    let finalResult = finalize();
+    while (finalResult.serializedChars > maxChars && results.length > 0) {
       results.pop();
-      serializedChars = JSON.stringify(buildResult(), null, 2).length;
+      finalResult = finalize();
     }
-    const finalResult = buildResult();
-    finalResult.serializedChars = JSON.stringify(finalResult, null, 2).length;
     return finalResult;
   } finally { db.close(); }
 }
