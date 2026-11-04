@@ -154,7 +154,7 @@ export function requestMemoryReview(location: ProjectLocation, rawInput: MemoryR
             relationIdsTruncated: relationRows.length > 20,
           }), now);
       }
-      const result: MemoryReviewRequestResult = {
+      const result: Omit<MemoryReviewRequestResult, "returnedItems" | "totalItems" | "truncated" | "maxChars" | "serializedChars"> = {
         status: "applied", dryRun: false, applied: true, idempotentReplay: false,
         items: checked, eventsCreated: input.items.length,
       };
