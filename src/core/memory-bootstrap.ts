@@ -74,22 +74,26 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
       projectId: location.id, currentKnowledgeCount: totalCurrent, highValue, openRisks, pendingValidation,
       freshness: { codeIndex: "unknown" as string, sourceEvidence: "not_checked", warnings: [] as string[] },
       returned: highValue.length + openRisks.length + pendingValidation.length, limit, maxChars,
-      types: normalizedTypes, includePending: input.includePending ?? true, truncated: rows.length > limit
+      includePending: input.includePending ?? true, truncated: rows.length > limit
     };
     try {
       const report = getIndexFreshness(location);
       result.freshness.codeIndex = report.status;
-      if (report.status !== "current") result.freshness.warnings.push("The code index is " + report.status + "; refresh it before relying on indexed source relationships.");
+      if (report.status !== "current") result.freshness.warnings.push("Code index is " + report.status + ".");
     } catch (error) {
       result.freshness.codeIndex = "unavailable";
       result.freshness.warnings.push("Code-index freshness could not be checked: " + (error instanceof Error ? error.message : String(error)));
     }
-    result.freshness.warnings.push("Source-file and Git evidence attached to knowledge items has not yet been reconciled by memory_health.");
+    result.freshness.warnings.push("Source evidence freshness not checked.");
     const groups = [highValue, openRisks, pendingValidation];
     let serializedChars = JSON.stringify({ ...result, serializedChars: 0 }, null, 2).length;
     while (serializedChars > maxChars && groups.some((group) => group.length)) {
       [...groups].reverse().find((group) => group.length)!.pop();
       result = { ...result, returned: highValue.length + openRisks.length + pendingValidation.length, truncated: true };
+      serializedChars = JSON.stringify({ ...result, serializedChars: 0 }, null, 2).length;
+    }
+    while (serializedChars > maxChars && result.freshness.warnings.length > 0) {
+      result.freshness.warnings.pop();
       serializedChars = JSON.stringify({ ...result, serializedChars: 0 }, null, 2).length;
     }
     return { ...result, serializedChars: JSON.stringify({ ...result, serializedChars: 0 }, null, 2).length };
