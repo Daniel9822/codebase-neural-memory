@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add bounded `memory_health` integrity and source-evidence freshness reporting through MCP (PR #146 under review); reconciliation/repair remains separate.
+
 - Add FTS5-backed versioned memory search and compact agent bootstrap through MCP (PR #144, merged). Search supports empty-query high-value browse, lexical matching, type/tag/path/symbol and epistemic/lifecycle/time/relation filters, exact-locator ranking, snapshot-bound cursors, and explicit candidate/character truncation. Bootstrap groups high-value knowledge, open risks/questions, and pending validation with contract-aligned item/character bounds, type/include-pending filters, and explicit freshness limits.
 
 - Document the autonomous-memory agent handoff and current implementation snapshot; clarify the master checklist as the canonical progress ledger and align agent guidance with versioned capture/update/correction/retrieval APIs. No runtime behavior changed.
