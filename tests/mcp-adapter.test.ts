@@ -177,7 +177,7 @@ describe("MCP adapter protocol contract", () => {
       memory_search: ["createdAfter", "createdBefore", "cursor", "epistemicState", "includeHistorical", "lifecycle", "limit", "maxChars", "path", "query", "relatedKnowledgeId", "relationType", "symbol", "tag", "type"],
       memory_bootstrap: ["includePending", "limit", "maxChars", "types"],
       memory_health: ["limit"],
-      memory_reconcile: ["limit"],
+      memory_reconcile: ["actor", "dryRun", "idempotencyKey", "items", "limit", "operation"],
       memory_transition: ["id", "status"],
     });
   });
@@ -210,6 +210,18 @@ describe("MCP adapter protocol contract", () => {
     expect((reconcile.result as { isError?: boolean }).isError).not.toBe(true);
     const reconcileData = JSON.parse((reconcile.result as { content: Array<{ text: string }> }).content[0]!.text);
     expect(reconcileData).toMatchObject({ mode: "dry_run", applied: false, summary: { contradictions: 0 } });
+    const capturedData = JSON.parse((captured.result as { content: Array<{ text: string }> }).content[0]!.text);
+    const reviewedId = capturedData.outcomes[0].knowledgeId;
+    const metadata = await client.request("tools/call", { name: "memory_get", arguments: { knowledgeId: reviewedId } });
+    const metadataData = JSON.parse((metadata.result as { content: Array<{ text: string }> }).content[0]!.text);
+    const review = await client.request("tools/call", { name: "memory_reconcile", arguments: {
+      operation: "request_review", dryRun: false, idempotencyKey: "mcp-review-request-1",
+      items: [{ knowledgeId: reviewedId, expectedVersionId: metadataData.currentVersionId,
+        reasonCode: "manual_review", reason: "MCP integration review" }],
+    } });
+    expect((review.result as { isError?: boolean }).isError).not.toBe(true);
+    const reviewData = JSON.parse((review.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(reviewData).toMatchObject({ status: "applied", applied: true, eventsCreated: 1 });
     const bootstrap = await client.request("tools/call", { name: "memory_bootstrap", arguments: { limit: 10, maxChars: 3000 } });
     expect((bootstrap.result as { isError?: boolean }).isError).not.toBe(true);
     const context = JSON.parse((bootstrap.result as { content: Array<{ text: string }> }).content[0]!.text);
