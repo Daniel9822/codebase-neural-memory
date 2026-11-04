@@ -161,3 +161,14 @@ PR #161 is merged to `main` as `e5e646efaa1f45efd73612afab64b81bbd0dfbce`. CI ru
 ## 2026-11-04 — Next reliability slice in progress
 
 Branch `test/memory-update-correct-rollback-atomicity` adds failure-injection coverage for `memory_update` and `memory_correct`: SQLite triggers abort immutable-version insertion, and tests assert that current pointers, version rows, fragments, evidence, and events remain identical snapshots of the queried fields. This is pending CI and review. It does not yet close independent-connection contention coverage for these operations.
+
+
+## 2026-11-04 — PR #164 and current reliability work
+
+PR #164 is merged to `main` as `f9ff199321ce240c052a431ed0897b5196004d79` (head `81307794d6f3db8567ba3772a51bbb2eeebfb3bc`). CI run `41934624316` passed all five jobs. The tests in `tests/memory-update.test.ts` and `tests/memory-correct.test.ts` inject a failure on immutable-version insertion and verify identical before/after snapshots of the queried knowledge pointers, versions, fragments, evidence, and events. This is targeted rollback-injection coverage, not a byte-for-byte database comparison and not a complete failure matrix.
+
+PR #160 added serialized response budgeting to `memory_history`; PR #161 added repeated constrained-page and oversized-event regressions and merged with CI run `41931940923` green; PR #162 closed out that verification documentation. PR #163 was superseded by the rebased PR #164; it is not an outstanding implementation branch.
+
+**Current active slice:** PR #165, branch `test/memory-update-correct-cross-process-contention`, adds independent-process `BEGIN IMMEDIATE` lock-contention tests for `memory_update` and `memory_correct`. Each test expects the operation to fail without writes while the lock is held, waits for the child process to close its SQLite handle, then retries successfully. The PR is pending CI/review; do not mark the slice implemented until Ubuntu and Windows verification pass.
+
+Still open after this slice: simultaneous same-identity writer scheduling, broader migration/recovery matrix, relationship-aware dependent-knowledge impact/review, source-evidence freshness propagation, full reconciliation resolution, response-budget exact-boundary coverage across tools, agent/client integration and evaluation, CNM-03/A7 close-out, and physical power-loss/filesystem durability. Keep each claim tied to merged source/tests/CI.
