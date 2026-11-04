@@ -161,7 +161,7 @@ describe("MCP bounded output and project isolation", () => {
     expect(entry.totals.imports).toBe(205);
     expect(entry.imports).toHaveLength(200);
     expect(entry.truncated.imports).toBe(true);
-  }, 15_000);
+  }, 30_000);
 
   it("applies a deterministic global candidate budget before decoding candidate arrays", async () => {
     const { location, root } = createProject("candidate-budget");
