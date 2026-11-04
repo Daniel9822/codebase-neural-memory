@@ -22,6 +22,11 @@ export interface MemoryReviewRequestResult {
   idempotentReplay: boolean;
   items: Array<{ knowledgeId: string; expectedVersionId: string; status: "ready" | "conflict"; currentVersionId: string | null }>;
   eventsCreated: number;
+  returnedItems: number;
+  totalItems: number;
+  truncated: boolean;
+  maxChars: number;
+  serializedChars: number;
   reason?: string;
 }
 
@@ -64,6 +69,22 @@ function hashRequest(value: unknown): string {
   return createHash("sha256").update(JSON.stringify(value)).digest("hex");
 }
 
+const RESPONSE_MAX_CHARS = 12_000;
+
+function boundResult(result: Omit<MemoryReviewRequestResult, "returnedItems" | "totalItems" | "truncated" | "maxChars" | "serializedChars">): MemoryReviewRequestResult {
+  const totalItems = result.items.length;
+  const bounded = { ...result, items: [...result.items], returnedItems: totalItems,
+    totalItems, truncated: false, maxChars: RESPONSE_MAX_CHARS, serializedChars: 0 };
+  while (JSON.stringify(bounded).length > RESPONSE_MAX_CHARS && bounded.items.length > 0) {
+    bounded.items.pop();
+    bounded.truncated = true;
+    bounded.returnedItems = bounded.items.length;
+  }
+  bounded.truncated ||= bounded.returnedItems < totalItems;
+  bounded.serializedChars = JSON.stringify(bounded).length;
+  return bounded;
+}
+
 /**
  * Append event-only review requests. Knowledge content and lifecycle are never changed.
  * Dry-run is the default; apply is explicit, project-scoped, idempotent, and atomic.
@@ -82,10 +103,10 @@ export function requestMemoryReview(location: ProjectLocation, rawInput: MemoryR
         `).get(location.id, input.idempotencyKey!) as { requestHash: string; resultJson: string } | undefined;
         if (prior) {
           if (prior.requestHash !== requestHash) {
-            return { status: "conflict", dryRun: false, applied: false, idempotentReplay: false,
-              items: [], eventsCreated: 0, reason: "idempotency_key_payload_mismatch" };
+            return boundResult({ status: "conflict", dryRun: false, applied: false, idempotentReplay: false,
+              items: [], eventsCreated: 0, reason: "idempotency_key_payload_mismatch" });
           }
-          return { ...(JSON.parse(prior.resultJson) as MemoryReviewRequestResult), idempotentReplay: true };
+          return boundResult({ ...(JSON.parse(prior.resultJson) as MemoryReviewRequestResult), idempotentReplay: true });
         }
       }
 
@@ -101,13 +122,24 @@ export function requestMemoryReview(location: ProjectLocation, rawInput: MemoryR
           status: currentVersionId === item.expectedVersionId ? "ready" as const : "conflict" as const, currentVersionId };
       });
       const hasConflict = checked.some((item) => item.status === "conflict");
-      if (hasConflict) return { status: "conflict", dryRun: input.dryRun, applied: false,
-        idempotentReplay: false, items: checked, eventsCreated: 0, reason: "missing_foreign_or_changed_knowledge" };
-      if (input.dryRun) return { status: "validated", dryRun: true, applied: false,
-        idempotentReplay: false, items: checked, eventsCreated: 0 };
+      if (hasConflict) return boundResult({ status: "conflict", dryRun: input.dryRun, applied: false,
+        idempotentReplay: false, items: checked, eventsCreated: 0, reason: "missing_foreign_or_changed_knowledge" });
+      if (input.dryRun) return boundResult({ status: "validated", dryRun: true, applied: false,
+        idempotentReplay: false, items: checked, eventsCreated: 0 });
 
       const now = new Date().toISOString();
       for (const item of input.items) {
+        const sourceEvidenceRows = db.prepare(`
+          SELECT id FROM knowledge_evidence WHERE version_id=? ORDER BY id COLLATE BINARY LIMIT 21
+        `).all(item.expectedVersionId) as Array<{ id: string }>;
+        const relationRows = db.prepare(`
+          SELECT r.id FROM knowledge_relations r
+          JOIN knowledge_items source ON source.id=r.source_knowledge_id
+          JOIN knowledge_items target ON target.id=r.target_knowledge_id
+          WHERE r.project_id=? AND source.project_id=? AND target.project_id=?
+            AND (r.source_knowledge_id=? OR r.target_knowledge_id=?)
+          ORDER BY r.id COLLATE BINARY LIMIT 21
+        `).all(location.id, location.id, location.id, item.knowledgeId, item.knowledgeId) as Array<{ id: string }>;
         db.prepare(`
           INSERT INTO knowledge_events
             (id, project_id, knowledge_id, version_id, event_type, actor, reason, payload_json, created_at)
@@ -116,7 +148,10 @@ export function requestMemoryReview(location: ProjectLocation, rawInput: MemoryR
           input.actor ?? null, item.reason, JSON.stringify({
             schemaVersion: 1, operation: "request_review", requestHash,
             reasonCode: item.reasonCode, expectedVersionId: item.expectedVersionId,
-            sourceEvidenceIds: [], relationIds: [],
+            sourceEvidenceIds: sourceEvidenceRows.slice(0, 20).map((row) => row.id),
+            sourceEvidenceTruncated: sourceEvidenceRows.length > 20,
+            relationIds: relationRows.slice(0, 20).map((row) => row.id),
+            relationIdsTruncated: relationRows.length > 20,
           }), now);
       }
       const result: MemoryReviewRequestResult = {
@@ -127,7 +162,7 @@ export function requestMemoryReview(location: ProjectLocation, rawInput: MemoryR
         INSERT INTO memory_idempotency(project_id, operation, idempotency_key, request_hash, result_json, created_at)
         VALUES (?, 'memory_reconcile_request_review', ?, ?, ?, ?)
       `).run(location.id, input.idempotencyKey!, requestHash, JSON.stringify(result), now);
-      return result;
+      return boundResult(result);
     });
     return input.dryRun ? execute() : execute.immediate();
   } finally {
