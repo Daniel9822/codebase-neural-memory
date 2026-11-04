@@ -1,6 +1,6 @@
 # Autonomous Memory Contract v2
 
-**Status:** Approved implementation contract. Schema v13/migration and the versioned core/MCP operations `memory_capture`, `memory_update`, and `memory_correct` are merged to `main` (PRs #137–#140). Progressive retrieval/history, reconciliation, dependent-knowledge review, health, and broader agent integration remain unimplemented.  
+**Status:** Approved implementation contract. Schema v13/migration and the versioned core/MCP operations `memory_capture`, `memory_update`, and `memory_correct` are merged to `main` (PRs #137–#140). Progressive retrieval/history and health are merged; reconciliation currently has a read-only preview on `feat/memory-reconcile`, while mutating maintenance, dependent-knowledge workflow, and broader agent integration remain unimplemented.  
 **Audit baseline:** `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53` (2026-11-03). Contract merged to `main` in PR #136 at `4f66aad688bd62bf6b480160584b5231b057b879`.  
 **Scope:** Project-local, persistent knowledge that can be captured, versioned, corrected, related, retrieved, and reviewed by compatible coding agents.
 
@@ -197,7 +197,7 @@ The following are adapter-level bounds for the first implementation. They are de
 | `memory_history` | `knowledgeId` (1–128 chars) | `versionLimit` and `eventLimit` 1–50 (default 20); `beforeVersionNumber`; paired `beforeEventCreatedAt` / `beforeEventId` cursors |
 | `memory_get` | `knowledgeId` | optional `versionId`; optional `includeEvidence` (bounded evidence metadata) |
 | `memory_expand` | `knowledgeId` | optional `versionId`; `fragmentIds` 1–20 or `beforeOrdinal`; `limit` 1–20; `maxChars` 500–12,000 |
-| `memory_reconcile` | none | `dryRun` default true; selected IDs or scope; `limit` 1–100; explicit operation kinds |
+| `memory_reconcile` | none | Current preview: `limit` 1–100; strictly read-only. Future mutating operations require explicit operation kinds, selected scope, dry-run default true, idempotency, audit events, and recovery guarantees before implementation |
 | `memory_health` | none | `limit` 1–100; include bounded source freshness/conflict samples |
 
 All string fields are trimmed and validated; required text cannot be blank. Paths must be project-relative and pass the existing safe-file/path policy. Evidence metadata must be structured and bounded; raw source contents, secrets, arbitrary binary data, and full conversation transcripts are not accepted. Batch capture is all-or-nothing and uses one idempotency key scoped to the project and operation.
@@ -216,7 +216,7 @@ Structured errors use stable codes: `invalid_input`, `not_found`, `version_confl
 4. **History slice:** `memory_history` is merged in PR #141 with project-scoped, bounded version/event pagination.
 5. **Focused retrieval:** `memory_get` and `memory_expand` are merged in PR #142 (`b83fdcd87a14c9165b15e15f6126415b4c6b5bcc`); both are project-scoped and bounded, with fragment bodies retrieved separately from identity/version metadata.
 6. **Search/bootstrap (merged, PR #144):** `memory_search` and `memory_bootstrap` are on main (merge `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`; CI `41795181023`). Search uses a lazy schema-v14 FTS5 index with backfill/update trigger, empty-query high-value browse, exact identity/source ranking, type/tag/path/symbol/epistemic/lifecycle/time/relation filters, bounded candidate windows, and snapshot-bound cursors. Bootstrap returns bounded high-value knowledge, risks/questions, and pending validation with type/include-pending filters and explicit freshness limits. Five E1 behaviors are accepted; multilingual/basic-normalization, wildcard, repeated-run, ambiguous-query, and exact-boundary tests remain open. Source-evidence freshness is reported as not checked, not inferred from code-index freshness.
-7. **Health/reconciliation and impact:** `memory_health` is under review in PR #146 with bounded schema/integrity, conflict, pending-validation, FTS consistency, and source-evidence freshness reporting. Next implement bounded/dry-run `memory_reconcile` and relationship-aware dependent-knowledge review; do not silently rewrite dependent items.
+7. **Health/reconciliation and impact:** `memory_health` is merged to `main` (PR #146). The current `feat/memory-reconcile` slice adds a strictly read-only preview for sampled stale evidence, exact normalized-title duplicate candidates, contradictions, orphan relations, and related dependent-review candidates. It does not repair, merge, archive, or delete. Mutating reconciliation, idempotency/recovery, and a durable dependent-review workflow remain future work; never silently rewrite dependent items.
 8. **MCP/workflow and evaluation:** continue agent integration, preserve compatibility, and run repeatable reuse, correction, source-change, broad retrieval, and cross-session scenarios against a control.
 
 No phase is complete because a tool name or schema exists. Completion requires focused tests, migration evidence, clean-checkout CI, reviewed diffs, and measured acceptance results.
