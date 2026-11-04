@@ -53,7 +53,7 @@ These are known open items at this snapshot. They are not claims that every edge
 
 ### Next implementation slice
 
-**`memory_health` is in review in PR #146.** Its report is read-only with respect to knowledge and includes bounded integrity/source-freshness samples. After CI and merge, implement `memory_reconcile` as a separate bounded, auditable dry-run-first operation; do not silently rewrite dependent knowledge.
+**`memory_health` is merged in PR #146** (merge `5b55a443c910742dde07696503d3aed01e71d69c`; CI `41821794346` green). Its report is read-only with respect to knowledge and includes bounded integrity/source-freshness samples. The next implementation slice is `memory_reconcile` as a separate bounded, auditable dry-run-first operation; do not silently rewrite dependent knowledge.
 
 Merge: `b9ec6802a5646ee9ed1abd5f5717fc91be4ff9a5`. CI run `41795181023` passed all five jobs: typecheck, 239 tests, build, and smoke on Ubuntu/Windows, plus benchmarks on Ubuntu/Windows/macOS. Core search/browse, filters, snapshot cursors, bounded bootstrap, FTS migration/backfill, and MCP protocol coverage are on `main`. E1 remains PARTIAL because the full multilingual/basic-normalization, wildcard, repeated-run, ambiguous-query, and exact-boundary acceptance matrix is not yet complete. Source-evidence freshness, health/reconcile, and dependent-knowledge review remain open.
 
