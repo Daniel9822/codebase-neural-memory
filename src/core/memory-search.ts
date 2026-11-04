@@ -81,7 +81,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
   if (!query || query.length > 1000) throw new Error("Memory search query must contain 1–1000 characters");
   const tokens = [...new Set(query.normalize("NFKC").match(/[\p{L}\p{N}_]+/gu) ?? [])].slice(0, 12);
   if (tokens.length === 0) throw new Error("Memory search query must contain searchable letters or numbers");
-  const structuredQuery = query.includes("/") || query.includes("\\") || query.includes(".") || /^knowledge:/i.test(query);
+  const structuredQuery = query.includes("/") || query.includes("\\\\") || /^knowledge:/i.test(query) || /^[\\p{L}\\p{N}_-]+(?:\\.[\\p{L}\\p{N}_-]+)+$/u.test(query);
   const matchExpression = tokens.map((token) => '"' + token.replaceAll('"', '""') + '"*').join(structuredQuery ? " AND " : " OR ");
   const limit = input.limit ?? 20, maxChars = input.maxChars ?? 12000;
   if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new Error("Invalid memory search limit");
@@ -161,7 +161,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
       candidateWindow: candidateLimit, candidateWindowTruncated, limit, maxChars,
       serializedChars: 0, truncated: results.length < candidates.length || candidateWindowTruncated, includeHistorical: input.includeHistorical ?? false,
       sourceEvidenceFreshness: "not_checked" as const });
-    let serializedChars = JSON.stringify(buildResult()).length;
+    let serializedChars = JSON.stringify(buildResult(), null, 2).length;
     while (results.length && serializedChars > maxChars) {
       results.pop();
       serializedChars = JSON.stringify(buildResult()).length;
