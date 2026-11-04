@@ -81,6 +81,11 @@ function boundResult(result: Omit<MemoryReviewRequestResult, "returnedItems" | "
     bounded.returnedItems = bounded.items.length;
   }
   bounded.truncated ||= bounded.returnedItems < totalItems;
+  while (JSON.stringify(bounded).length > RESPONSE_MAX_CHARS && bounded.items.length > 0) {
+    bounded.items.pop();
+    bounded.returnedItems = bounded.items.length;
+    bounded.truncated = true;
+  }
   for (let attempt = 0; attempt < 3; attempt++) {
     const serializedChars = JSON.stringify(bounded).length;
     if (bounded.serializedChars === serializedChars) break;
