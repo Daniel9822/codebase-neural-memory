@@ -283,8 +283,8 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 ### E1 implementation under review — 2026-11-04 (PR #144)
 
 - Branch: `feat/memory-search-bootstrap`, based on main `76c41859181c79ea2698fe3a28f55a37b58371f8`.
-- Added `src/core/memory-search.ts`: lazy schema-v14 FTS5 index creation/backfill, project-scoped search, current-version/lifecycle defaults, explicit historical search, filters, exact source/identity ranking, deterministic tie-breakers, and bounded response metadata.
-- Added `src/core/memory-bootstrap.ts`: compact grouped startup context, epistemic labels, item/character budgets, code-index freshness reporting, and explicit source-evidence freshness limitation.
+- Added `src/core/memory-search.ts`: lazy schema-v14 FTS5 index creation/backfill, project-scoped lexical search and empty-query high-value browse, current-version/lifecycle defaults, explicit historical search, type/tag/path/symbol/epistemic/time/relation filters, exact source/identity ranking, deterministic tie-breakers, 1,000-candidate windows, snapshot-bound cursors, and serialized-character budgets.
+- Added `src/core/memory-bootstrap.ts`: compact grouped startup context, epistemic labels, contract-aligned 1–20 item and 500–8,000 character budgets, type/include-pending filters, code-index freshness reporting, and explicit source-evidence freshness limitation.
 - Registered `memory_search` and `memory_bootstrap` in `src/adapters/mcp/server.ts`; added `tests/memory-search.test.ts` and MCP protocol/read-boundary coverage in `tests/mcp-adapter.test.ts`.
 - **Status: IN REVIEW, not IMPLEMENTED.** E1 acceptance boxes remain unchecked until final PR CI passes, review is complete, and the merge is verified on main. No local test execution is claimed.
 
