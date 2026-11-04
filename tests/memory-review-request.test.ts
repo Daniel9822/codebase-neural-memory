@@ -1,9 +1,11 @@
 import { mkdtempSync, rmSync } from "node:fs";
+import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { captureMemories } from "../src/core/memory-capture.js";
 import { requestMemoryReview } from "../src/core/memory-review-request.js";
+import { updateMemoryVersion } from "../src/core/memory-update.js";
 import { openDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 
@@ -106,6 +108,69 @@ describe("memory reconciliation request_review", () => {
     const mismatch = requestMemoryReview(location, { ...input, items: [{ ...input.items[0]!, reason: "Different payload" }] });
     expect(mismatch).toMatchObject({ status: "conflict", applied: false, reason: "idempotency_key_payload_mismatch" });
     expect(counts().events).toBe(1);
+  });
+
+  it("detects a version advanced through an independent SQLite connection before reconciliation apply", () => {
+    setup();
+    const item = capture("Concurrent review", "capture-review-concurrent");
+    const writer = openDatabase(location);
+    const initialPointer = writer.prepare("SELECT current_version_id AS versionId FROM knowledge_items WHERE id=?")
+      .get(item.knowledgeId) as { versionId: string };
+    writer.close();
+
+    // updateMemoryVersion opens its own SQLite connection and commits a new current version.
+    const advanced = updateMemoryVersion(location, {
+      knowledgeId: item.knowledgeId,
+      expectedVersionId: initialPointer.versionId,
+      reason: "Concurrent writer committed a newer version",
+      summary: "Advanced by independent connection",
+    });
+    expect(advanced.status).toBe("updated");
+
+    const observer = openDatabase(location);
+    const committedPointer = observer.prepare("SELECT current_version_id AS versionId FROM knowledge_items WHERE id=?")
+      .get(item.knowledgeId) as { versionId: string };
+    observer.close();
+    expect(committedPointer.versionId).toBe(advanced.currentVersionId);
+
+    const before = counts();
+    const result = requestMemoryReview(location, {
+      dryRun: false, idempotencyKey: "review-independent-connection-stale",
+      items: [{ knowledgeId: item.knowledgeId, expectedVersionId: item.versionId,
+        reasonCode: "manual_review", reason: "Must not review a stale version" }],
+    });
+    expect(result).toMatchObject({ status: "conflict", applied: false, eventsCreated: 0 });
+    expect(result.items[0]).toMatchObject({ status: "conflict", currentVersionId: advanced.currentVersionId });
+    expect(counts()).toEqual(before);
+  });
+
+  it("recovers atomically when the process exits immediately after commit but before returning a response", () => {
+    setup();
+    const item = capture("Process boundary review", "capture-review-process-boundary");
+    const input = { dryRun: false, idempotencyKey: "review-process-boundary-1", items: [{
+      knowledgeId: item.knowledgeId, expectedVersionId: item.versionId,
+      reasonCode: "manual_review" as const, reason: "Recover after process termination",
+    }] };
+    const script = `
+      import { requestMemoryReview } from "./src/core/memory-review-request.js";
+      const location = JSON.parse(process.env.CNM_TEST_LOCATION);
+      const input = JSON.parse(process.env.CNM_TEST_INPUT);
+      requestMemoryReview(location, input);
+      process.exit(73);
+    `;
+    const child = spawnSync(process.execPath, ["--import", "tsx", "--input-type=module", "-e", script], {
+      encoding: "utf8",
+      timeout: 15000,
+      env: { ...process.env, CNM_TEST_LOCATION: JSON.stringify(location), CNM_TEST_INPUT: JSON.stringify(input) },
+    });
+    expect(child.error).toBeUndefined();
+    expect(child.status).toBe(73);
+
+    // The child committed the event and idempotency row, then terminated before sending a result.
+    const replay = requestMemoryReview(location, input);
+    expect(replay).toMatchObject({ status: "applied", idempotentReplay: true, eventsCreated: 1 });
+    expect(counts().events).toBe(1);
+    expect(counts().idempotency).toBe(1);
   });
 
   it("aborts the whole batch if any expected version is stale or an item is outside the project", () => {
