@@ -51,9 +51,9 @@ These are known open items at this snapshot. They are not claims that every edge
 
 ### Next implementation slice
 
-**PENDING — `memory_search` and `memory_bootstrap`.**
+**IN REVIEW — `memory_search` and `memory_bootstrap` (PR #144).**
 
-A work branch was created from `main`: `feat/memory-search-bootstrap`. At handoff time it is a prepared branch, not an implementation. Verify its HEAD against current `main` before use.
+The implementation is on `feat/memory-search-bootstrap`, based directly on `main` at `76c41859181c79ea2698fe3a28f55a37b58371f8`. PR #144 adds the FTS5 search index/backfill and update trigger, bounded search, compact bootstrap, MCP registrations, and focused core/protocol tests. It is not IMPLEMENTED until required CI passes and the merge is verified on `main`. The source-evidence freshness audit and the remaining retrieval-quality evaluation stay open.
 
 Expected scope:
 - deterministic, project-scoped lexical FTS5 search over versioned knowledge;
