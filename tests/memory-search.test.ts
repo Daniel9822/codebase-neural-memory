@@ -118,6 +118,8 @@ describe("versioned memory search and bootstrap", () => {
     expect(pageTwo.results[0]?.knowledgeId).not.toBe(pageOne.results[0]?.knowledgeId);
     expect(() => searchMemories(location, { query: "different filter", limit: 1, cursor: pageOne.nextCursor }))
       .toThrow("does not match");
+    expect(() => searchMemories({ ...location, id: "other-project" }, { limit: 1, cursor: pageOne.nextCursor }))
+      .toThrow("does not match");
     expect(searchMemories(location, { tag: "browse-tag" }).results.map((item) => item.knowledgeId)).toContain(first);
     expect(searchMemories(location, { path: "src/core/search-fixture.ts" }).results.map((item) => item.knowledgeId)).toContain(first);
     expect(searchMemories(location, { symbol: "searchFixture" }).results.map((item) => item.knowledgeId)).toContain(first);
