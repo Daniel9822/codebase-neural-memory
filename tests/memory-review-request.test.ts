@@ -212,9 +212,13 @@ describe("memory reconciliation request_review", () => {
       });
       await lockAcquired;
 
-      // Do not reopen the database while the writer owns the lock: openDatabase performs migrations.
-      // Capture the failure but wait for the lock-holder to close its SQLite handle before asserting;
-      // otherwise a failed assertion can trigger Windows cleanup while the child still owns the WAL.
+      // A fully migrated database must open without taking the competing writer's lock.
+      // This isolates the subsequent failure to requestMemoryReview's immediate apply transaction.
+      const probe = openDatabase(location);
+      probe.close();
+
+      // Capture the apply failure but wait for the lock-holder to close its SQLite handle before
+      // asserting; otherwise Windows cleanup can race the child's still-open WAL handle.
       let lockError: unknown;
       try {
         requestMemoryReview(location, input);

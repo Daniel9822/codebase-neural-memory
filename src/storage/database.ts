@@ -25,6 +25,14 @@ export function openDatabase(location: ProjectLocation): MemoryDatabase {
 }
 
 export function migrate(db: MemoryDatabase, projectId?: string): void {
+  // A fully migrated database needs no schema work on ordinary opens. Keep this
+  // read-only fast path ahead of the idempotent DDL/backfill below so concurrent
+  // writers do not contend with migration-marker writes before their own transaction.
+  const hasMigrationTable = db.prepare(
+    "SELECT 1 FROM sqlite_master WHERE type='table' AND name='schema_migrations'",
+  ).get();
+  if (hasMigrationTable && db.prepare("SELECT 1 FROM schema_migrations WHERE version=13").get()) return;
+
   db.exec(`
     CREATE TABLE IF NOT EXISTS schema_migrations (
       version INTEGER PRIMARY KEY,
