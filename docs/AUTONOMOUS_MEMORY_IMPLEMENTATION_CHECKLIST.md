@@ -507,4 +507,5 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Added an explicit 500–12,000 character `maxChars` budget (default 12,000) measured against compact serialized JSON, plus exact project-scoped version/event totals, returned counts, `serializedChars`, `truncated`, and per-stream budget omission counts.
 - Version and event ordering/cursors remain independent. If the character budget omits older tail rows, only that stream's cursor advances and the omitted count is explicit; historical records and payloads are never rewritten or field-truncated.
 - MCP emits compact JSON for this tool so the core's measured representation matches the wire text.
-- Acceptance evidence and CI are pending PR review; oversized single-row behavior and pagination under repeated constrained pages require CI verification.
+- Initial CI run `41921639444` failed on both Ubuntu and Windows because the MCP adapter's exact tool-schema contract had not been updated to include `memory_history.maxChars`; the `memory_history` unit tests themselves passed (4 tests). The schema expectation was corrected in follow-up commit `da962b7979486a6a53e05f06d1d6de8308bd6ce6`; CI must rerun.
+- Still requires dedicated coverage/review for an individually oversized row and repeated constrained-page cursor progression before merge.
