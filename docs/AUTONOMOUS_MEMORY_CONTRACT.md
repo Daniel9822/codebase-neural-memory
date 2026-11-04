@@ -1,6 +1,6 @@
 # Autonomous Memory Contract v2
 
-**Status:** Approved implementation contract. Schema v13/migration and the versioned core/MCP operations `memory_capture`, `memory_update`, and `memory_correct` are merged to `main` (PRs #137–#140). Progressive retrieval/history and health are merged; reconciliation has a read-only preview merged to `main` in PR #147; mutating maintenance, durable dependent-knowledge workflow, and broader agent integration remain unimplemented.  
+**Status:** Approved implementation contract. Base schema v13/migration, the lazy schema-v14 FTS5 search-index migration, and the versioned core/MCP operations `memory_capture`, `memory_update`, and `memory_correct` are merged to `main` (PRs #137–#140). Progressive retrieval/history and health are merged; reconciliation has a read-only preview merged to `main` in PR #147; mutating maintenance, durable dependent-knowledge workflow, and broader agent integration remain unimplemented.  
 **Audit baseline:** `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53` (2026-11-03). Contract merged to `main` in PR #136 at `4f66aad688bd62bf6b480160584b5231b057b879`.  
 **Scope:** Project-local, persistent knowledge that can be captured, versioned, corrected, related, retrieved, and reviewed by compatible coding agents.
 
