@@ -213,11 +213,20 @@ describe("memory reconciliation request_review", () => {
       await lockAcquired;
 
       // Do not reopen the database while the writer owns the lock: openDatabase performs migrations.
-      expect(() => requestMemoryReview(location, input)).toThrow(/database is locked/i);
+      // Capture the failure but wait for the lock-holder to close its SQLite handle before asserting;
+      // otherwise a failed assertion can trigger Windows cleanup while the child still owns the WAL.
+      let lockError: unknown;
+      try {
+        requestMemoryReview(location, input);
+      } catch (error) {
+        lockError = error;
+      }
 
       const [exitCode, signal] = await childExit;
       expect(exitCode).toBe(0);
       expect(signal).toBeNull();
+      expect(lockError).toBeInstanceOf(Error);
+      expect(String(lockError)).toMatch(/database is locked/i);
       expect(counts()).toEqual(before);
 
       const retry = requestMemoryReview(location, input);
