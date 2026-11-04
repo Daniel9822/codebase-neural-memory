@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly twenty-four tools and publishes the expected input schemas", async () => {
+  it("discovers exactly twenty-six tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -136,6 +136,8 @@ describe("MCP adapter protocol contract", () => {
       "memory_history",
       "memory_propose",
       "memory_recall",
+      "memory_search",
+      "memory_bootstrap",
       "memory_transition",
       "memory_update",
       "project_map",
@@ -170,8 +172,34 @@ describe("MCP adapter protocol contract", () => {
       memory_freshness: ["limit"],
       memory_propose: ["category", "commitSha", "content", "sourcePath", "title"],
       memory_recall: ["category", "limit", "list", "query", "status"],
+      memory_search: ["createdAfter", "createdBefore", "epistemicState", "includeHistorical", "lifecycle", "limit", "maxChars", "query", "relatedKnowledgeId", "relationType", "type"],
+      memory_bootstrap: ["maxChars", "maxItems"],
       memory_transition: ["id", "status"],
     });
+  });
+
+  it("searches versioned knowledge and bootstraps compact project context through MCP", async () => {
+    createProject();
+    const client = await connectClient();
+    const captured = await client.request("tools/call", { name: "memory_capture", arguments: {
+      idempotencyKey: "mcp-search-bootstrap-seed",
+      items: [
+        { title: "Verified MCP search fixture", content: "A unique FTS searchable phrase", type: "architecture", epistemicState: "verified", tags: ["retrieval"], aliases: ["search fixture"] },
+        { title: "Open rollout risk", content: "A deployment question remains", type: "risk", epistemicState: "hypothesis" }
+      ]
+    } });
+    expect((captured.result as { isError?: boolean }).isError).not.toBe(true);
+    const searched = await client.request("tools/call", { name: "memory_search", arguments: { query: "unique FTS searchable phrase", limit: 5 } });
+    expect((searched.result as { isError?: boolean }).isError).not.toBe(true);
+    const searchData = JSON.parse((searched.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(searchData.results[0]).toMatchObject({ title: "Verified MCP search fixture", epistemicState: "verified" });
+    expect(searchData.results[0].matchedBy).toContain("lexical");
+    const bootstrap = await client.request("tools/call", { name: "memory_bootstrap", arguments: { maxItems: 10, maxChars: 3000 } });
+    expect((bootstrap.result as { isError?: boolean }).isError).not.toBe(true);
+    const context = JSON.parse((bootstrap.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(context.highValue.some((item: { title: string }) => item.title === "Verified MCP search fixture")).toBe(true);
+    expect(context.openRisks.some((item: { title: string }) => item.title === "Open rollout risk")).toBe(true);
+    expect(context.freshness.sourceEvidence).toBe("not_checked");
   });
 
   it("retrieves current memory metadata and selectively expands fragments through MCP", async () => {
@@ -613,6 +641,8 @@ describe("MCP adapter protocol contract", () => {
       ["task_context", { task: "target helper" }],
       ["memory_freshness", {}],
       ["memory_recall", {}],
+      ["memory_search", { query: "MCP adapter fixture" }],
+      ["memory_bootstrap", { maxItems: 5 }],
     ] as Array<[string, Record<string, unknown>]>) {
       await client.request("tools/call", { name, arguments: args });
     }
