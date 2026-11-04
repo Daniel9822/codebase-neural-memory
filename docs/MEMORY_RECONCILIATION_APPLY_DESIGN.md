@@ -1,6 +1,6 @@
 # Memory Reconciliation Apply — Safety Design
 
-**Status:** Implemented event-only `request_review` contract (PRs #149–#150 merged); response-budget enforcement and related evidence/relation references are implemented.  
+**Status:** Implemented event-only `request_review` contract (PRs #149–#150 merged); PR #151 adds preservation and append-only trigger assertions; response-budget enforcement and related evidence/relation references are implemented.  
 **Baseline:** PR #147 merged to `main` as `754b7dddd74afc8b3be5353cdc838568e0ba7283`; CI `41823553294` passed all five jobs.  
 **Scope:** Define the first safe write-capable reconciliation operation without merging, rewriting, archiving, or deleting knowledge.
 
@@ -83,7 +83,7 @@ PR #150 merged as `2279edd954bdeedea2c7cd9d1e5d014c05eccb24`; CI `41827470581` p
 Still required:
 - Independent SQLite connection changes a selected current version during a concurrent apply; transaction detects conflict.
 - Failure injection after commit followed by retry returns the stored result.
-- Explicit append-only event trigger behavior and full evidence/relation count/pointer preservation assertions.
+- Simulated lost-response-after-commit retry using the same idempotency key; this verifies replay behavior but is not a process-kill/power-loss test.
 
 
 ## 9. Explicitly deferred
