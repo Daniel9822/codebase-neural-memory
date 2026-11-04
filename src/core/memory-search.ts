@@ -148,7 +148,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
     `).get(location.id, location.id, location.id, location.id) as Record<string, number | string>;
     const snapshotHash = createHash("sha256").update(JSON.stringify(snapshot)).digest("hex");
     const filterHash = createHash("sha256").update(JSON.stringify({
-      query, includeHistorical: input.includeHistorical ?? false, lifecycle: input.lifecycle ?? "active",
+      projectId: location.id, query, includeHistorical: input.includeHistorical ?? false, lifecycle: input.lifecycle ?? "active",
       type: input.type ?? null, tag: input.tag ?? null, path: input.path ?? null, symbol: input.symbol ?? null,
       epistemicState: input.epistemicState ?? null, createdAfter: createdAfter ?? null, createdBefore: createdBefore ?? null,
       relatedKnowledgeId: input.relatedKnowledgeId ?? null, relationType: input.relationType ?? null, limit, maxChars
