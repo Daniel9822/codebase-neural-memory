@@ -54,7 +54,9 @@ class ProtocolClient {
   }
 
   async close(): Promise<void> {
-    await this.server.close();
+    // Close both ends of the in-memory pair so neither transport retains
+    // callbacks or pending protocol state after the test has finished.
+    await Promise.all([this.server.close(), this.clientTransport.close()]);
   }
 }
 

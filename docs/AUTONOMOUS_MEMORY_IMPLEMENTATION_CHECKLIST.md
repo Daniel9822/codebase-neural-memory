@@ -284,9 +284,9 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 - [ ] Implement `memory_get` for one knowledge identity/current version.
 - [ ] Implement `memory_expand` for selected fragments only, with stable fragment IDs and paging.
-- [ ] Implement `memory_history` for versions, correction reasons, source changes, and supersession.
-- [ ] Ensure a deep history request is explicit and bounded.
-- [ ] Test pagination stability, version selection, character limits, and stale provenance warnings.
+- [x] Implement bounded `memory_history` for immutable versions and append-only events with independent version/event cursors (`src/core/memory-history.ts`; MCP adapter registration and pagination tests). Source freshness invalidation and broader supersession workflows remain open.
+- [x] Ensure history depth is explicit and bounded (version/event page limits 1–50; project-scoped lookup; deterministic cursor ordering).
+- [x] Test version/event pagination, ordering, project isolation, and invalid bounds; [ ] character-budget enforcement and stale-provenance warnings remain open.
 
 ## E3. Health and reconcile APIs
 
@@ -456,3 +456,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Correction semantics: target one fragment in the expected current version; append a new immutable version; preserve other fragments and prior evidence; record correction source (`user`/`agent`), actor, reason, previous version and target fragment in an append-only `corrected` event. User corrections can only be `user_asserted` or `pending_validation`; agent corrections marked `verified` require evidence.
 - Not implemented by this slice: dependent-knowledge impact/review marking, automatic creation/linking of a separate planned decision, history retrieval, independent-connection race tests, and failure-injection rollback tests. Do not mark those complete.
 - Latest-head CI run `41738355370` passed all five jobs: verify Ubuntu/Windows (typecheck, tests, build, smoke) and benchmark Ubuntu/Windows/macOS. This confirms the PR head; combined status/workflow lookup against the merge commit returned no separate merge-commit run.
+
+
+### 2026-11-03 — Bounded version history in progress
+
+- Branch `feat/memory-history-api` adds `src/core/memory-history.ts` and MCP `memory_history`.
+- The reader returns immutable version metadata and append-only events for one project-scoped knowledge identity. Version pagination uses descending version numbers; event pagination uses descending `(created_at, id)` cursors. Limits are independently bounded to 1–50.
+- Tests cover capture → update → correction history, independent cursors, stable older-page retrieval, project isolation, and invalid bounds. Character-budget enforcement and stale-evidence warnings are not part of this slice.
+- PR/CI status is pending; do not treat this API as available on `main` until merged.

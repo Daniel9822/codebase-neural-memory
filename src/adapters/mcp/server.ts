@@ -5,6 +5,7 @@ import { getMemoryFreshnessReport, recallMemoriesReport, proposeMemory, transiti
 import { captureMemories } from "../../core/memory-capture.js";
 import { updateMemoryVersion } from "../../core/memory-update.js";
 import { correctMemory } from "../../core/memory-correct.js";
+import { getMemoryHistory } from "../../core/memory-history.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -448,6 +449,21 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     content: [{ type: "text", text: JSON.stringify(correctMemory(location, input), null, 2) }],
   }));
 
+  server.registerTool("memory_history", {
+    description: "Read bounded immutable versions and append-only correction/update/import events for one knowledge identity. Use version and event cursors to page older history; results are isolated to the current project.",
+    inputSchema: z.object({
+      knowledgeId: z.string().trim().min(1).max(128),
+      versionLimit: z.number().int().min(1).max(50).optional(),
+      eventLimit: z.number().int().min(1).max(50).optional(),
+      beforeVersionNumber: z.number().int().min(1).optional(),
+      beforeEventCreatedAt: z.string().min(1).max(40).optional(),
+      beforeEventId: z.string().min(1).max(128).optional(),
+    }).refine((input) => (input.beforeEventCreatedAt === undefined) === (input.beforeEventId === undefined), {
+      message: "beforeEventCreatedAt and beforeEventId must be supplied together",
+    }),
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(getMemoryHistory(location, input), null, 2) }],
+  }));
   server.registerTool("memory_capture", {
     description: "Capture bounded, reusable project knowledge into the versioned memory store. Agent capture does not require item-by-item user approval; epistemic state and evidence must accurately describe certainty. Retries with the same idempotencyKey and payload return the original result. Exact identity matches are reported as duplicates or conflicts; ambiguous content is never silently merged.",
     inputSchema: z.object({
