@@ -17,15 +17,15 @@ function setup(): void {
 }
 afterEach(() => { if (root) rmSync(root, { recursive: true, force: true }); root = undefined; });
 
-function seed(): string {
+function seed(longFragments = false): string {
   return captureMemories(location, {
     idempotencyKey: "get-seed",
     items: [{
       title: "Selective retrieval", content: "Primary content", type: "architecture", summary: "Short summary",
       epistemicState: "verified", tags: ["retrieval"], aliases: ["fragment retrieval"],
       fragments: [
-        { heading: "One", summary: "First", content: "First fragment content" },
-        { heading: "Two", summary: "Second", content: "Second fragment content" },
+        { heading: "One", summary: "First", content: longFragments ? "A".repeat(300) : "First fragment content" },
+        { heading: "Two", summary: "Second", content: longFragments ? "B".repeat(300) : "Second fragment content" },
       ],
       evidence: [{ evidenceType: "test_result", testCommand: "npm test", testResult: "passed", metadata: { suite: "memory" } }],
     }],
@@ -61,7 +61,7 @@ describe("versioned memory get and expand", () => {
 
   it("pages fragments deterministically and reports character-budget truncation", () => {
     setup();
-    const id = seed();
+    const id = seed(true);
     const first = expandMemory(location, { knowledgeId: id, limit: 2 });
     expect(first.fragments.map(fragment => fragment.ordinal)).toEqual([0, 1]);
     expect(first.hasMore).toBe(true);
