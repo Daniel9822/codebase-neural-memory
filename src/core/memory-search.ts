@@ -12,8 +12,8 @@ export interface MemorySearchInput {
 type SearchRow = {
   knowledgeId: string; versionId: string; type: string; lifecycle: MemoryLifecycle; versionNumber: number;
   title: string; summary: string; epistemicState: MemoryEpistemicState; confidence: number | null;
-  createdAt: string; tagsJson: string; aliasesJson: string; snippet: string; rank: number;
-  exactId: number; exactTitle: number; exactPath: number; exactSymbol: number; lexicalMatch: number;
+  createdAt: string; tagsJson: string; aliasesJson: string; snippet: string | null; rank: number | null;
+  exactId: number; exactTitle: number; exactPath: number; exactSymbol: number;
   sourcePaths: string; sourceSymbols: string;
 };
 function parseList(value: string): string[] {
@@ -120,7 +120,6 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         v.confidence, v.created_at AS createdAt, i.tags_json AS tagsJson, i.aliases_json AS aliasesJson,
         snippet(memory_search_fts, 6, '[', ']', ' … ', 16) AS snippet,
         bm25(memory_search_fts, 0, 0, 0, 3, 8, 5, 1, 7, 5, 6, 7) AS rank,
-        CASE WHEN memory_search_fts MATCH ? THEN 1 ELSE 0 END AS lexicalMatch,
         CASE WHEN i.id = ? THEN 1 ELSE 0 END AS exactId,
         CASE WHEN lower(v.title) = lower(?) THEN 1 ELSE 0 END AS exactTitle,
         CASE WHEN EXISTS (SELECT 1 FROM knowledge_evidence e WHERE e.version_id=v.id AND e.source_path=?) THEN 1 ELSE 0 END AS exactPath,
@@ -131,14 +130,14 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
       ORDER BY exactId DESC, exactTitle DESC, exactPath DESC, exactSymbol DESC, rank ASC,
         v.created_at DESC, i.id ASC, v.version_number DESC
       LIMIT ?
-    `).all(...params, query, query, query, query, limit + 1) as SearchRow[];
+    `).all(query, query, query, query, ...params, limit + 1) as SearchRow[];
     const results = rows.slice(0, limit).map((row) => {
       const matchedBy: string[] = [];
       if (row.exactId) matchedBy.push("exact-knowledge-id");
       if (row.exactTitle) matchedBy.push("exact-title");
       if (row.exactPath) matchedBy.push("exact-source-path");
       if (row.exactSymbol) matchedBy.push("exact-source-symbol");
-      if (row.lexicalMatch) matchedBy.push("lexical");
+      if (row.exactTitle || (!row.exactId && !row.exactPath && !row.exactSymbol)) matchedBy.push("lexical");
       return {
         knowledgeId: row.knowledgeId, versionId: row.versionId, type: row.type, lifecycle: row.lifecycle,
         versionNumber: row.versionNumber, title: row.title, summary: row.summary,
@@ -146,7 +145,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         tags: parseList(row.tagsJson), aliases: parseList(row.aliasesJson),
         sourcePaths: row.sourcePaths ? row.sourcePaths.split(", ").slice(0, 3) : [],
         sourceSymbols: row.sourceSymbols ? row.sourceSymbols.split(", ").slice(0, 3) : [],
-        snippet: row.snippet.slice(0, 500), matchedBy, relevance: Number((-row.rank).toFixed(6))
+        snippet: (row.snippet ?? "").slice(0, 500), matchedBy, relevance: Number((-(row.rank ?? 0)).toFixed(6))
       };
     });
     const buildResult = () => ({ query, results, returned: results.length, totalMatches, limit, maxChars,
