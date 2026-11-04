@@ -71,4 +71,38 @@ describe("versioned memory history", () => {
     expect(() => getMemoryHistory(location, { knowledgeId: initial.knowledgeId, versionLimit: 51 })).toThrow("versionLimit");
     expect(() => getMemoryHistory(location, { knowledgeId: initial.knowledgeId, beforeEventId: "event-only" })).toThrow("requires a valid beforeEventCreatedAt and beforeEventId");
   });
+  it("bounds the complete serialized response and reports exact totals and omissions", () => {
+    setup();
+    const initial = create();
+    const db = openDatabase(location);
+    try {
+      const now = new Date().toISOString();
+      const insert = db.prepare(`
+        INSERT INTO knowledge_events
+          (id, project_id, knowledge_id, version_id, event_type, actor, reason, payload_json, created_at)
+        VALUES (?, ?, ?, ?, 'history_fixture', NULL, NULL, ?, ?)
+      `);
+      const add = db.transaction(() => {
+        for (let index = 0; index < 12; index++) {
+          insert.run(`history-event-${index.toString().padStart(2, "0")}`, location.id, initial.knowledgeId,
+            initial.versionId, JSON.stringify({ detail: "x".repeat(700) }), now);
+        }
+      });
+      add();
+    } finally { db.close(); }
+    const page = getMemoryHistory(location, { knowledgeId: initial.knowledgeId, versionLimit: 20, eventLimit: 20, maxChars: 1500 });
+    expect(page.totalVersions).toBe(1);
+    expect(page.totalEvents).toBe(13);
+    expect(page.truncated).toBe(true);
+    expect(page.budgetOmittedEvents).toBeGreaterThan(0);
+    expect(page.pagination.hasMoreEvents).toBe(true);
+    expect(page.serializedChars).toBe(JSON.stringify(page).length);
+    expect(page.serializedChars).toBeLessThanOrEqual(1500);
+  });
+
+  it("rejects character budgets below the supported minimum", () => {
+    setup();
+    const initial = create();
+    expect(() => getMemoryHistory(location, { knowledgeId: initial.knowledgeId, maxChars: 499 })).toThrow("maxChars");
+  });
 });
