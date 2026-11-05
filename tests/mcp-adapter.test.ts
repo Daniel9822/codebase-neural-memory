@@ -227,7 +227,7 @@ describe("MCP adapter protocol contract", () => {
     const context = JSON.parse((bootstrap.result as { content: Array<{ text: string }> }).content[0]!.text);
     expect(context.highValue.some((item: { title: string }) => item.title === "Verified MCP search fixture")).toBe(true);
     expect(context.openRisks.some((item: { title: string }) => item.title === "Open rollout risk")).toBe(true);
-    expect(context.freshness.sourceEvidence).toBe("not_checked");
+    expect(context.freshness.sourceEvidence).toBe("per_item_bounded");
   });
 
   it("retrieves current memory metadata and selectively expands fragments through MCP", async () => {

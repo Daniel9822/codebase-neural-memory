@@ -1,5 +1,6 @@
 import { openDatabase } from "../storage/database.js";
 import { getIndexFreshness } from "./indexer.js";
+import { getKnowledgeEvidenceFreshness } from "./memory-health.js";
 import type { ProjectLocation } from "./project.js";
 
 export interface MemoryBootstrapInput {
@@ -58,13 +59,17 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
       epistemicState: string; confidence: number | null; updatedAt: string; sourcePaths: string; sourceSymbols: string;
     }>;
     const highValue: Array<Record<string, unknown>> = [], openRisks: Array<Record<string, unknown>> = [], pendingValidation: Array<Record<string, unknown>> = [];
+    const evidenceFreshnessByVersion = getKnowledgeEvidenceFreshness(location, db, rows.slice(0, limit).map((row) => ({
+      knowledgeId: row.knowledgeId, versionId: row.versionId,
+    })));
     for (const row of rows.slice(0, limit)) {
       const item = {
         knowledgeId: row.knowledgeId, versionId: row.versionId, versionNumber: row.versionNumber,
         type: row.type, title: row.title, summary: row.summary, epistemicState: row.epistemicState,
         confidence: row.confidence, updatedAt: row.updatedAt, tags: parseList(row.tagsJson), aliases: parseList(row.aliasesJson),
         sourcePaths: row.sourcePaths ? row.sourcePaths.split(", ").slice(0, 3) : [],
-        sourceSymbols: row.sourceSymbols ? row.sourceSymbols.split(", ").slice(0, 3) : []
+        sourceSymbols: row.sourceSymbols ? row.sourceSymbols.split(", ").slice(0, 3) : [],
+        sourceEvidenceFreshness: evidenceFreshnessByVersion[row.versionId]!
       };
       if (/(risk|question|issue|gotcha)/i.test(row.type + " " + row.title)) openRisks.push(item);
       else if (["pending_validation", "hypothesis", "planned"].includes(row.epistemicState)) pendingValidation.push(item);
@@ -72,7 +77,7 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
     }
     let result = {
       projectId: location.id, currentKnowledgeCount: totalCurrent, highValue, openRisks, pendingValidation,
-      freshness: { codeIndex: "unknown" as string, sourceEvidence: "not_checked", warnings: [] as string[] },
+      freshness: { codeIndex: "unknown" as string, sourceEvidence: "per_item_bounded", sourceEvidenceScope: "returned_items_only", sourceEvidenceLimits: { maxItems: 20, maxEvidencePerItem: 3 }, warnings: [] as string[] },
       returned: highValue.length + openRisks.length + pendingValidation.length, limit, maxChars,
       includePending: input.includePending ?? true, truncated: rows.length > limit
     };
@@ -84,7 +89,7 @@ export function bootstrapMemory(location: ProjectLocation, input: MemoryBootstra
       result.freshness.codeIndex = "unavailable";
       result.freshness.warnings.push("Code-index freshness could not be checked: " + (error instanceof Error ? error.message : String(error)));
     }
-    result.freshness.warnings.push("Source evidence freshness not checked.");
+    result.freshness.warnings.push("Source evidence checks cover returned items and at most three evidence rows per item; omitted evidence is not asserted fresh.");
     const groups = [highValue, openRisks, pendingValidation];
     const finalize = () => {
       const value = { ...result, serializedChars: 0 };

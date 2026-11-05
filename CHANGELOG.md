@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Add bounded per-version source-evidence freshness to `memory_search` results and `memory_bootstrap` items (PR #178 pending; corrected fixtures after initial CI run `42034006281`, fresh exact-head run `42034307439` queued). Reuse `memory_health` safe-file/hash/Git assessment; report `current`, `stale`, `unknown`, or `not_checked` per immutable version, with 20 returned item and three evidence row limits. The surface is read-only; truncated/unexamined evidence is never assumed fresh, and no lifecycle/epistemic state or review event is mutated.
+
 - Harden event-only `request_review` in MCP `memory_reconcile` (PR #150, merge `2279edd954bdeedea2c7cd9d1e5d014c05eccb24`; CI `41827470581`, all five jobs green). Enforces a 12,000-character serialized response budget with explicit truncation metadata and records up to 20 related evidence IDs and 20 project-scoped relation IDs per event, with truncation flags. Knowledge, evidence, and relation records remain unchanged. Remaining verification: independent-connection race handling, post-commit crash/retry, and append-only/preservation assertions.
 
 - Add event-only `request_review` apply mode to MCP `memory_reconcile` (PR #149, merge `db7ef0af725f81a1d70fe32a78a3cd203083f9f0`; CI `41825667650`, all five jobs green). Dry-run remains the default; explicit apply validates project-scoped knowledge IDs and expected versions, appends audit events atomically with idempotency results, and supports safe replay/conflict detection. It does not alter knowledge content, versions, lifecycle, evidence, or relations. Follow-up PR #150 adds response-size enforcement and source evidence/relation references; independent-connection concurrency and crash-recovery coverage remain open.

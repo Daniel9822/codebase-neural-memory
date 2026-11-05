@@ -1,4 +1,5 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
@@ -21,7 +22,7 @@ afterEach(() => { if (root) rmSync(root, { recursive: true, force: true }); root
 
 function capture(idempotencyKey: string, item: {
   title: string; content: string; type?: string; summary?: string; epistemicState?: "observed" | "verified" | "inferred" | "user_asserted" | "planned" | "hypothesis" | "pending_validation";
-  tags?: string[]; aliases?: string[]; sourcePath?: string; sourceSymbol?: string;
+  tags?: string[]; aliases?: string[]; sourcePath?: string; sourceHash?: string; sourceSymbol?: string;
 }): string {
   const result = captureMemories(location, {
     idempotencyKey,
@@ -30,7 +31,7 @@ function capture(idempotencyKey: string, item: {
       summary: item.summary ?? "", epistemicState: item.epistemicState ?? "verified",
       tags: item.tags, aliases: item.aliases,
       evidence: item.sourcePath || item.sourceSymbol ? [{
-        evidenceType: "source_reference", sourcePath: item.sourcePath, sourceSymbol: item.sourceSymbol,
+        evidenceType: "source_reference", sourcePath: item.sourcePath, sourceHash: item.sourceHash, sourceSymbol: item.sourceSymbol,
       }] : [],
     }],
   });
@@ -125,6 +126,14 @@ describe("versioned memory search and bootstrap", () => {
     expect(searchMemories(location, { symbol: "searchFixture" }).results.map((item) => item.knowledgeId)).toContain(first);
     expect(searchMemories(location, { type: "decision" }).results.map((item) => item.knowledgeId)).toContain(first);
     expect(searchMemories(location, { type: "architecture" }).results.map((item) => item.knowledgeId)).toContain(second);
+    const sourceBacked = searchMemories(location, { tag: "browse-tag" }).results.find((item) => item.knowledgeId === first);
+    expect(sourceBacked?.sourceEvidenceFreshness).toMatchObject({
+      checked: true, status: "stale", reasons: ["source_file_missing"],
+    });
+    const withoutEvidence = searchMemories(location, { type: "architecture" }).results.find((item) => item.knowledgeId === second);
+    expect(withoutEvidence?.sourceEvidenceFreshness).toMatchObject({
+      checked: true, status: "not_checked", evidenceTotal: 0, reasons: ["no_source_evidence"],
+    });
   });
 
   it("backfills existing versions and indexes later immutable versions through the update trigger", () => {
@@ -157,15 +166,15 @@ describe("versioned memory search and bootstrap", () => {
     capture("bootstrap-verified", { title: "Verified architecture", content: "Stable project design", epistemicState: "verified" });
     capture("bootstrap-risk", { title: "Open deployment risk", content: "Deployment behavior needs investigation", type: "risk", epistemicState: "inferred" });
     capture("bootstrap-pending", { title: "Pending validation item", content: "This hypothesis needs a test", epistemicState: "pending_validation" });
-    const result = bootstrapMemory(location, { limit: 10, maxChars: 3000 });
+    const result = bootstrapMemory(location, { limit: 10, maxChars: 4000 });
     expect(result.highValue.some((entry) => entry.title === "Verified architecture")).toBe(true);
     expect(result.openRisks.some((entry) => entry.title === "Open deployment risk")).toBe(true);
     expect(result.pendingValidation.some((entry) => entry.title === "Pending validation item")).toBe(true);
-    const withoutPending = bootstrapMemory(location, { limit: 10, maxChars: 3000, includePending: false });
+    const withoutPending = bootstrapMemory(location, { limit: 10, maxChars: 4000, includePending: false });
     expect(withoutPending.pendingValidation).toHaveLength(0);
     expect(bootstrapMemory(location, { limit: 10, types: ["risk"] }).currentKnowledgeCount).toBe(1);
-    expect(result.freshness.sourceEvidence).toBe("not_checked");
-    expect(result.serializedChars).toBeLessThanOrEqual(3000);
+    expect(result.freshness.sourceEvidence).toBe("per_item_bounded");
+    expect(result.serializedChars).toBeLessThanOrEqual(4000);
     expect(() => bootstrapMemory(location, { limit: 21 })).toThrow("limit");
     expect(() => bootstrapMemory(location, { maxChars: 499 })).toThrow("maxChars");
   });
@@ -274,6 +283,105 @@ describe("versioned memory search and bootstrap", () => {
     } finally {
       verify.close();
     }
+  });
+
+
+  it("surfaces current and stale source evidence in search and bootstrap without mutating memory history", () => {
+    setup();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    const sourcePath = "src/search-evidence-fixture.ts";
+    const originalSource = "export const searchEvidence = true;\\n";
+    writeFileSync(join(location.rootPath, sourcePath), originalSource);
+    const sourceHash = createHash("sha256").update(originalSource).digest("hex");
+    const id = capture("search-evidence-freshness", {
+      title: "Source evidence freshness fixture",
+      content: "Search and bootstrap should disclose stale source evidence.",
+      sourcePath,
+      sourceHash,
+    });
+
+    const beforeDb = openDatabase(location);
+    const before = {
+      items: beforeDb.prepare("SELECT COUNT(*) AS count FROM knowledge_items").get(),
+      versions: beforeDb.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get(),
+      fragments: beforeDb.prepare("SELECT COUNT(*) AS count FROM knowledge_fragments").get(),
+      evidence: beforeDb.prepare("SELECT COUNT(*) AS count FROM knowledge_evidence").get(),
+      events: beforeDb.prepare("SELECT COUNT(*) AS count FROM knowledge_events").get(),
+    };
+    beforeDb.close();
+
+    const currentSearch = searchMemories(location, { query: "Source evidence freshness fixture" });
+    expect(currentSearch.results[0]?.knowledgeId).toBe(id);
+    expect(currentSearch.results[0]?.sourceEvidenceFreshness).toMatchObject({
+      checked: true, status: "current", evidenceTotal: 1, sampledEvidence: 1, truncated: false,
+    });
+    expect(currentSearch.sourceEvidenceFreshness).toBe("per_result_bounded");
+    expect(currentSearch.sourceEvidenceFreshnessScope).toBe("returned_results_only");
+
+    const currentBootstrap = bootstrapMemory(location, { limit: 10 });
+    const currentItem = currentBootstrap.highValue.find((entry) => entry.knowledgeId === id);
+    expect(currentItem?.sourceEvidenceFreshness).toMatchObject({
+      checked: true, status: "current", evidenceTotal: 1, sampledEvidence: 1, truncated: false,
+    });
+    expect(currentBootstrap.freshness.sourceEvidence).toBe("per_item_bounded");
+
+    writeFileSync(join(location.rootPath, sourcePath), "export const searchEvidence = false;\\n");
+    const staleSearch = searchMemories(location, { query: "Source evidence freshness fixture" });
+    expect(staleSearch.results[0]?.sourceEvidenceFreshness).toMatchObject({
+      checked: true, status: "stale", evidenceTotal: 1, sampledEvidence: 1, truncated: false,
+      reasons: ["source_hash_mismatch"],
+    });
+    const staleBootstrap = bootstrapMemory(location, { limit: 10 });
+    const staleItem = staleBootstrap.highValue.find((entry) => entry.knowledgeId === id);
+    expect(staleItem?.sourceEvidenceFreshness).toMatchObject({
+      checked: true, status: "stale", reasons: ["source_hash_mismatch"],
+    });
+
+    const afterDb = openDatabase(location);
+    const after = {
+      items: afterDb.prepare("SELECT COUNT(*) AS count FROM knowledge_items").get(),
+      versions: afterDb.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get(),
+      fragments: afterDb.prepare("SELECT COUNT(*) AS count FROM knowledge_fragments").get(),
+      evidence: afterDb.prepare("SELECT COUNT(*) AS count FROM knowledge_evidence").get(),
+      events: afterDb.prepare("SELECT COUNT(*) AS count FROM knowledge_events").get(),
+    };
+    afterDb.close();
+    expect(after).toEqual(before);
+  });
+
+  it("keeps evidence freshness unknown when per-version evidence exceeds the sample bound", () => {
+    setup();
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    const sourcePath = "src/bounded-evidence.ts";
+    const source = "export const boundedEvidence = true;\\n";
+    writeFileSync(join(location.rootPath, sourcePath), source);
+    const sourceHash = createHash("sha256").update(source).digest("hex");
+    const id = capture("search-evidence-sample-bound", {
+      title: "Bounded evidence freshness fixture", content: "Evidence sampling is bounded.",
+      sourcePath, sourceHash,
+    });
+    const db = openDatabase(location);
+    try {
+      const versionId = (db.prepare("SELECT current_version_id AS versionId FROM knowledge_items WHERE id=?")
+        .get(id) as { versionId: string }).versionId;
+      const insert = db.prepare(`
+        INSERT INTO knowledge_evidence
+          (id, version_id, evidence_type, source_path, source_hash, created_at)
+        VALUES (?, ?, 'source_reference', ?, ?, ?)
+      `);
+      for (let index = 0; index < 3; index++) {
+        insert.run("bounded-extra-evidence-" + index, versionId, sourcePath, sourceHash,
+          new Date(Date.UTC(2026, 0, 1, 0, 0, index)).toISOString());
+      }
+    } finally {
+      db.close();
+    }
+
+    const result = searchMemories(location, { query: "Bounded evidence freshness fixture" });
+    expect(result.results[0]?.sourceEvidenceFreshness).toMatchObject({
+      checked: true, status: "unknown", evidenceTotal: 4, sampledEvidence: 3, truncated: true,
+    });
+    expect(result.results[0]?.sourceEvidenceFreshness.reasons).toContain("evidence_sample_truncated");
   });
 
 });
