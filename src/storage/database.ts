@@ -188,7 +188,7 @@ export function migrate(db: MemoryDatabase, projectId?: string): void {
     // as a deterministic disambiguator. Legacy databases can contain both
     // slash spellings; hashing only the normalized value would collide when
     // the unique stable-id index is created.
-    const normalizedPath = file.path.replaceAll("\\\\", "/");
+    const normalizedPath = file.path.replaceAll("\\", "/");
     updateFileId.run(stableId(["file", normalizedPath, file.path]), file.id);
   }
 
