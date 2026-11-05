@@ -21,6 +21,34 @@ export function appendDependentReviewRequests(
   actor: string | null,
   now: string,
 ): DependentReviewPropagationResult {
+  const total = (db.prepare(`
+    SELECT COUNT(DISTINCT dependent.id) AS count
+    FROM knowledge_relations r
+    JOIN knowledge_items source ON source.id=r.source_knowledge_id AND source.project_id=?
+    JOIN knowledge_items target ON target.id=r.target_knowledge_id AND target.project_id=?
+    JOIN knowledge_items dependent ON (
+      (r.relation_type IN ('depends_on','derived_from') AND dependent.id=source.id)
+      OR (r.relation_type='affects' AND dependent.id=target.id)
+    ) AND dependent.project_id=? AND dependent.lifecycle='active'
+    WHERE r.project_id=? AND (
+      (r.relation_type IN ('depends_on','derived_from') AND target.id=?)
+      OR (r.relation_type='affects' AND source.id=?)
+    )
+      AND dependent.id<>?
+      AND NOT EXISTS (
+        SELECT 1 FROM knowledge_events request
+        WHERE request.project_id=? AND request.knowledge_id=dependent.id
+          AND request.event_type='reconciliation_review_requested'
+          AND request.version_id=dependent.current_version_id
+          AND NOT EXISTS (
+            SELECT 1 FROM knowledge_events resolved
+            WHERE resolved.project_id=request.project_id
+              AND resolved.event_type='reconciliation_review_resolved'
+              AND json_extract(resolved.payload_json,'$.requestEventId')=request.id
+          )
+      )
+  `).get(projectId, projectId, projectId, projectId,
+    changedKnowledgeId, changedKnowledgeId, changedKnowledgeId, projectId) as { count: number }).count;
   const candidates = db.prepare(`
     SELECT DISTINCT dependent.id AS knowledgeId, dependent.current_version_id AS currentVersionId
     FROM knowledge_relations r
@@ -54,7 +82,6 @@ export function appendDependentReviewRequests(
       knowledgeId: string; currentVersionId: string;
     }>;
 
-  const total = candidates.length > 100 ? 101 : candidates.length;
   const selected = candidates.slice(0, 100);
   for (const candidate of selected) {
     const relations = db.prepare(`
