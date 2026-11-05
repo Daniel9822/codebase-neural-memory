@@ -132,16 +132,15 @@ export function resolveMemoryReview(location: ProjectLocation, raw: ResolveMemor
         return { ...(JSON.parse(prior.resultJson) as ResolveMemoryReviewResult), idempotentReplay: true };
       }
       const request = db.prepare(`
-        SELECT e.version_id AS versionId, i.current_version_id AS currentVersionId
+        SELECT i.current_version_id AS currentVersionId
         FROM knowledge_events e JOIN knowledge_items i
           ON i.id=e.knowledge_id AND i.project_id=e.project_id
         WHERE e.id=? AND e.project_id=? AND e.knowledge_id=?
           AND e.event_type='reconciliation_review_requested'
       `).get(input.requestEventId, location.id, input.knowledgeId) as {
-        versionId: string | null; currentVersionId: string | null;
+        currentVersionId: string | null;
       } | undefined;
-      if (!request || request.versionId !== input.expectedVersionId ||
-          request.currentVersionId !== input.expectedVersionId) {
+      if (!request || request.currentVersionId !== input.expectedVersionId) {
         return { status: "conflict", applied: false, idempotentReplay: false,
           requestEventId: input.requestEventId, knowledgeId: input.knowledgeId,
           currentVersionId: request?.currentVersionId ?? null, reason: "request_missing_or_version_changed" };
