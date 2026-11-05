@@ -101,4 +101,55 @@ describe("database migrations", () => {
     expect(database.prepare("SELECT COUNT(*) AS count FROM projects").get()).toEqual({ count: 0 });
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
   });
+
+  it("rolls back partial v13 DDL and retries the legacy backfill after a failed migration", () => {
+    database = new Database(":memory:") as MemoryDatabase;
+    const projectId = "migration-retry-project";
+    migrate(database, projectId);
+    database.prepare(`
+      INSERT INTO memories
+        (id, category, title, content, status, author, created_at, updated_at)
+      VALUES ('retry-legacy-memory', 'decision', 'Retry title', 'Retry content', 'confirmed',
+        'legacy-author', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')
+    `).run();
+
+    // Recreate the pre-v13 schema and introduce a conflicting partial table to
+    // force the v13 transactional DDL/backfill to fail after schema creation starts.
+    database.exec(`
+      DROP TABLE knowledge_events;
+      DROP TABLE knowledge_relations;
+      DROP TABLE knowledge_evidence;
+      DROP TABLE knowledge_fragments;
+      DROP TABLE knowledge_versions;
+      DROP TABLE knowledge_items;
+      DROP TABLE memory_idempotency;
+      DELETE FROM schema_migrations WHERE version = 13;
+      CREATE TABLE knowledge_items (id TEXT PRIMARY KEY);
+    `);
+
+    expect(() => migrate(database!, projectId)).toThrow(/no (such )?column: project_id/i);
+    expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = 13").get())
+      .toEqual({ count: 0 });
+    expect(database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='knowledge_versions'").get())
+      .toBeUndefined();
+    expect(database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='knowledge_events'").get())
+      .toBeUndefined();
+
+    // Removing the conflicting partial table permits a clean retry. The legacy
+    // source row remains untouched and is imported exactly once.
+    database.exec("DROP TABLE knowledge_items");
+    migrate(database, projectId);
+    expect(database.prepare("SELECT version FROM schema_migrations WHERE version = 13").get())
+      .toEqual({ version: 13 });
+    expect(database.prepare("SELECT id, project_id FROM knowledge_items WHERE id = 'retry-legacy-memory'").get())
+      .toEqual({ id: "retry-legacy-memory", project_id: projectId });
+    expect(database.prepare("SELECT title, version_number FROM knowledge_versions WHERE knowledge_id = 'retry-legacy-memory'").get())
+      .toEqual({ title: "Retry title", version_number: 1 });
+    expect(database.prepare("SELECT content FROM knowledge_fragments WHERE version_id = 'legacy-v1:retry-legacy-memory'").get())
+      .toEqual({ content: "Retry content" });
+    expect(database.prepare("SELECT event_type FROM knowledge_events WHERE knowledge_id = 'retry-legacy-memory'").get())
+      .toEqual({ event_type: "legacy_import" });
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
+
 });
