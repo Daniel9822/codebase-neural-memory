@@ -114,3 +114,8 @@ The read-only preview uses only these direct directions:
 The preview returns each active dependent identity once and attaches a deterministic representative relation. It does not perform transitive graph traversal. `supports`, `contradicts`, `supersedes`, and `related_to` are not used for impact propagation until their directional semantics are separately specified. The upstream stale-evidence sample is bounded; if it is truncated, `truncation.dependentReview` is true even when the displayed dependent rows fit the requested limit.
 
 This is only a preview. No dependent knowledge or event is changed. A caller must explicitly select knowledge IDs and current version IDs for the existing event-only `request_review` apply contract. The apply contract does not infer selection from the preview.
+
+
+## 2026-11-05 verification — PR #179 merged
+
+PR #179 merged as `55649d4aec271f95b4034470456e39f682e717ad`; exact-head CI `42036240634` passed all five jobs. The direct directed-relation semantics above are implemented in `src/core/memory-reconcile.ts` and covered by regression tests for both valid/reversed orientations, unsupported relation kinds, and candidate deduplication. This remains a read-only candidate preview; it does not persist pending state or auto-apply `request_review`.
