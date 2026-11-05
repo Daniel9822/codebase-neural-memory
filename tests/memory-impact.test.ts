@@ -38,7 +38,14 @@ function capture(idempotencyKey: string, title: string): { knowledgeId: string; 
     }],
   });
   const outcome = result.outcomes[0]!;
-  return { knowledgeId: outcome.knowledgeId, versionId: outcome.versionId };
+  const db = openDatabase(location);
+  try {
+    const row = db.prepare("SELECT current_version_id AS versionId FROM knowledge_items WHERE id=?")
+      .get(outcome.knowledgeId) as { versionId: string };
+    return { knowledgeId: outcome.knowledgeId, versionId: row.versionId };
+  } finally {
+    db.close();
+  }
 }
 
 function relate(id: string, source: string, target: string, relationType: string): void {
