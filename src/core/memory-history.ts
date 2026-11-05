@@ -162,6 +162,7 @@ export function getMemoryHistory(location: ProjectLocation, input: MemoryHistory
       }
       return JSON.stringify(result).length;
     };
+    let individuallyOversizedEventCursor: { createdAt: string; id: string } | null = null;
     while (measure() > maxChars) {
       result.truncated = true;
       // Keep each stream independently ordered and page-able; remove the older tail
@@ -173,6 +174,27 @@ export function getMemoryHistory(location: ProjectLocation, input: MemoryHistory
         result.budgetOmittedEvents++;
         result.pagination.hasMoreEvents = true;
         result.pagination.nextBeforeEvent = { createdAt: removed.createdAt, id: removed.id };
+
+        // An event that cannot fit even by itself must be consumed by the cursor.
+        // Otherwise it would be fetched forever and block access to older events.
+        const isolatedEventResponse = {
+          ...result,
+          versions: [],
+          events: [removed],
+          serializedChars: 0,
+          budgetOmittedVersions: 0,
+          budgetOmittedEvents: 1,
+          pagination: {
+            ...result.pagination,
+            versionsReturned: 0,
+            eventsReturned: 1,
+            nextBeforeVersionNumber: null,
+            nextBeforeEvent: { createdAt: removed.createdAt, id: removed.id },
+          },
+        };
+        if (JSON.stringify(isolatedEventResponse).length > maxChars) {
+          individuallyOversizedEventCursor = { createdAt: removed.createdAt, id: removed.id };
+        }
       } else if (result.versions.length > 0) {
         const removed = result.versions.pop()!;
         result.budgetOmittedVersions++;
@@ -183,14 +205,18 @@ export function getMemoryHistory(location: ProjectLocation, input: MemoryHistory
       }
       result.pagination.versionsReturned = result.versions.length;
       result.pagination.eventsReturned = result.events.length;
-      // Recalculate the cursors from the last returned row when one exists.
+      // Normally a budget-trimmed tail is returned on the next page. An individually
+      // oversized event is the exception: advance past it to avoid a permanent loop.
       if (result.versions.length > 0 && result.pagination.hasMoreVersions) {
         result.pagination.nextBeforeVersionNumber = result.versions.at(-1)!.versionNumber;
       }
-      if (result.events.length > 0 && result.pagination.hasMoreEvents) {
+      if (result.events.length > 0 && result.pagination.hasMoreEvents && !individuallyOversizedEventCursor) {
         const last = result.events.at(-1)!;
         result.pagination.nextBeforeEvent = { createdAt: last.createdAt, id: last.id };
       }
+    }
+    if (individuallyOversizedEventCursor) {
+      result.pagination.nextBeforeEvent = individuallyOversizedEventCursor;
     }
     result.serializedChars = JSON.stringify(result).length;
     return result;
