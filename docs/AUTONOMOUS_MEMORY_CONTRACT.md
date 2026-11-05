@@ -237,3 +237,14 @@ No phase is complete because a tool name or schema exists. Completion requires f
 PR #164 is merged to `main` as `f9ff199321ce240c052a431ed0897b5196004d79`; CI run `41934624316` passed all five jobs. Its rollback-injection tests for `memory_update` and `memory_correct` compare before/after snapshots of queried knowledge pointers, versions, fragments, evidence, and events after an immutable-version insert failure. This is targeted failure coverage, not a complete failure matrix.
 
 PR #165 (`test/memory-update-correct-cross-process-contention`) adds independent-process SQLite writer-lock tests for update and correction. The intended acceptance is no writes on lock failure followed by a successful retry after lock release. Treat this slice as pending until Ubuntu and Windows CI pass. Neither PR establishes simultaneous same-identity writer scheduling or physical power-loss durability.
+
+
+## 2026-11-05 implementation verification addendum
+
+PR #164 rollback-injection tests are merged; CI run `41934624316` passed all five jobs. They compare queried snapshots of knowledge pointers, versions, fragments, evidence, and events after an immutable-version insert failure.
+
+PR #165 is merged as `c7a82bfe2d141433a1bc57e24842b729dec903e3`; CI run `41939068928` passed all five jobs. It verifies independent-process write-lock failure without writes and successful retry for both `memory_update` and `memory_correct`, and includes the oversized-event `memory_history` cursor correction and migration rollback/retry test.
+
+PR #168 is merged as `96da869dcd198bccd7b6e6cce1ed67ceb6a4ee88`; exact-head CI run `41991378215` passed all five jobs. It verifies simultaneous same-identity `memory_update` writers produce one update and one stale conflict without extra versions/events. The initially failing PR #167 is closed as superseded by #168.
+
+The active follow-up branch `test/memory-correct-same-identity-races` adds same-identity simultaneous `memory_correct` coverage and a mixed `memory_update`/`memory_correct` writer race. Until its fresh Ubuntu/Windows and benchmark CI passes and it is merged, those two concurrency cases remain unverified. None of these tests establishes physical power-loss/controller/filesystem durability; keep that acceptance item open.
