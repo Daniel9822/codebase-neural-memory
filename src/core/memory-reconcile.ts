@@ -68,27 +68,37 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
       // knowledge to its source; affects points from the cause to the affected
       // knowledge. Only the directionally dependent side is proposed for review.
       const dependentReviewBase = `
-        SELECT DISTINCT dependent.id AS knowledgeId, v.title AS title,
-          stale.id AS relatedKnowledgeId, stale.id AS staleKnowledgeId,
-          r.relation_type AS relationType, r.id AS relationId
-        FROM knowledge_relations r
-        JOIN knowledge_items source ON source.id=r.source_knowledge_id
-        JOIN knowledge_items target ON target.id=r.target_knowledge_id
-        JOIN knowledge_items dependent ON (
-          (r.relation_type IN ('depends_on','derived_from') AND dependent.id=source.id)
-          OR (r.relation_type='affects' AND dependent.id=target.id)
-        )
-        JOIN knowledge_items stale ON (
-          (r.relation_type IN ('depends_on','derived_from') AND stale.id=target.id)
-          OR (r.relation_type='affects' AND stale.id=source.id)
-        )
-        JOIN knowledge_versions v ON v.id=dependent.current_version_id AND v.knowledge_id=dependent.id
-        WHERE r.project_id=? AND source.project_id=? AND target.project_id=?
-          AND dependent.lifecycle='active'
-          AND (
-            (r.relation_type IN ('depends_on','derived_from') AND stale.id IN (${placeholders}))
-            OR (r.relation_type='affects' AND stale.id IN (${placeholders}))
+        WITH directional_candidates AS (
+          SELECT dependent.id AS knowledgeId, v.title AS title,
+            stale.id AS relatedKnowledgeId, stale.id AS staleKnowledgeId,
+            r.relation_type AS relationType, r.id AS relationId,
+            ROW_NUMBER() OVER (
+              PARTITION BY dependent.id
+              ORDER BY stale.id COLLATE BINARY ASC, r.relation_type COLLATE BINARY ASC,
+                r.id COLLATE BINARY ASC
+            ) AS candidateRank
+          FROM knowledge_relations r
+          JOIN knowledge_items source ON source.id=r.source_knowledge_id
+          JOIN knowledge_items target ON target.id=r.target_knowledge_id
+          JOIN knowledge_items dependent ON (
+            (r.relation_type IN ('depends_on','derived_from') AND dependent.id=source.id)
+            OR (r.relation_type='affects' AND dependent.id=target.id)
           )
+          JOIN knowledge_items stale ON (
+            (r.relation_type IN ('depends_on','derived_from') AND stale.id=target.id)
+            OR (r.relation_type='affects' AND stale.id=source.id)
+          )
+          JOIN knowledge_versions v ON v.id=dependent.current_version_id AND v.knowledge_id=dependent.id
+          WHERE r.project_id=? AND source.project_id=? AND target.project_id=?
+            AND dependent.lifecycle='active'
+            AND (
+              (r.relation_type IN ('depends_on','derived_from') AND stale.id IN (${placeholders}))
+              OR (r.relation_type='affects' AND stale.id IN (${placeholders}))
+            )
+        )
+        SELECT knowledgeId, title, relatedKnowledgeId, staleKnowledgeId, relationType, relationId
+        FROM directional_candidates
+        WHERE candidateRank=1
       `;
       const parameters = [location.id, location.id, location.id, ...staleIds, ...staleIds];
       dependentReviewTotal = (db.prepare(`SELECT COUNT(*) AS count FROM (${dependentReviewBase})`)
