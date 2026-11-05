@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly twenty-eight tools and publishes the expected input schemas", async () => {
+  it("discovers exactly thirty tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -139,6 +139,8 @@ describe("MCP adapter protocol contract", () => {
       "memory_propose",
       "memory_recall",
       "memory_reconcile",
+      "memory_review_queue",
+      "memory_review_resolve",
       "memory_search",
       "memory_transition",
       "memory_update",
@@ -178,6 +180,8 @@ describe("MCP adapter protocol contract", () => {
       memory_bootstrap: ["includePending", "limit", "maxChars", "types"],
       memory_health: ["limit"],
       memory_reconcile: ["actor", "dryRun", "idempotencyKey", "items", "limit", "operation"],
+      memory_review_queue: ["limit"],
+      memory_review_resolve: ["actor", "expectedVersionId", "idempotencyKey", "knowledgeId", "reason", "requestEventId", "resolution"],
       memory_transition: ["id", "status"],
     });
   });
