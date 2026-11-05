@@ -112,7 +112,7 @@ afterEach(async () => {
 });
 
 describe("MCP adapter protocol contract", () => {
-  it("discovers exactly twenty-eight tools and publishes the expected input schemas", async () => {
+  it("discovers exactly twenty-nine tools and publishes the expected input schemas", async () => {
     createProject();
     const client = await connectClient();
     const response = await client.request("tools/list");
@@ -136,6 +136,7 @@ describe("MCP adapter protocol contract", () => {
       "memory_get",
       "memory_health",
       "memory_history",
+      "memory_impact",
       "memory_propose",
       "memory_recall",
       "memory_reconcile",
@@ -177,6 +178,7 @@ describe("MCP adapter protocol contract", () => {
       memory_search: ["createdAfter", "createdBefore", "cursor", "epistemicState", "includeHistorical", "lifecycle", "limit", "maxChars", "path", "query", "relatedKnowledgeId", "relationType", "symbol", "tag", "type"],
       memory_bootstrap: ["includePending", "limit", "maxChars", "types"],
       memory_health: ["limit"],
+      memory_impact: ["expectedVersionId", "knowledgeId", "limit", "maxChars", "maxDepth"],
       memory_reconcile: ["actor", "dryRun", "idempotencyKey", "items", "limit", "operation"],
       memory_transition: ["id", "status"],
     });
@@ -214,6 +216,25 @@ describe("MCP adapter protocol contract", () => {
     const reviewedId = capturedData.outcomes[0].knowledgeId;
     const metadata = await client.request("tools/call", { name: "memory_get", arguments: { knowledgeId: reviewedId } });
     const metadataData = JSON.parse((metadata.result as { content: Array<{ text: string }> }).content[0]!.text);
+    const dependentId = capturedData.outcomes[1].knowledgeId as string;
+    database!.prepare(`
+      INSERT INTO knowledge_relations
+        (id, project_id, source_knowledge_id, target_knowledge_id, relation_type, reason, created_at)
+      VALUES (?, ?, ?, ?, 'depends_on', 'MCP impact fixture', ?)
+    `).run("mcp-impact-dependency", location.id, dependentId, reviewedId, new Date().toISOString());
+    const eventsBeforeImpact = (database!.prepare("SELECT COUNT(*) AS count FROM knowledge_events").get() as { count: number }).count;
+    const impact = await client.request("tools/call", { name: "memory_impact", arguments: {
+      knowledgeId: reviewedId, expectedVersionId: metadataData.currentVersionId, maxDepth: 2, limit: 10,
+    } });
+    expect((impact.result as { isError?: boolean }).isError).not.toBe(true);
+    const impactData = JSON.parse((impact.result as { content: Array<{ text: string }> }).content[0]!.text);
+    expect(impactData).toMatchObject({ status: "ready", mode: "read_only", root: { knowledgeId: reviewedId }, returned: 1 });
+    expect(impactData.impacted[0]).toMatchObject({
+      knowledgeId: dependentId, depth: 1,
+      path: [{ relationId: "mcp-impact-dependency", relationType: "depends_on" }],
+    });
+    expect((database!.prepare("SELECT COUNT(*) AS count FROM knowledge_events").get() as { count: number }).count)
+      .toBe(eventsBeforeImpact);
     const review = await client.request("tools/call", { name: "memory_reconcile", arguments: {
       operation: "request_review", dryRun: false, idempotencyKey: "mcp-review-request-1",
       items: [{ knowledgeId: reviewedId, expectedVersionId: metadataData.currentVersionId,
