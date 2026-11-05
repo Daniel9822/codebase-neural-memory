@@ -632,3 +632,10 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Limits: first 20 returned results/items, at most three source-evidence rows per version (newest deterministic rows first), max 128 KiB per file read (existing `assessEvidence` boundary). Results outside the window use `checked:false`; items without source evidence use `checked:true,status:not_checked`. No evidence outside the cap is treated as fresh.
 - The operation is read-only. It does not rewrite immutable versions, epistemic/lifecycle status, append review events, or propagate dependent impact. Relationship-aware review marking remains a separate requirement.
 - Focused tests in `tests/memory-search.test.ts` cover current hash, changed source, missing source, absent evidence, bounded evidence sampling, search/bootstrap visibility, and unchanged knowledge/version/fragment/evidence/event counts. Exact-head Ubuntu/Windows and benchmark CI is pending; do not check the acceptance item until merge.
+
+
+### CI follow-up — PR #178 initial verification and corrected fixtures
+
+- Initial exact-head run `42034006281` found two test-contract mismatches on Ubuntu: the existing MCP adapter assertion still expected the old global `sourceEvidence: not_checked` value; it now expects `per_item_bounded`. The categorized-bootstrap fixture used a 3,000-character budget, which caused the new freshness metadata to trim the third category before its assertion; the fixture budget is now 4,000 and the serialized-size assertion uses that same configured bound. This preserves category assertions and does not alter production truncation behavior.
+- Ubuntu reported 280 passing / 2 failing tests; typecheck passed. Both Ubuntu/macOS benchmarks passed and Windows benchmark passed; Windows verification was still running when the logs were inspected. Do not use that run as merge evidence.
+- Corrected exact HEAD `7cb31df344f79ee263b62a41aea511e5f30e732e`; fresh CI run `42034307439` is queued. Require all five jobs green on this exact HEAD before merge.
