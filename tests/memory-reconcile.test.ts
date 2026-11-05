@@ -184,6 +184,10 @@ describe("memory reconciliation preview", () => {
     const knowledgeId = capture("Tracked source decision", "tracked-source-evidence", {
       path: sourcePath, hash: createHash("sha256").update(original).digest("hex"),
     });
+    const projectDb = openDatabase(location);
+    projectDb.prepare("INSERT INTO projects(id, root_path, name, created_at) VALUES (?, ?, ?, ?)")
+      .run(location.id, location.rootPath, "source-change-fixture", new Date().toISOString());
+    projectDb.close();
 
     updateProjectIndex(location);
     writeFileSync(join(location.rootPath, sourcePath), "export const tracked = 'after';\\n");
