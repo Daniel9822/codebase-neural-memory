@@ -183,7 +183,14 @@ export function migrate(db: MemoryDatabase, projectId?: string): void {
   const stableId = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
   const legacyFiles = db.prepare("SELECT id, path FROM files WHERE stable_id IS NULL ORDER BY path").all() as Array<{ id: number; path: string }>;
   const updateFileId = db.prepare("UPDATE files SET stable_id = ? WHERE id = ?");
-  for (const file of legacyFiles) updateFileId.run(stableId(["file", file.path.replaceAll("\\", "/")]), file.id);
+  for (const file of legacyFiles) {
+    // Normalize separators for the logical path, but retain the original path
+    // as a deterministic disambiguator. Legacy databases can contain both
+    // slash spellings; hashing only the normalized value would collide when
+    // the unique stable-id index is created.
+    const normalizedPath = file.path.replaceAll("\\\\", "/");
+    updateFileId.run(stableId(["file", normalizedPath, file.path]), file.id);
+  }
 
   const legacySymbols = db.prepare(`
     SELECT s.id, s.file_id, s.name, s.kind, s.signature
