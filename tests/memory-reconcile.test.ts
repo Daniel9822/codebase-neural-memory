@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { captureMemories } from "../src/core/memory-capture.js";
 import { previewMemoryReconciliation } from "../src/core/memory-reconcile.js";
+import { previewSourceChangeReviews } from "../src/core/memory-source-change-review.js";
+import { updateProjectIndex } from "../src/core/indexer.js";
 import { openDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 
@@ -172,4 +174,35 @@ describe("memory reconciliation preview", () => {
     expect(() => previewMemoryReconciliation(location, { limit: 0 })).toThrow("limit");
     expect(() => previewMemoryReconciliation(location, { limit: 101 })).toThrow("limit");
   });
+
+  it("maps indexed file modifications to current versioned evidence without applying review events", () => {
+    setup();
+    const sourcePath = "src/tracked-source.ts";
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    const original = "export const tracked = 'before';\\n";
+    writeFileSync(join(location.rootPath, sourcePath), original);
+    const knowledgeId = capture("Tracked source decision", "tracked-source-evidence", {
+      path: sourcePath, hash: createHash("sha256").update(original).digest("hex"),
+    });
+
+    updateProjectIndex(location);
+    writeFileSync(join(location.rootPath, sourcePath), "export const tracked = 'after';\\n");
+
+    const report = previewSourceChangeReviews(location, { limit: 10 });
+    expect(report.indexStatus).toBe("stale");
+    expect(report.complete).toBe(true);
+    expect(report.candidates).toContainEqual(expect.objectContaining({
+      knowledgeId,
+      sources: [expect.objectContaining({ path: sourcePath, status: "changed" })],
+    }));
+
+    const preview = previewMemoryReconciliation(location, { limit: 10 });
+    expect(preview.sourceChangeReview.candidates).toContainEqual(expect.objectContaining({ knowledgeId }));
+
+    const db = openDatabase(location);
+    expect((db.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE event_type='reconciliation_review_requested'")
+      .get() as { count: number }).count).toBe(0);
+    db.close();
+  });
+
 });
