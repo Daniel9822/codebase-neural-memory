@@ -165,4 +165,80 @@ describe("versioned memory update",()=>{
     }
   });
 
+
+  it("serializes simultaneous writers for the same identity and rejects the stale writer", async () => {
+    setup(); const initial = create();
+    const script = `
+      import { updateMemoryVersion } from "./src/core/memory-update.js";
+      const payload = JSON.parse(process.env.CNM_RACE_INPUT ?? "{}");
+      process.stdout.write("READY\\n");
+      process.stdin.once("data", () => {
+        try {
+          const result = updateMemoryVersion(payload.location, {
+            knowledgeId: payload.knowledgeId,
+            expectedVersionId: payload.expectedVersionId,
+            reason: payload.reason,
+            content: payload.content,
+          });
+          process.stdout.write(JSON.stringify(result) + "\\n");
+        } catch (error) {
+          process.stdout.write(JSON.stringify({ error: String(error) }) + "\\n");
+          process.exitCode = 1;
+        }
+      });
+    `;
+    const workers = ["writer-a", "writer-b"].map((name) => spawn(
+      process.execPath, ["--import", "tsx", "--input-type=module", "-e", script],
+      { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, CNM_RACE_INPUT: JSON.stringify({
+        location, knowledgeId: initial.knowledgeId, expectedVersionId: initial.expectedVersionId,
+        reason: name, content: `Concurrent result from ${name}`,
+      }) } },
+    ));
+    const ready = workers.map((worker) => new Promise<void>((resolve, reject) => {
+      worker.stdout.setEncoding("utf8");
+      let output = "";
+      const onData = (chunk: string) => {
+        output += chunk;
+        if (output.includes("READY\\n")) { worker.stdout.off("data", onData); resolve(); }
+      };
+      worker.stdout.on("data", onData);
+      worker.once("error", reject);
+      worker.once("exit", (code, signal) => reject(new Error(`Writer exited before ready: ${code}/${signal}`)));
+    }));
+    try {
+      await Promise.all(ready);
+      const resultsPromise = workers.map((worker) => new Promise<Record<string, unknown>>((resolve, reject) => {
+        let output = "";
+        worker.stdout.on("data", (chunk: string) => {
+          output += chunk;
+          const line = output.split("\\n").find((entry) => entry.startsWith("{"));
+          if (line) { try { resolve(JSON.parse(line) as Record<string, unknown>); } catch (error) { reject(error); } }
+        });
+        worker.once("error", reject);
+        worker.once("exit", (code, signal) => {
+          if (code !== 0) reject(new Error(`Writer failed: ${code}/${signal}; output=${output}`));
+        });
+      }));
+      for (const worker of workers) worker.stdin.write("GO\\n");
+      const results = await Promise.all(resultsPromise);
+      expect(results.map((result) => result.status).sort()).toEqual(["conflict", "updated"]);
+      const winner = results.find((result) => result.status === "updated")!;
+      const loser = results.find((result) => result.status === "conflict")!;
+      expect(loser.currentVersionId).toBe(winner.currentVersionId);
+      const db = openDatabase(location);
+      try {
+        expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_versions WHERE knowledge_id=?")
+          .get(initial.knowledgeId)).toEqual({ count: 2 });
+        expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE knowledge_id=?")
+          .get(initial.knowledgeId)).toEqual({ count: 2 });
+        expect(db.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?")
+          .get(initial.knowledgeId)).toEqual({ current_version_id: winner.currentVersionId });
+      } finally { db.close(); }
+    } finally {
+      for (const worker of workers) if (worker.exitCode === null && worker.signalCode === null) worker.kill();
+      await Promise.all(workers.map((worker) => worker.exitCode === null && worker.signalCode === null
+        ? once(worker, "exit").then(() => undefined) : Promise.resolve()));
+    }
+  });
+
 });
