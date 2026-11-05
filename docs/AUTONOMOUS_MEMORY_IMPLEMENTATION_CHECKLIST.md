@@ -354,8 +354,8 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 - [ ] Link knowledge/evidence to source paths, symbols, file hashes, commits, index revisions, and tests when available.
 - [ ] Reuse existing freshness mechanisms rather than duplicating them.
-- [ ] Determine affected knowledge from changed symbols/files/relations; avoid invalidating unrelated knowledge.
-- [ ] Mark affected knowledge pending review when evidence becomes stale; do not delete it.
+- [ ] Determine affected knowledge from changed symbols/files/relations; avoid invalidating unrelated knowledge. PR #179 corrects the read-only stale-evidence preview to respect directed `depends_on`, `derived_from`, and `affects` semantics; it remains direct-only and does not persist review state.
+- [ ] Mark affected knowledge pending review when evidence becomes stale; do not delete it. The directed candidate preview in PR #179 is still read-only; event-only `request_review` must remain explicit and is not automatically applied to all candidates.
 - [x] Ensure retrieval communicates stale/unverified status. PR #178 adds read-only per-result/per-item status to `memory_search` and `memory_bootstrap`, bounded to 20 returned items and three evidence rows/version (merge `a668cb8ec0b19ea398df85418b46212c500743f6`; CI `42034417737`, five jobs green). It does not persist pending-review state or propagate impacts.
 - [ ] Test file rename/delete, symbol change, branch switch, dirty tree, non-Git project, and incomplete index.
 
@@ -650,3 +650,12 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - This is read-only. It does not rewrite immutable versions, lifecycle/epistemic state, append review-request events, or propagate dependent review. Omitted evidence/results are not asserted current.
 - Focused coverage in `tests/memory-search.test.ts` and `tests/mcp-adapter.test.ts` checks matching/mismatched/missing sources, no evidence, truncated evidence, both retrieval surfaces and unchanged knowledge/version/fragment/evidence/event counts. Initial CI run `42034006281` found two outdated test fixtures (old MCP status and undersized bootstrap fixture); those fixtures were corrected without changing production behavior or weakening the category/serialized-size assertions. Final exact-head run `42034417737` passed all five jobs.
 - **Still open in G1:** persisting pending-review state, relationship-aware dependent propagation on correction/update/supersession, and change detection across rename/delete/symbol/branch/non-Git/incomplete-index scenarios. Retrieval visibility does not close those acceptance requirements.
+
+
+## 2026-11-05 — Directed dependent review preview correction (PR #179 pending)
+
+- The previous reconciliation query treated any stale endpoint of `depends_on`, `derived_from`, or `affects` as a reason to review the opposite endpoint. This ignored edge direction and could suggest unrelated review candidates.
+- PR #179 now defines/implements direct traversal: stale target -> source dependent for `depends_on`/`derived_from`; stale source -> target affected item for `affects`.
+- Candidates are restricted to active dependents in the same project, deduplicated by dependent knowledge identity, and returned with a deterministic representative relation ID/type and stale related identity. Summary count is exact for the stale-evidence sample; `truncation.dependentReview` also stays true when the upstream stale-evidence sample is truncated.
+- `supports`, `contradicts`, `supersedes`, and `related_to` are deliberately not traversed until their impact semantics are separately defined. Traversal is direct-only, not transitive.
+- Regression tests cover correct and reversed edge direction, ignored relation types, and deduplicated dependents. The implementation remains a read-only preview; `request_review` is still explicit event-only apply. Await exact-head Ubuntu/Windows and benchmark CI before marking implemented.

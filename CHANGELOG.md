@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Correct directed dependent-review candidate discovery in `memory_reconcile` (PR #179 pending): stale `depends_on`/`derived_from` targets propose the source dependent; stale `affects` sources propose the target. Direct-only, project-scoped, deduplicated, and read-only; other relation kinds are not inferred.
+
 - Add bounded per-version source-evidence freshness to `memory_search` results and `memory_bootstrap` items (PR #178, merge `a668cb8ec0b19ea398df85418b46212c500743f6`; exact-head CI `42034417737`, all five jobs green). Reuses `memory_health` safe-file/hash/Git assessment; reports `current`, `stale`, `unknown`, or `not_checked` per immutable version, capped at 20 returned items and three evidence rows per version. The surface is read-only; truncated/unexamined evidence is never assumed fresh, and no lifecycle/epistemic state or review event is mutated.
 
 - Harden event-only `request_review` in MCP `memory_reconcile` (PR #150, merge `2279edd954bdeedea2c7cd9d1e5d014c05eccb24`; CI `41827470581`, all five jobs green). Enforces a 12,000-character serialized response budget with explicit truncation metadata and records up to 20 related evidence IDs and 20 project-scoped relation IDs per event, with truncation flags. Knowledge, evidence, and relation records remain unchanged. Remaining verification: independent-connection race handling, post-commit crash/retry, and append-only/preservation assertions.

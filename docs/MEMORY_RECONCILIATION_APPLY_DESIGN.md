@@ -101,3 +101,16 @@ PR #164 is merged to `main` as `f9ff199321ce240c052a431ed0897b5196004d79`; CI ru
 - Broad project-wide apply without explicit selected IDs.
 
 These require separate contracts, provenance rules, user/agent authorization semantics, and recoverability analysis.
+
+
+## 11. Directed relation semantics for dependent review previews
+
+The read-only preview uses only these direct directions:
+
+- `source depends_on target`: the source knowledge is dependent on the target. Stale target evidence proposes the source for review.
+- `source derived_from target`: the source knowledge was derived from the target. Stale target evidence proposes the source for review.
+- `source affects target`: the source is the cause/driver and the target is affected. Stale source evidence proposes the target for review.
+
+The preview returns each active dependent identity once and attaches a deterministic representative relation. It does not perform transitive graph traversal. `supports`, `contradicts`, `supersedes`, and `related_to` are not used for impact propagation until their directional semantics are separately specified. The upstream stale-evidence sample is bounded; if it is truncated, `truncation.dependentReview` is true even when the displayed dependent rows fit the requested limit.
+
+This is only a preview. No dependent knowledge or event is changed. A caller must explicitly select knowledge IDs and current version IDs for the existing event-only `request_review` apply contract. The apply contract does not infer selection from the preview.

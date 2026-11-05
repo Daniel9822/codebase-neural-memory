@@ -103,6 +103,8 @@ Freshness is evaluated using existing CNM source/Git/index mechanisms where poss
 
 Knowledge relations are typed, directed, and explainable. Initial relation kinds include `supports`, `contradicts`, `supersedes`, `depends_on`, `related_to`, `derived_from`, and `affects`. Relations carry actor/origin, timestamp, and optional evidence/reason. Ambiguous matches must not be auto-merged or linked as facts.
 
+For the first bounded dependent-review preview, direction has these explicit semantics: `A depends_on B` and `A derived_from B` mean A is the dependent and B is its source; when B's source evidence is stale, A is a direct review candidate. `A affects B` means A is the cause and B is affected; when A's evidence is stale, B is a direct review candidate. This first preview does not traverse transitively and does not infer impact for `supports`, `contradicts`, `supersedes`, or `related_to`; those relations need separate semantics before they can propagate review. Preview candidates are read-only signals, not automatic state changes. They are limited by the sampled stale-evidence set, report truncation when that sample is incomplete, and return each dependent identity once with a deterministic representative relation.
+
 ## 5. Capture and update behavior
 
 ### 5.1 Capture
@@ -295,3 +297,8 @@ PR #177 adds the populated schema-v8 snapshot to `main` (merge `3c3a3e8a6e1497f8
 ## 2026-11-05 — Retrieval freshness implementation verified
 
 PR #178 merged as `a668cb8ec0b19ea398df85418b46212c500743f6`; exact-head CI run `42034417737` passed all five jobs. The specification above is now implemented for `memory_search` and `memory_bootstrap` through the bounded shared assessment helper. This does not implement review-state mutation or relation-aware dependent propagation; those remain separate contract requirements.
+
+
+## 2026-11-05 — Directed dependent-review preview semantics under PR #179
+
+The read-only reconciliation preview is being corrected to respect relation direction. For `A depends_on B` or `A derived_from B`, a stale B makes A a direct review candidate. For `A affects B`, a stale A makes B a direct review candidate. The preview is direct-only, project-scoped, active-dependent-only and deduplicates candidate knowledge identities with a deterministic representative relation. Other relation types do not propagate in this slice. No knowledge status or event is mutated; explicit `request_review` remains a separate event-only apply action. Require exact-head CI before treating the correction as merged.
