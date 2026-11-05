@@ -144,24 +144,37 @@ describe("versioned memory history", () => {
     setup();
     const initial = create();
     const oversizedId = "zz-oversized-history-event";
+    const olderId = "older-than-oversized-history-event";
     const db = openDatabase(location);
     try {
-      db.prepare(`
+      const insert = db.prepare(`
         INSERT INTO knowledge_events
           (id, project_id, knowledge_id, version_id, event_type, actor, reason, payload_json, created_at)
-        VALUES (?, ?, ?, ?, 'oversized_fixture', NULL, NULL, ?, ?)
-      `).run(oversizedId, location.id, initial.knowledgeId, initial.versionId,
+        VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?)
+      `);
+      insert.run(oversizedId, location.id, initial.knowledgeId, initial.versionId, "oversized_fixture",
         JSON.stringify({ detail: "z".repeat(4_000) }), "2000-01-01T00:00:00.000Z");
+      insert.run(olderId, location.id, initial.knowledgeId, initial.versionId, "older_fixture",
+        "{}", "1999-01-01T00:00:00.000Z");
     } finally { db.close(); }
 
     const page = getMemoryHistory(location, { knowledgeId: initial.knowledgeId, eventLimit: 20, maxChars: 1_000 });
     expect(page.truncated).toBe(true);
     expect(page.budgetOmittedEvents).toBeGreaterThan(0);
     expect(page.events.some((event) => event.id === oversizedId)).toBe(false);
+    expect(page.events.some((event) => event.eventType === "captured")).toBe(true);
     expect(page.pagination.hasMoreEvents).toBe(true);
-    expect(page.pagination.nextBeforeEvent).toEqual({ createdAt: "2026-11-04T23:59:59.000Z", id: oversizedId });
+    expect(page.pagination.nextBeforeEvent).toEqual({ createdAt: "2000-01-01T00:00:00.000Z", id: oversizedId });
     expect(page.serializedChars).toBe(JSON.stringify(page).length);
     expect(page.serializedChars).toBeLessThanOrEqual(1_000);
+
+    const olderPage = getMemoryHistory(location, {
+      knowledgeId: initial.knowledgeId, eventLimit: 20, maxChars: 1_000,
+      beforeEventCreatedAt: page.pagination.nextBeforeEvent!.createdAt,
+      beforeEventId: page.pagination.nextBeforeEvent!.id,
+    });
+    expect(olderPage.events.map((event) => event.id)).toContain(olderId);
+    expect(olderPage.events.some((event) => event.id === oversizedId)).toBe(false);
   });
 
   it("rejects character budgets below the supported minimum", () => {
