@@ -452,10 +452,14 @@ describe("versioned memory correction", () => {
       expect(db.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?")
         .get(initial.knowledgeId)).toEqual({ current_version_id: winner.currentVersionId });
       expect(db.prepare("SELECT content FROM knowledge_fragments WHERE version_id=? ORDER BY ordinal")
-        .all(winner.currentVersionId)).toEqual([
-          { content: winner.expectedContent },
-          { content: "Rollback uses command B." },
-        ]);
+        .all(winner.currentVersionId)).toEqual(
+        winner.operation === "update"
+          ? [{ content: winner.expectedContent }]
+          : [
+              { content: winner.expectedContent },
+              { content: "Rollback uses command B." },
+            ],
+      );
     } finally {
       db.close();
     }
