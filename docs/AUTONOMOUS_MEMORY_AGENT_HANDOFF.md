@@ -188,3 +188,12 @@ PR #168 is merged as `96da869dcd198bccd7b6e6cce1ed67ceb6a4ee88` (CI `41991378215
 **Active branch:** `test/memory-correct-same-identity-races`. It adds (1) two concurrent `memory_correct` calls against the same expected version and (2) a mixed `memory_update`/`memory_correct` race. The assertions cover one successful writer, one stale conflict pointing at the winner, exactly one appended version/event, correct current-version pointer, and a coherent winning fragment set. This branch is pending fresh CI/review; do not treat the new coverage as verified yet.
 
 After that slice, continue with the broader migration/recovery matrix (historical schema variants, malformed/duplicate legacy data, interruption/reopen/retry, FTS integrity and FK checks). Relationship-aware dependent review and source-evidence freshness remain later work. Physical power-loss/filesystem/controller durability remains explicitly unverified.
+
+
+## 2026-11-05 — current continuation point after PR #169
+
+PR #169 is merged to `main` as `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`; exact-head CI run `41997492219` passed all five jobs. The PR adds same-identity concurrent `memory_correct` writers and a mixed `memory_update`/`memory_correct` race, with one winner, one stale conflict and a consistent version/event/current pointer.
+
+PR #170's previous stacked head passed CI run `41998827170` (five jobs) after correcting the expected SQL row order in the legacy-status fixture. Its branch is being rebuilt on the new `main` so the #169 squash changes do not appear a second time in the PR diff. The scope stays the same: legacy lifecycle/epistemic mapping and unknown-state preservation; file-backed v13 rollback, close/reopen/retry; and schema-v14 FTS5 integrity/bookkeeping across reopen.
+
+**Do not merge the rebased PR #170 until its new exact HEAD passes Ubuntu and Windows verification plus all three benchmarks.** Further migration work after this slice: supported historical schema snapshots, duplicate/colliding legacy IDs, additional crash boundaries, FTS corruption/rebuild behavior and query-plan validation. Relationship-aware review propagation and source-evidence freshness follow. Physical storage power-loss durability remains unverified.
