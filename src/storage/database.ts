@@ -181,14 +181,45 @@ export function migrate(db: MemoryDatabase, projectId?: string): void {
   if (!symbolColumnNames.has("stable_id")) db.exec("ALTER TABLE symbols ADD COLUMN stable_id TEXT");
 
   const stableId = (value: unknown): string => createHash("sha256").update(JSON.stringify(value)).digest("hex");
-  const legacyFiles = db.prepare("SELECT id, path FROM files WHERE stable_id IS NULL ORDER BY path").all() as Array<{ id: number; path: string }>;
+  // Revisit all rows so a prior interrupted attempt that assigned duplicate
+  // normalized-path IDs can be repaired deterministically on retry. Preserve
+  // already-unique stable IDs; only derive a new ID for missing/colliding rows.
+  const legacyFiles = db.prepare("SELECT id, path, stable_id FROM files ORDER BY path, id").all() as Array<{
+    id: number; path: string; stable_id: string | null;
+  }>;
   const updateFileId = db.prepare("UPDATE files SET stable_id = ? WHERE id = ?");
-  for (const file of legacyFiles) updateFileId.run(stableId(["file", file.path.replaceAll("\\", "/")]), file.id);
+  const pathOccurrences = new Map<string, number>();
+  const seenFileStableIds = new Set<string>();
+  for (const file of legacyFiles) {
+    const normalizedPath = file.path.replaceAll("\\", "/");
+    const occurrence = pathOccurrences.get(normalizedPath) ?? 0;
+    pathOccurrences.set(normalizedPath, occurrence + 1);
+    const candidate = occurrence === 0
+      ? stableId(["file", normalizedPath])
+      : stableId(["file", normalizedPath, occurrence]);
+    let nextStableId = file.stable_id;
+    if (nextStableId === null || seenFileStableIds.has(nextStableId)) {
+      nextStableId = candidate;
+      if (seenFileStableIds.has(nextStableId)) {
+        nextStableId = stableId(["file", normalizedPath, "collision", file.id]);
+      }
+      if (seenFileStableIds.has(nextStableId)) {
+        throw new Error("Unable to derive a unique stable ID for legacy file row " + file.id);
+      }
+      updateFileId.run(nextStableId, file.id);
+    }
+    seenFileStableIds.add(nextStableId);
+  }
 
+  // Recompute legacy symbol IDs while schema migration is incomplete. This
+  // keeps them bound to repaired file IDs if an earlier v5 backfill stopped
+  // after writing IDs but before its uniqueness indexes/marker were committed.
   const legacySymbols = db.prepare(`
-    SELECT s.id, s.file_id, s.name, s.kind, s.signature
-    FROM symbols s WHERE s.stable_id IS NULL ORDER BY s.file_id, s.name, s.kind, s.signature, s.id
-  `).all() as Array<{ id: number; file_id: number; name: string; kind: string; signature: string }>;
+    SELECT s.id, s.file_id, s.name, s.kind, s.signature, s.stable_id
+    FROM symbols s ORDER BY s.file_id, s.name, s.kind, s.signature, s.id
+  `).all() as Array<{
+    id: number; file_id: number; name: string; kind: string; signature: string; stable_id: string | null;
+  }>;
   const fileStableIds = new Map((db.prepare("SELECT id, stable_id FROM files").all() as Array<{ id: number; stable_id: string }>).map((file) => [file.id, file.stable_id]));
   const occurrences = new Map<string, number>();
   const updateSymbolId = db.prepare("UPDATE symbols SET stable_id = ? WHERE id = ?");
@@ -198,8 +229,10 @@ export function migrate(db: MemoryDatabase, projectId?: string): void {
     const identity = JSON.stringify([fileStableId, symbol.name, symbol.kind, symbol.signature]);
     const occurrence = occurrences.get(identity) ?? 0;
     occurrences.set(identity, occurrence + 1);
-    updateSymbolId.run(stableId(["symbol", fileStableId, symbol.name, symbol.kind, symbol.signature, occurrence]), symbol.id);
+    const nextStableId = stableId(["symbol", fileStableId, symbol.name, symbol.kind, symbol.signature, occurrence]);
+    if (symbol.stable_id !== nextStableId) updateSymbolId.run(nextStableId, symbol.id);
   }
+
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_files_stable_id ON files(stable_id) WHERE stable_id IS NOT NULL");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_symbols_stable_id ON symbols(stable_id) WHERE stable_id IS NOT NULL");
   db.prepare(`INSERT OR IGNORE INTO schema_migrations(version, applied_at) VALUES (5, ?)`).run(now);
