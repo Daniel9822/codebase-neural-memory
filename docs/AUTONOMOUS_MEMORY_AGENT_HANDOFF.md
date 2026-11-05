@@ -1,7 +1,7 @@
 # Autonomous Memory — Agent Handoff and Current Status
 
 **Repository:** `Daniel9822/codebase-neural-memory`  
-**Snapshot date:** 2026-11-04  
+**Snapshot date:** 2026-11-05  
 **Baseline:** `main`  
 **Purpose:** operational entry point for any coding agent continuing the autonomous-memory work. This document is a navigation and handoff layer; it does not replace the contract, implementation checklist, or source code.
 
@@ -227,3 +227,11 @@ PR #171 is merged to `main` by squash as `9b24daa5e3e76ac21ccae3015d892cf2fa7afe
 **Next priority:** continue the historical migration/recovery matrix from the current schema migration implementation and fixtures. Add representative populated snapshots for remaining supported historical schema versions, with explicit row-preservation, schema marker, deterministic ID, FK/integrity, reopen and retry assertions. Inspect migration boundaries before selecting fixtures so each test proves a distinct compatibility or recovery property. Do not claim the full matrix complete after v1 alone.
 
 Still open: malformed legacy-data permutations; interruption boundaries beyond the tested v5/v13 cases; FTS rebuild failure/recovery and query-plan validation; serialized response-budget boundary coverage across tools; relationship-aware dependent review and source-evidence freshness; CNM-03/A7 close-out; real MCP-client integration and evaluation; physical power-loss/filesystem/controller durability.
+
+## 2026-11-05 — PR #175 merged; populated v6 migration snapshot
+
+PR #175 is merged to `main` by squash as `8364f0af0e1fcd5bb02889f56b7c9823e9cbcc1a` (source HEAD `05c207dc4d35a2b04a971946a72585d1ceb9f64f`). Exact-head CI run `42022370475` completed successfully with all five jobs: Ubuntu and Windows verification, plus Ubuntu, Windows and macOS benchmarks. No review submissions or inline review threads were present at merge time.
+
+The new test in `tests/migrations.test.ts` constructs a populated schema-v6 snapshot spanning projects, files, symbols, symbol calls, relations and legacy memories. It checks preservation of source rows, file stable-ID retention, deterministic symbol stable-ID format, legacy-memory import into versioned knowledge, schema markers 1–13, foreign-key and SQLite integrity, stable IDs after a repeated migration call, and exactly one legacy-import event. This is an in-memory snapshot and a repeated migration call on the same connection; it is **not** a file-backed close/reopen test. Do not describe it as proving reopen recovery.
+
+The migration matrix now has distinct populated v1 and v6 fixtures, plus the separately covered v5 stable-ID backfill retry and v13 failure/retry and v14 FTS integrity cases. Remaining work includes additional supported historical schema generations, malformed legacy data, more interruption boundaries, file-backed close/reopen recovery where not already covered, FTS rebuild failure/recovery and query-plan validation, serialized response-budget boundaries, dependent-knowledge impact/review, source-evidence freshness, CNM-03/A7, real MCP-client integration/evaluation, and physical power-loss/filesystem/controller durability.
