@@ -407,4 +407,63 @@ describe("database migrations", () => {
     expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
   });
 
+
+  it("upgrades a populated version-six snapshot and preserves indexed and memory source rows", () => {
+    database = new Database(":memory:") as MemoryDatabase;
+    database.pragma("foreign_keys = ON");
+    database.exec(`
+      CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+      INSERT INTO schema_migrations(version, applied_at) VALUES (1, 'v6'), (2, 'v6'), (3, 'v6'), (4, 'v6'), (5, 'v6'), (6, 'v6');
+      CREATE TABLE projects (id TEXT PRIMARY KEY, root_path TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, last_indexed_at TEXT, indexed_commit TEXT, index_revision INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE files (id INTEGER PRIMARY KEY AUTOINCREMENT, stable_id TEXT, path TEXT NOT NULL UNIQUE, extension TEXT NOT NULL, language TEXT NOT NULL, content_hash TEXT NOT NULL, size_bytes INTEGER NOT NULL, modified_at TEXT NOT NULL, indexed_at TEXT NOT NULL);
+      CREATE TABLE symbols (id INTEGER PRIMARY KEY AUTOINCREMENT, stable_id TEXT, file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE, name TEXT NOT NULL, kind TEXT NOT NULL, signature TEXT NOT NULL, start_line INTEGER NOT NULL, end_line INTEGER NOT NULL, exported INTEGER NOT NULL DEFAULT 0);
+      CREATE TABLE symbol_calls (file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE, caller_name TEXT NOT NULL, callee_name TEXT NOT NULL, module_specifier TEXT, imported_symbol_name TEXT, PRIMARY KEY(file_id, caller_name, callee_name));
+      CREATE TABLE relations (id INTEGER PRIMARY KEY AUTOINCREMENT, source_kind TEXT NOT NULL, source_id INTEGER NOT NULL, target_kind TEXT NOT NULL, target_id INTEGER NOT NULL, kind TEXT NOT NULL, confidence REAL NOT NULL DEFAULT 1.0, provenance TEXT NOT NULL, index_revision INTEGER NOT NULL DEFAULT 0, UNIQUE(source_kind, source_id, target_kind, target_id, kind));
+      CREATE TABLE memories (id TEXT PRIMARY KEY, category TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'confirmed', source_path TEXT, commit_sha TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);
+      INSERT INTO projects(id, root_path, name, created_at, last_indexed_at, indexed_commit, index_revision) VALUES ('v6-project', '/legacy/v6', 'legacy-v6', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'v6-commit', 6);
+      INSERT INTO files(id, stable_id, path, extension, language, content_hash, size_bytes, modified_at, indexed_at) VALUES (41, 'v6-file-stable-id', 'src/v6.ts', '.ts', 'typescript', 'v6-file-hash', 128, '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
+      INSERT INTO symbols(id, stable_id, file_id, name, kind, signature, start_line, end_line, exported) VALUES (51, 'v6-symbol-stable-id', 41, 'loadV6', 'function', 'loadV6(): string', 3, 8, 1);
+      INSERT INTO symbol_calls(file_id, caller_name, callee_name, module_specifier, imported_symbol_name) VALUES (41, 'bootstrap', 'loadV6', './v6.js', 'loadV6');
+      INSERT INTO relations(source_kind, source_id, target_kind, target_id, kind, confidence, provenance, index_revision) VALUES ('file', 41, 'symbol', 51, 'contains', 0.9, 'v6-snapshot', 6);
+      INSERT INTO memories(id, category, title, content, status, source_path, commit_sha, created_at, updated_at) VALUES ('v6-memory', 'decision', 'V6 decision', 'Preserve this legacy decision', 'confirmed', 'src/v6.ts', 'v6-commit', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
+    `);
+    const snapshot = () => ({
+      project: database!.prepare("SELECT id, root_path, name, created_at, last_indexed_at, indexed_commit, index_revision FROM projects").all(),
+      files: database!.prepare("SELECT id, stable_id, path, extension, language, content_hash, size_bytes, modified_at, indexed_at FROM files").all(),
+      symbols: database!.prepare("SELECT id, file_id, name, kind, signature, start_line, end_line, exported FROM symbols").all(),
+      calls: database!.prepare("SELECT file_id, caller_name, callee_name, module_specifier, imported_symbol_name FROM symbol_calls").all(),
+      relations: database!.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance, index_revision FROM relations").all(),
+      memories: database!.prepare("SELECT id, category, title, content, status, source_path, commit_sha, created_at, updated_at FROM memories").all(),
+    });
+    const sourceSnapshot = snapshot();
+    migrate(database, "v6-project");
+    expect(snapshot()).toEqual(sourceSnapshot);
+    expect(database.prepare("SELECT id, stable_id FROM files ORDER BY id").all())
+      .toEqual([{ id: 41, stable_id: "v6-file-stable-id" }]);
+    const symbolIds = database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all() as Array<{ id: number; stable_id: string }>;
+    expect(symbolIds).toHaveLength(1);
+    expect(symbolIds[0].stable_id).toMatch(/^[a-f0-9]{64}$/);
+    expect(database.prepare("SELECT project_id, legacy_status FROM knowledge_items WHERE id='v6-memory'").get())
+      .toEqual({ project_id: "v6-project", legacy_status: "confirmed" });
+    expect(database.prepare("SELECT title, version_number FROM knowledge_versions WHERE knowledge_id='v6-memory'").get())
+      .toEqual({ title: "V6 decision", version_number: 1 });
+    expect(database.prepare("SELECT content FROM knowledge_fragments WHERE version_id='legacy-v1:v6-memory'").get())
+      .toEqual({ content: "Preserve this legacy decision" });
+    expect(database.prepare("SELECT version FROM schema_migrations ORDER BY version").all())
+      .toEqual(Array.from({ length: 13 }, (_, index) => ({ version: index + 1 })));
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
+    const stableIds = {
+      files: database.prepare("SELECT id, stable_id FROM files ORDER BY id").all(),
+      symbols: database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all(),
+    };
+    migrate(database);
+    expect({
+      files: database.prepare("SELECT id, stable_id FROM files ORDER BY id").all(),
+      symbols: database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all(),
+    }).toEqual(stableIds);
+    expect(database.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE knowledge_id='v6-memory' AND event_type='legacy_import'").get())
+      .toEqual({ count: 1 });
+  });
+
 });
