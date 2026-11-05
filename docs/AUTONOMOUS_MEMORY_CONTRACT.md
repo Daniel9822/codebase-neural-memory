@@ -259,3 +259,12 @@ PR #170's original stacked branch passed exact-head CI `41998827170` (five jobs)
 Remaining migration gaps: all supported historical schema snapshots, ID collisions/duplicates, additional interruption boundaries, FTS rebuild failure recovery and query-plan validation. Neither SQLite `integrity_check` nor FTS5 `integrity-check` proves physical power-loss durability.
 
 PR #170 is now based directly on current `main` after PR #169's squash merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. Its diff is limited to the migration/FTS tests and four tracking documents. The prior stacked branch passed run `41998827170`; that run does not certify the rebased head, which still requires a new exact-head CI run.
+
+
+### 5.3.1 Relationship-aware impact discovery
+
+`memory_impact` is a bounded, read-only graph traversal from one changed knowledge identity. It returns active knowledge that may require review, each candidate's current immutable version ID, shortest deterministic relation path, and the path's relation IDs/types. The traversal semantics are directional: `depends_on` and `derived_from` point from dependent to dependency in storage, so impact travels target→source; `affects` and `supports` travel source→target. `related_to` and `contradicts` are not treated as dependency edges. `supersedes` is also excluded from propagation because a supersession relation is not proof that the superseded item depends on the superseding item.
+
+The traversal is breadth-first with deterministic BINARY ordering, cycle protection, max depth 1–5 (default 3), result limit 1–100 (default 50), a 1,000-edge scan budget and a serialized response budget of 1,000–12,000 characters (default 12,000). An optional `expectedVersionId` binds the analysis to a known root version; a mismatch returns a conflict with the current version and no candidates. When a node/edge/character bound is reached, results are marked truncated and the exact total is reported as unknown.
+
+Impact discovery never writes review events, changes lifecycle/epistemic state, or rewrites knowledge. The caller may inspect candidate paths and then explicitly select IDs/current version IDs for `memory_reconcile(operation="request_review")`. The review request remains append-only, idempotent, and opt-in. This is a review-discovery aid, not proof that a dependent statement is false.
