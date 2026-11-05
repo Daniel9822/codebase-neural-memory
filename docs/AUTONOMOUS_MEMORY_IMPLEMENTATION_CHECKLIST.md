@@ -543,3 +543,12 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - **Pending CI:** branch `test/memory-update-correct-rollback-atomicity` adds failure-injection tests to `tests/memory-update.test.ts` and `tests/memory-correct.test.ts`.
 - Each test installs a SQLite trigger that aborts insertion of the next immutable version, then asserts the complete before/after database snapshot is identical across knowledge current pointers, versions, fragments, evidence, and events.
 - This is targeted rollback/atomicity coverage, not yet independent-process lock contention. Do not mark the broader concurrency requirement complete until a separate-connection contention test passes on supported platforms.
+
+
+## 2026-11-05 — concurrent writer verification and next gate
+
+- **PR #165 verified:** merged as `c7a82bfe2d141433a1bc57e24842b729dec903e3`; CI run `41939068928` passed all five jobs. This covers independent-process SQLite write-lock contention and successful retry for both `memory_update` and `memory_correct`, plus the oversized-`memory_history` cursor regression and migration rollback/retry.
+- **PR #168 verified:** merged as `96da869dcd198bccd7b6e6cce1ed67ceb6a4ee88`; exact-head CI run `41991378215` passed all five jobs. Its cross-process same-identity `memory_update` race verifies one winner, one stale conflict, one new version/event, and the winner's current pointer.
+- PR #167's original head failed CI run `41989383489` on Ubuntu and Windows due to worker coordination timeout. It is closed as superseded by PR #168; do not reopen or merge it.
+- **Active follow-up branch:** `test/memory-correct-same-identity-races` adds two process-level regressions: simultaneous `memory_correct` writers for one identity, and a mixed `memory_update`/`memory_correct` race. Both assert a single winner/conflict, current-version ownership, and no duplicate version/event or mixed fragment state. Treat this coverage as pending until fresh Ubuntu and Windows verification and all benchmark jobs pass.
+- Same-identity correction and mixed-writer scheduling remain open until this follow-up merges. Physical power-loss/filesystem durability remains unverified despite SQLite `synchronous=FULL`.
