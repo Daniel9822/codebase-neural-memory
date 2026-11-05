@@ -1,5 +1,6 @@
 import { openDatabase } from "../storage/database.js";
 import { getMemoryHealth } from "./memory-health.js";
+import { previewSourceChangeReviews } from "./memory-source-change-review.js";
 import type { ProjectLocation } from "./project.js";
 
 export interface MemoryReconcileInput {
@@ -20,6 +21,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
   }
 
   const health = getMemoryHealth(location, { limit });
+  const sourceChangeReview = previewSourceChangeReviews(location, { limit });
   const db = openDatabase(location);
   let duplicateCandidates: Array<{ normalizedTitle: string; knowledgeIds: string[]; titles: string[] }> = [];
   let duplicateTotal = 0;
@@ -124,6 +126,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
         contradictions: health.conflicts.total,
         orphanRelations: health.brokenReferences.orphanRelations,
         dependentReviewCandidates: dependentReviewTotal,
+        sourceChangeReviewCandidates: sourceChangeReview.matchedKnowledgeTotal,
         dependentReviewScope: "sampled_stale_evidence" as const,
       },
       staleEvidence: health.sourceFreshness.samples.filter((sample) => sample.status === "stale"),
@@ -132,25 +135,30 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
       orphanRelations: health.brokenReferences.samples.filter((sample) =>
         typeof sample === "object" && sample !== null && "kind" in sample && sample.kind === "orphan_relation"),
       dependentReview,
+      sourceChangeReview,
       truncation: {
         staleEvidence: health.sourceFreshness.truncated,
         duplicateCandidates: duplicateTotal > duplicateCandidates.length,
         contradictions: health.conflicts.truncated,
         orphanRelations: health.brokenReferences.truncated,
         dependentReview: dependentReviewTotal > limit || health.sourceFreshness.truncated,
+        sourceChangeReview: sourceChangeReview.truncated,
       },
       limit,
       maxChars: 12000,
     };
     while (JSON.stringify(result, null, 2).length > result.maxChars &&
-      (result.dependentReview.length || result.duplicateCandidates.length || result.staleEvidence.length || result.contradictions.length || result.orphanRelations.length)) {
+      (result.dependentReview.length || result.sourceChangeReview.candidates.length || result.duplicateCandidates.length || result.staleEvidence.length || result.contradictions.length || result.orphanRelations.length)) {
       if (result.dependentReview.length) result.dependentReview.pop();
+      else if (result.sourceChangeReview.candidates.length) result.sourceChangeReview.candidates.pop();
       else if (result.duplicateCandidates.length) result.duplicateCandidates.pop();
       else if (result.staleEvidence.length) result.staleEvidence.pop();
       else if (result.contradictions.length) result.contradictions.pop();
       else result.orphanRelations.pop();
     }
     result.truncation.dependentReview ||= result.dependentReview.length < dependentReviewTotal;
+    result.sourceChangeReview.truncated ||= result.sourceChangeReview.candidates.length < result.sourceChangeReview.matchedKnowledgeTotal;
+    result.truncation.sourceChangeReview = result.sourceChangeReview.truncated;
     result.truncation.duplicateCandidates ||= result.duplicateCandidates.length < duplicateTotal;
     result.truncation.staleEvidence ||= result.staleEvidence.length < health.sourceFreshness.samples.filter((sample) => sample.status === "stale").length;
     result.truncation.contradictions ||= result.contradictions.length < health.conflicts.samples.length;

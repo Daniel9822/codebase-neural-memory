@@ -5,6 +5,8 @@ import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { captureMemories } from "../src/core/memory-capture.js";
 import { previewMemoryReconciliation } from "../src/core/memory-reconcile.js";
+import { previewSourceChangeReviews } from "../src/core/memory-source-change-review.js";
+import { updateProjectIndex } from "../src/core/indexer.js";
 import { openDatabase } from "../src/storage/database.js";
 import type { ProjectLocation } from "../src/core/project.js";
 
@@ -79,7 +81,7 @@ describe("memory reconciliation preview", () => {
     setup();
     const sourcePath = "src/reconcile-source.ts";
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
-    const original = "export const current = true;\\n";
+    const original = "export const current = true;\n";
     writeFileSync(join(location.rootPath, sourcePath), original);
     const source = capture("Source-backed decision", "reconcile-source", {
       path: sourcePath, hash: createHash("sha256").update(original).digest("hex"),
@@ -89,7 +91,7 @@ describe("memory reconciliation preview", () => {
     db.prepare("INSERT INTO knowledge_relations(id, project_id, source_knowledge_id, target_knowledge_id, relation_type, reason, created_at) VALUES (?, ?, ?, ?, 'depends_on', ?, ?)")
       .run("reconcile-dependency", location.id, dependent, source, "Depends on source-backed decision", new Date().toISOString());
     db.close();
-    writeFileSync(join(location.rootPath, sourcePath), "export const current = false;\\n");
+    writeFileSync(join(location.rootPath, sourcePath), "export const current = false;\n");
 
     const report = previewMemoryReconciliation(location, { limit: 5 });
     expect(report.staleEvidence.some((item) => item.knowledgeId === source)).toBe(true);
@@ -103,7 +105,7 @@ describe("memory reconciliation preview", () => {
     setup();
     const sourcePath = "src/directed-impact-source.ts";
     mkdirSync(join(location.rootPath, "src"), { recursive: true });
-    const original = "export const direction = 'before';\\n";
+    const original = "export const direction = 'before';\n";
     writeFileSync(join(location.rootPath, sourcePath), original);
     const staleSource = capture("Directed impact source", "directed-impact-source", {
       path: sourcePath, hash: createHash("sha256").update(original).digest("hex"),
@@ -142,7 +144,7 @@ describe("memory reconciliation preview", () => {
       insert.run(id, location.id, source, target, relationType, new Date().toISOString());
     }
     db.close();
-    writeFileSync(join(location.rootPath, sourcePath), "export const direction = 'after';\\n");
+    writeFileSync(join(location.rootPath, sourcePath), "export const direction = 'after';\n");
 
     const report = previewMemoryReconciliation(location, { limit: 20 });
     expect(report.staleEvidence.some((item) => item.knowledgeId === staleSource)).toBe(true);
@@ -172,4 +174,39 @@ describe("memory reconciliation preview", () => {
     expect(() => previewMemoryReconciliation(location, { limit: 0 })).toThrow("limit");
     expect(() => previewMemoryReconciliation(location, { limit: 101 })).toThrow("limit");
   });
+
+  it("maps indexed file modifications to current versioned evidence without applying review events", () => {
+    setup();
+    const sourcePath = "src/tracked-source.ts";
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    const original = "export const tracked = 'before';\n";
+    writeFileSync(join(location.rootPath, sourcePath), original);
+    const knowledgeId = capture("Tracked source decision", "tracked-source-evidence", {
+      path: sourcePath, hash: createHash("sha256").update(original).digest("hex"),
+    });
+    const projectDb = openDatabase(location);
+    projectDb.prepare("INSERT INTO projects(id, root_path, name, created_at) VALUES (?, ?, ?, ?)")
+      .run(location.id, location.rootPath, "source-change-fixture", new Date().toISOString());
+    projectDb.close();
+
+    updateProjectIndex(location);
+    writeFileSync(join(location.rootPath, sourcePath), "export const tracked = 'after';\n");
+
+    const report = previewSourceChangeReviews(location, { limit: 10 });
+    expect(report.indexStatus).toBe("stale");
+    expect(report.complete).toBe(true);
+    expect(report.candidates).toContainEqual(expect.objectContaining({
+      knowledgeId,
+      sources: [expect.objectContaining({ path: sourcePath, status: "changed" })],
+    }));
+
+    const preview = previewMemoryReconciliation(location, { limit: 10 });
+    expect(preview.sourceChangeReview.candidates).toContainEqual(expect.objectContaining({ knowledgeId }));
+
+    const db = openDatabase(location);
+    expect((db.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE event_type='reconciliation_review_requested'")
+      .get() as { count: number }).count).toBe(0);
+    db.close();
+  });
+
 });
