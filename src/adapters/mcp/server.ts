@@ -654,7 +654,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }));
 
   server.registerTool("memory_review_resolve", {
-    description: "Explicitly resolve one open review request by appending an immutable audit event. Requires requestEventId, knowledgeId, expectedVersionId, resolution, reason and idempotencyKey. It never edits knowledge content or lifecycle.",
+    description: "Explicitly resolve one open review request by appending an immutable audit event. Requires requestEventId, knowledgeId, expectedVersionId (the current version the reviewer inspected), resolution, reason and idempotencyKey. It can close a stale request only after explicit review of the current version; it never edits knowledge content or lifecycle.",
     inputSchema: z.object({
       requestEventId: z.string().trim().min(1).max(128),
       knowledgeId: z.string().trim().min(1).max(128),
