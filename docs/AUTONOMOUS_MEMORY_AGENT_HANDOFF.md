@@ -199,3 +199,12 @@ PR #170's previous stacked head passed CI run `41998827170` (five jobs) after co
 **Do not merge the rebased PR #170 until its new exact HEAD passes Ubuntu and Windows verification plus all three benchmarks.** Further migration work after this slice: supported historical schema snapshots, duplicate/colliding legacy IDs, additional crash boundaries, FTS corruption/rebuild behavior and query-plan validation. Relationship-aware review propagation and source-evidence freshness follow. Physical storage power-loss durability remains unverified.
 
 **PR #170 was reconstructed on top of the merged #169 commit** `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. Its branch is directly based on current `main`, and the diff is limited to two tests plus four documentation files. The previous stacked HEAD's CI `41998827170` passed all five jobs, but the rebased head still requires a new exact-head run before merge.
+
+
+## 2026-11-05 — current migration continuation after PR #170
+
+PR #169 is merged as `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca` (CI `41997492219`, five jobs green). PR #170 is merged as `6c75efe875044071acdfd4c79891beb7f9958bb6` (CI `42015208428`, five jobs green), closing the status-mapping, disk-backed v13 recovery and FTS5 reopen/integrity slice.
+
+**Active PR #171** adds a populated version-one SQLite snapshot and tests safe upgrade through schema v13. It preserves file/symbol/call/relation/legacy-memory rows, exercises two distinct stored paths that normalize to one path identity, and verifies deterministic unique file/symbol stable IDs. It then simulates a partially completed v5 stable-ID backfill, reintroduces duplicate file/symbol IDs, removes the v13 marker and retries migration; the retry must restore the previously observed deterministic IDs without data loss. Exact-head Ubuntu/Windows and all benchmark checks are required before merge.
+
+After #171, continue with remaining historical schema snapshots, additional duplicate/collision/invalid legacy data cases, FTS failure/rebuild recovery and migration query-plan validation. Relationship-aware review propagation and source-evidence freshness remain later work. Physical storage power-loss durability remains unverified.
