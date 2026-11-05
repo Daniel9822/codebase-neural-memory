@@ -307,3 +307,13 @@ Resolution appends an immutable `reconciliation_review_resolved` event, checks p
 
 
 Resolution uses `expectedVersionId` as the *current version observed by the reviewer*, not necessarily the older version captured by the request. This allows a stale request to remain visible, then be explicitly resolved after the reviewer inspects the newer current version; attempting resolution with the stale version still conflicts. No automatic acceptance or content mutation occurs.
+
+
+
+## 2026-11-05 — PR #180 merged; automatic dependent-review propagation in progress
+
+- **PR #180 merged to main:** squash merge `e8436c763bdf5f6b34eae3e23e6eebf321571a15`; source HEAD `b972e95f3d26b1b289a20a0f85b84adb0c43e97d`; exact-head CI run `42054959686` completed successfully. `main` was compared with the merge commit and is identical.
+- `memory_review_queue` is a read-only event-derived view; `memory_review_resolve` appends an immutable resolution event with project/request/current-version guards and idempotency. Queue truncation reports a bounded lower-bound `totalItems` value.
+- **Next slice active:** branch `feat/automatic-dependent-review-propagation`. `memory_update` and `memory_correct` now append direct dependent review-request events inside the same SQLite transaction as the source version change. Directed semantics match PR #179: stale target → dependent source for `depends_on`/`derived_from`; changed source → affected target for `affects`. Existing open requests for the dependent's current version are not duplicated. Propagation is bounded to 100 distinct dependents and reports exact total plus truncation; no dependent knowledge/version/lifecycle/evidence/relation is modified.
+- Focused tests are being added for both update and correction, directionality, unsupported/reversed edges, queue visibility, duplicate suppression, and transaction rollback. This branch is not merged; require exact-head CI and review before treating propagation as implemented.
+- Still separate: source-index/Git change detection that generates stale-source review requests; transitive propagation; supersession-specific semantics; malformed event recovery; evaluation and migration/durability gates. Do not claim full autonomous memory completion.
