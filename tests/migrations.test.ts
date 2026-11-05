@@ -322,7 +322,7 @@ describe("database migrations", () => {
       );
       INSERT INTO files(path, extension, language, content_hash, size_bytes, modified_at, indexed_at)
       VALUES
-        ('src\\\\legacy.ts', '.ts', 'typescript', 'hash-a', 10, 'old', 'old'),
+        ('src\\legacy.ts', '.ts', 'typescript', 'hash-a', 10, 'old', 'old'),
         ('src/legacy.ts', '.ts', 'typescript', 'hash-b', 11, 'old', 'old');
       INSERT INTO symbols(file_id, name, kind, signature, start_line, end_line)
       VALUES
