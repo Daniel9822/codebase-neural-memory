@@ -586,3 +586,12 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Scope: populated schema-v1 snapshot; preservation of legacy files, symbols and relations; distinct deterministic IDs for slash-normalized path collisions; repair of interrupted v5 file/symbol ID backfill; retry idempotency; schema markers 1–13; FK and SQLite integrity.
 - PR #172 was closed as superseded by #171. Do not count either PR as implemented until #171 is merged and current `main` is checked.
 - Still open: representative snapshots for all other supported historical schema generations; malformed/duplicate legacy-data permutations; interruption points beyond the covered v5/v13 cases; FTS rebuild failure recovery and query-plan checks; empirical power-loss/filesystem durability.
+
+
+## 2026-11-05 — PR #171 merged and migration matrix continuation
+
+- **PR #171 merged to main:** squash merge commit `9b24daa5e3e76ac21ccae3015d892cf2fa7afe26`; source head `58b36d4a87f8d3f5fe7cc7569a7965e786e535b4`.
+- **Exact-head CI:** run `42019978734` completed successfully: Ubuntu and Windows verification (typecheck, tests, build, smoke) and Ubuntu/Windows/macOS benchmarks, all five jobs green.
+- This closes the populated schema-v1 snapshot and the tested normalized-path collision/interrupted stable-ID backfill retry case. It does **not** close the historical migration matrix.
+- Next migration slice: add representative populated snapshots for each remaining supported historical schema generation, preserving source rows and asserting schema markers, stable IDs, foreign keys, SQLite integrity, and deterministic reopen/retry behavior. Prioritize distinct migration boundaries and avoid duplicating equivalent fixtures without additional acceptance value.
+- Remaining migration risks: malformed legacy permutations, additional interruption points outside v5/v13, FTS rebuild/failure recovery and query-plan validation, and empirical physical power-loss/filesystem durability.

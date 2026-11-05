@@ -106,3 +106,8 @@ This is a workflow recommendation, not a guarantee of complete program understan
 
 
 > **PR #171 verification:** current PR head `d13ea31549b4e7793266eb9ada4d054696ce5026` is based on post-#173 main, is mergeable, has no open review threads, and passed all five CI jobs in run `42018977502` (also independently `42018940167`). PR #172 was closed as superseded by #171; do not merge the weaker duplicate branch.
+
+
+## Migration compatibility note — 2026-11-05
+
+The populated schema-v1 historical migration snapshot and normalized-path stable-ID collision recovery are merged in PR #171 (merge commit `9b24daa5e3e76ac21ccae3015d892cf2fa7afe26`; exact-head CI `42019978734`, five jobs green). Agents must not infer complete migration compatibility from this single snapshot: consult `docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md` for remaining historical-version, malformed-data, interruption/retry, FTS recovery and durability coverage.
