@@ -466,4 +466,134 @@ describe("database migrations", () => {
       .toEqual({ count: 1 });
   });
 
+
+  it("upgrades a populated version-ten snapshot and preserves indexed and legacy knowledge rows", () => {
+    database = new Database(":memory:") as MemoryDatabase;
+    database.pragma("foreign_keys = ON");
+    database.exec(`
+      CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+      INSERT INTO schema_migrations(version, applied_at)
+        VALUES (1, 'v10'), (2, 'v10'), (3, 'v10'), (4, 'v10'), (5, 'v10'),
+          (6, 'v10'), (7, 'v10'), (8, 'v10'), (9, 'v10'), (10, 'v10');
+      CREATE TABLE projects (
+        id TEXT PRIMARY KEY, root_path TEXT NOT NULL, name TEXT NOT NULL,
+        created_at TEXT NOT NULL, last_indexed_at TEXT, indexed_commit TEXT,
+        indexed_branch TEXT, indexed_worktree_dirty INTEGER,
+        indexed_worktree_status_hash TEXT, indexed_worktree_changed_paths INTEGER,
+        index_revision INTEGER NOT NULL DEFAULT 0, index_excludes_json TEXT NOT NULL DEFAULT '[]'
+      );
+      CREATE TABLE files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, stable_id TEXT, path TEXT NOT NULL UNIQUE,
+        extension TEXT NOT NULL, language TEXT NOT NULL, content_hash TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL, modified_at TEXT NOT NULL, indexed_at TEXT NOT NULL
+      );
+      CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, stable_id TEXT,
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        name TEXT NOT NULL, kind TEXT NOT NULL, signature TEXT NOT NULL,
+        start_line INTEGER NOT NULL, end_line INTEGER NOT NULL, exported INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE TABLE symbol_calls (
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        caller_name TEXT NOT NULL, callee_name TEXT NOT NULL,
+        module_specifier TEXT, imported_symbol_name TEXT,
+        PRIMARY KEY(file_id, caller_name, callee_name)
+      );
+      CREATE TABLE relations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, source_kind TEXT NOT NULL, source_id INTEGER NOT NULL,
+        target_kind TEXT NOT NULL, target_id INTEGER NOT NULL, kind TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 1.0, provenance TEXT NOT NULL,
+        index_revision INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(source_kind, source_id, target_kind, target_id, kind)
+      );
+      CREATE TABLE memories (
+        id TEXT PRIMARY KEY, category TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'confirmed', source_path TEXT, commit_sha TEXT,
+        source_hash TEXT, author TEXT, updated_by TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO projects (
+        id, root_path, name, created_at, last_indexed_at, indexed_commit, indexed_branch,
+        indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths,
+        index_revision, index_excludes_json
+      ) VALUES (
+        'v10-project', '/legacy/v10', 'legacy-v10', '2026-01-01T00:00:00.000Z',
+        '2026-01-02T00:00:00.000Z', 'v10-commit', 'main', 1, 'worktree-hash', 2, 10, '["dist"]'
+      );
+      INSERT INTO files(id, stable_id, path, extension, language, content_hash, size_bytes, modified_at, indexed_at)
+        VALUES (101, 'v10-file-stable-id', 'src/v10.ts', '.ts', 'typescript', 'v10-file-hash',
+          256, '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
+      INSERT INTO symbols(id, stable_id, file_id, name, kind, signature, start_line, end_line, exported)
+        VALUES (201, 'v10-symbol-legacy-id', 101, 'loadV10', 'function', 'loadV10(): string', 4, 9, 1);
+      INSERT INTO symbol_calls(file_id, caller_name, callee_name, module_specifier, imported_symbol_name)
+        VALUES (101, 'bootstrap', 'loadV10', './v10.js', 'loadV10');
+      INSERT INTO relations(source_kind, source_id, target_kind, target_id, kind, confidence, provenance, index_revision)
+        VALUES ('file', 101, 'symbol', 201, 'contains', 0.95, 'v10-snapshot', 10);
+      INSERT INTO memories(
+        id, category, title, content, status, source_path, commit_sha, source_hash,
+        author, updated_by, created_at, updated_at
+      ) VALUES (
+        'v10-memory', 'decision', 'V10 decision', 'Preserve this v10 knowledge', 'confirmed',
+        'src/v10.ts', 'v10-commit', 'v10-source-hash', 'original-author', 'last-editor',
+        '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z'
+      );
+    `);
+
+    const sourceSnapshot = {
+      project: database.prepare(`SELECT id, root_path, name, created_at, last_indexed_at, indexed_commit,
+        indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash,
+        indexed_worktree_changed_paths, index_revision, index_excludes_json FROM projects`).all(),
+      files: database.prepare("SELECT id, stable_id, path, content_hash FROM files").all(),
+      symbols: database.prepare("SELECT id, file_id, name, signature, start_line, end_line FROM symbols").all(),
+      calls: database.prepare("SELECT file_id, caller_name, callee_name, module_specifier, imported_symbol_name FROM symbol_calls").all(),
+      relations: database.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance, index_revision FROM relations").all(),
+      memories: database.prepare(`SELECT id, category, title, content, status, source_path, commit_sha,
+        source_hash, author, updated_by, created_at, updated_at FROM memories`).all(),
+    };
+
+    migrate(database, "v10-project");
+
+    expect({
+      project: database.prepare(`SELECT id, root_path, name, created_at, last_indexed_at, indexed_commit,
+        indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash,
+        indexed_worktree_changed_paths, index_revision, index_excludes_json FROM projects`).all(),
+      files: database.prepare("SELECT id, stable_id, path, content_hash FROM files").all(),
+      symbols: database.prepare("SELECT id, file_id, name, signature, start_line, end_line FROM symbols").all(),
+      calls: database.prepare("SELECT file_id, caller_name, callee_name, module_specifier, imported_symbol_name FROM symbol_calls").all(),
+      relations: database.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance, index_revision FROM relations").all(),
+      memories: database.prepare(`SELECT id, category, title, content, status, source_path, commit_sha,
+        source_hash, author, updated_by, created_at, updated_at FROM memories`).all(),
+    }).toEqual(sourceSnapshot);
+
+    expect(database.prepare("SELECT relations_config_hash FROM projects WHERE id='v10-project'").get())
+      .toEqual({ relations_config_hash: null });
+    expect(database.prepare("PRAGMA table_info(import_diagnostics)").all().map((column: any) => column.name))
+      .toEqual(expect.arrayContaining([
+        "source_file_id", "module_specifier", "diagnostic_code", "kind", "message",
+        "line", "column_number", "imported_name",
+      ]));
+    expect(database.prepare("SELECT project_id, legacy_status FROM knowledge_items WHERE id='v10-memory'").get())
+      .toEqual({ project_id: "v10-project", legacy_status: "confirmed" });
+    expect(database.prepare("SELECT title, version_number FROM knowledge_versions WHERE knowledge_id='v10-memory'").get())
+      .toEqual({ title: "V10 decision", version_number: 1 });
+    expect(database.prepare("SELECT content FROM knowledge_fragments WHERE version_id='legacy-v1:v10-memory'").get())
+      .toEqual({ content: "Preserve this v10 knowledge" });
+    expect(database.prepare("SELECT version FROM schema_migrations ORDER BY version").all())
+      .toEqual(Array.from({ length: 13 }, (_, index) => ({ version: index + 1 })));
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
+
+    const stableIds = {
+      files: database.prepare("SELECT id, stable_id FROM files ORDER BY id").all(),
+      symbols: database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all(),
+    };
+    migrate(database);
+    expect({
+      files: database.prepare("SELECT id, stable_id FROM files ORDER BY id").all(),
+      symbols: database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all(),
+    }).toEqual(stableIds);
+    expect(database.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE knowledge_id='v10-memory' AND event_type='legacy_import'").get())
+      .toEqual({ count: 1 });
+  });
+
+
 });
