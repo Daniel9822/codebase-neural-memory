@@ -571,3 +571,9 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - **Active branch:** `fix/search-fail-closed-on-fts-drift`. Before retrieval, `memory_search` validates one-to-one coverage between knowledge versions, FTS5 rows and indexed-version markers. Missing, orphaned, duplicate or cross-owner rows cause an explicit error; no incomplete result set is returned.
 - The lazy initializer now restores a missing bookkeeping marker from an already-present FTS row without creating a duplicate. A missing FTS row while its marker exists is not silently repaired; `memory_health` reports the inconsistency and search fails closed.
 - Tests cover a balanced-count corruption case (one missing row + one duplicate row), marker-only recovery, and confirmation that the failed search does not mutate the corrupted FTS rows. Pending exact-head CI/review; this does not test FTS5's internal segment integrity or prove physical storage durability.
+
+
+## 2026-11-05 — verified FTS retrieval integrity and current migration gate
+
+- **PR #173 merged:** `2f05249b9d71e9851190f01e72ade778d2cc5d77`; exact-head CI run `42017503161` passed all five jobs. `memory_search` now fails closed on missing/duplicate/orphaned or ownership-mismatched FTS5 rows and restores marker-only drift without duplicating an existing FTS document.
+- **PR #171 rebase:** its populated v1 snapshot and retry-safe stable-ID collision repair are being reconstructed on the post-#173 `main`. The code/test scope remains unchanged; because the base changed, require fresh exact-head Ubuntu/Windows verification and all three benchmarks before merge.
