@@ -120,6 +120,9 @@ describe("memory reconciliation preview", () => {
       ["directed-depends-on", dependsOn, staleSource, "depends_on"],
       ["directed-derived-from", derivedFrom, staleSource, "derived_from"],
       ["directed-affects", staleSource, affected, "affects"],
+      // The same dependent may have multiple incoming explanations; preview
+      // returns one deterministic review candidate for that knowledge identity.
+      ["same-dependent-derived", dependsOn, staleSource, "derived_from"],
       // These reverse orientations must not mark the other endpoint dependent.
       ["inverse-depends-on", staleSource, inverseDependsOn, "depends_on"],
       ["inverse-derived-from", staleSource, inverseDerivedFrom, "derived_from"],
