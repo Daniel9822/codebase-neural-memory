@@ -148,7 +148,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
     while (JSON.stringify(result, null, 2).length > result.maxChars &&
       (result.dependentReview.length || result.sourceChangeReview.candidates.length || result.duplicateCandidates.length || result.staleEvidence.length || result.contradictions.length || result.orphanRelations.length)) {
       if (result.dependentReview.length) result.dependentReview.pop();
-      else if (result.duplicateCandidates.length) result.duplicateCandidates.pop();
+      else if (result.sourceChangeReview.candidates.length) result.sourceChangeReview.candidates.pop();\n      else if (result.duplicateCandidates.length) result.duplicateCandidates.pop();
       else if (result.staleEvidence.length) result.staleEvidence.pop();
       else if (result.contradictions.length) result.contradictions.pop();
       else result.orphanRelations.pop();
