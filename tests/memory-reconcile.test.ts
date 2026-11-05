@@ -98,6 +98,69 @@ describe("memory reconciliation preview", () => {
     }));
   });
 
+
+  it("traverses dependent-review candidates in the declared direction of each relation", () => {
+    setup();
+    const sourcePath = "src/directed-impact-source.ts";
+    mkdirSync(join(location.rootPath, "src"), { recursive: true });
+    const original = "export const direction = 'before';\\n";
+    writeFileSync(join(location.rootPath, sourcePath), original);
+    const staleSource = capture("Directed impact source", "directed-impact-source", {
+      path: sourcePath, hash: createHash("sha256").update(original).digest("hex"),
+    });
+    const dependsOn = capture("Depends on stale source", "directed-impact-depends");
+    const derivedFrom = capture("Derived from stale source", "directed-impact-derived");
+    const affected = capture("Affected by stale source", "directed-impact-affected");
+    const inverseDependsOn = capture("Stale source depends on this", "directed-impact-inverse-depends");
+    const inverseDerivedFrom = capture("Stale source derived from this", "directed-impact-inverse-derived");
+    const inverseAffects = capture("This affects stale source", "directed-impact-inverse-affects");
+    const related = capture("Only related to stale source", "directed-impact-related");
+
+    const relations = [
+      ["directed-depends-on", dependsOn, staleSource, "depends_on"],
+      ["directed-derived-from", derivedFrom, staleSource, "derived_from"],
+      ["directed-affects", staleSource, affected, "affects"],
+      // These reverse orientations must not mark the other endpoint dependent.
+      ["inverse-depends-on", staleSource, inverseDependsOn, "depends_on"],
+      ["inverse-derived-from", staleSource, inverseDerivedFrom, "derived_from"],
+      ["inverse-affects", inverseAffects, staleSource, "affects"],
+      ["non-propagating-related-to", staleSource, related, "related_to"],
+    ] as const;
+    const db = openDatabase(location);
+    const insert = db.prepare(`
+      INSERT INTO knowledge_relations
+        (id, project_id, source_knowledge_id, target_knowledge_id, relation_type, reason, created_at)
+      VALUES (?, ?, ?, ?, ?, 'direction regression fixture', ?)
+    `);
+    for (const [id, source, target, relationType] of relations) {
+      insert.run(id, location.id, source, target, relationType, new Date().toISOString());
+    }
+    db.close();
+    writeFileSync(join(location.rootPath, sourcePath), "export const direction = 'after';\\n");
+
+    const report = previewMemoryReconciliation(location, { limit: 20 });
+    expect(report.staleEvidence.some((item) => item.knowledgeId === staleSource)).toBe(true);
+    expect(report.dependentReview.map((item) => item.knowledgeId)).toEqual(
+      [dependsOn, derivedFrom, affected].sort(),
+    );
+    expect(report.dependentReview).toEqual(expect.arrayContaining([
+      expect.objectContaining({
+        knowledgeId: dependsOn, relatedKnowledgeId: staleSource, staleKnowledgeId: staleSource,
+        relationType: "depends_on", relationId: "directed-depends-on",
+      }),
+      expect.objectContaining({
+        knowledgeId: derivedFrom, relatedKnowledgeId: staleSource, staleKnowledgeId: staleSource,
+        relationType: "derived_from", relationId: "directed-derived-from",
+      }),
+      expect.objectContaining({
+        knowledgeId: affected, relatedKnowledgeId: staleSource, staleKnowledgeId: staleSource,
+        relationType: "affects", relationId: "directed-affects",
+      }),
+    ]));
+    expect(report.summary.dependentReviewCandidates).toBe(3);
+    expect(report.truncation.dependentReview).toBe(false);
+  });
+
   it("rejects invalid limits", () => {
     setup();
     expect(() => previewMemoryReconciliation(location, { limit: 0 })).toThrow("limit");
