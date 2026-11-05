@@ -126,6 +126,14 @@ describe("versioned memory search and bootstrap", () => {
     expect(searchMemories(location, { symbol: "searchFixture" }).results.map((item) => item.knowledgeId)).toContain(first);
     expect(searchMemories(location, { type: "decision" }).results.map((item) => item.knowledgeId)).toContain(first);
     expect(searchMemories(location, { type: "architecture" }).results.map((item) => item.knowledgeId)).toContain(second);
+    const sourceBacked = searchMemories(location, { tag: "browse-tag" }).results.find((item) => item.knowledgeId === first);
+    expect(sourceBacked?.sourceEvidenceFreshness).toMatchObject({
+      checked: true, status: "stale", reasons: ["source_file_missing"],
+    });
+    const withoutEvidence = searchMemories(location, { type: "architecture" }).results.find((item) => item.knowledgeId === second);
+    expect(withoutEvidence?.sourceEvidenceFreshness).toMatchObject({
+      checked: true, status: "not_checked", evidenceTotal: 0, reasons: ["no_source_evidence"],
+    });
   });
 
   it("backfills existing versions and indexes later immutable versions through the update trigger", () => {
