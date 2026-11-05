@@ -151,7 +151,7 @@ describe("versioned memory history", () => {
           (id, project_id, knowledge_id, version_id, event_type, actor, reason, payload_json, created_at)
         VALUES (?, ?, ?, ?, 'oversized_fixture', NULL, NULL, ?, ?)
       `).run(oversizedId, location.id, initial.knowledgeId, initial.versionId,
-        JSON.stringify({ detail: "z".repeat(4_000) }), "2026-11-04T23:59:59.000Z");
+        JSON.stringify({ detail: "z".repeat(4_000) }), "2000-01-01T00:00:00.000Z");
     } finally { db.close(); }
 
     const page = getMemoryHistory(location, { knowledgeId: initial.knowledgeId, eventLimit: 20, maxChars: 1_000 });
