@@ -167,3 +167,8 @@ The currently registered memory tools remain `memory_propose`, `memory_transitio
 ## Autonomous Memory v2 transition note (2026-11-03)
 
 The v2 memory contract is specified separately in [AUTONOMOUS_MEMORY_CONTRACT.md](AUTONOMOUS_MEMORY_CONTRACT.md). Schema v13 is being added behind the existing legacy memory adapter. Until the versioned core operations and MCP handlers are implemented and merged, the registered memory tools continue to use the legacy `memories` table and retain their current confirmation/lifecycle semantics. No v2 tool names or behavior should be presented as available based solely on the schema migration.
+
+
+## Current autonomous-memory review lifecycle extension (2026-11-05)
+
+The current implementation branch registers `memory_review_queue` (read-only event-derived queue) and `memory_review_resolve` (explicit immutable resolution event with expected-version and idempotency checks). These tools are not part of the historical Phase 6 closure. See [AUTONOMOUS_MEMORY_AGENT_HANDOFF.md](AUTONOMOUS_MEMORY_AGENT_HANDOFF.md) and [AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) for merge/CI status and remaining acceptance work.
