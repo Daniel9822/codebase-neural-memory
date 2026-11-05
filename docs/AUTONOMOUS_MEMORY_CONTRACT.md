@@ -259,3 +259,10 @@ PR #170's original stacked branch passed exact-head CI `41998827170` (five jobs)
 Remaining migration gaps: all supported historical schema snapshots, ID collisions/duplicates, additional interruption boundaries, FTS rebuild failure recovery and query-plan validation. Neither SQLite `integrity_check` nor FTS5 `integrity-check` proves physical power-loss durability.
 
 PR #170 is now based directly on current `main` after PR #169's squash merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. Its diff is limited to the migration/FTS tests and four tracking documents. The prior stacked branch passed run `41998827170`; that run does not certify the rebased head, which still requires a new exact-head CI run.
+
+
+## 2026-11-05 — merged concurrency and migration baseline
+
+PRs #168, #169 and #170 are merged with five successful CI jobs each; #170's final exact-head run is `42015249800`. This closes the documented writer-race slice and the first migration/FTS reopen slice, not the entire migration matrix.
+
+A follow-up branch `fix/legacy-stable-id-collision-migration` addresses a v5 stable-ID backfill edge case where two distinct legacy file paths normalize to the same slash-separated path. The proposed deterministic ID includes both normalized and original path. Its regression is pending CI; do not mark the issue closed until merge. Historical schema snapshots, duplicate/malformed legacy records, additional interruption points, FTS rebuild recovery and query-plan checks remain open.
