@@ -11,7 +11,7 @@
 - Project-root and project-ID resolution: `src/core/project.ts`
 - SDK dependency: `@modelcontextprotocol/server ^2.3.1` in `package.json`
 
-The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The original Phase 6 registration contained ten tools. The current registration has 18 tools, including subsequent additions such as `source_excerpt`, `index_update`, `component_map`, `memory_propose`, `memory_transition`, `symbol_impact`, `git_blame`, and `git_history`; this file must be reconciled with `server.ts` whenever a tool or schema changes.
+The registered server is named `codebase-neural-memory`, reports version `0.1.0`, and uses the SDK stdio transport. The original Phase 6 registration contained ten tools. The historical registration count of 18 is superseded: the current server registers 30 tools, including the versioned memory APIs and the `memory_review_queue` / `memory_review_resolve` lifecycle tools. This table documents the original Phase 6 and selected post-phase additions; consult `src/adapters/mcp/server.ts` and its exact-schema tests (`tests/mcp-adapter.test.ts`) as the authoritative complete registry. Keep this file synchronized when a tool or schema changes.
 
 ## Project binding and startup
 
@@ -172,3 +172,11 @@ The v2 memory contract is specified separately in [AUTONOMOUS_MEMORY_CONTRACT.md
 ## Current autonomous-memory review lifecycle extension (2026-11-05)
 
 The current implementation branch registers `memory_review_queue` (read-only event-derived queue) and `memory_review_resolve` (explicit immutable resolution event with expected-version and idempotency checks). These tools are not part of the historical Phase 6 closure. See [AUTONOMOUS_MEMORY_AGENT_HANDOFF.md](AUTONOMOUS_MEMORY_AGENT_HANDOFF.md) and [AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md](AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md) for merge/CI status and remaining acceptance work.
+
+
+## Autonomous-memory review lifecycle additions — 2026-11-05
+
+- `memory_review_queue`: optional `limit` (1–100); read-only event-derived unresolved queue. Returns request identity, expected/current version, reason, actor, timestamp and `open` / `stale_version` status. Its `totalItems` is a bounded lower-bound indicator when truncated, not an exact global count.
+- `memory_review_resolve`: requires `requestEventId`, `knowledgeId`, `expectedVersionId` (the current version inspected by the reviewer), `resolution` (`reviewed_current`, `knowledge_updated`, `not_actionable`), bounded `reason`, and `idempotencyKey`; optional `actor`. Appends an immutable resolution event under an immediate transaction with project/request/version and idempotency guards. It does not edit knowledge or relations.
+- `memory_reconcile` retains preview as its default. Explicit `request_review` apply requires selected IDs, expected versions and an idempotency key; it appends request events only. Direct dependent candidates in preview follow only the documented `depends_on`, `derived_from`, and `affects` directions.
+- Current implementation/CI status and remaining limitations are recorded in `docs/AUTONOMOUS_MEMORY_IMPLEMENTATION_CHECKLIST.md` and `docs/AUTONOMOUS_MEMORY_AGENT_HANDOFF.md`.
