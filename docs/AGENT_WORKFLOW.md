@@ -97,3 +97,10 @@ This is a workflow recommendation, not a guarantee of complete program understan
 > **2026-11-05 post-#169 verification:** PR #169 is merged as `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca` (CI `41997492219`, five jobs green), completing same-identity correction/correction and mixed update/correction writer races. PR #170's previous stacked head passed CI `41998827170`, but is being reconstructed on current `main` to prevent its PR diff from repeating the squashed #169 commits. Its new exact-head CI must pass before merge. Pending coverage is legacy status mapping/unknown-state preservation, file-backed v13 rollback-close/reopen-retry and schema-v14 FTS5 integrity across repeated opens. See the checklist and handoff; physical power-loss durability remains unverified.
 
 > **PR #170 rebase status:** the branch now starts at current `main` after #169 merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`; only six intended files differ. CI run `41998827170` belongs to the prior stacked head and must not be treated as approval of the rebased head. Require a fresh exact-head five-job run before merging.
+
+
+## Memory change / impact workflow
+
+After a user or agent corrects an existing knowledge identity, call `memory_impact` with its current/expected version before assuming dependent knowledge remains valid. Inspect each returned path and relation type; the tool only follows directional `depends_on`, `derived_from`, `affects`, and `supports` edges and is explicitly bounded. Do not assume `related_to` or `contradicts` establishes dependency.
+
+`memory_impact` is read-only. Select review candidates based on the path and domain context, then call `memory_reconcile` with explicit selected IDs, their current version IDs, `operation=request_review`, an idempotency key, and a concise reason. Never bulk-rewrite dependent knowledge just because an upstream item changed; preserve history and let each candidate be reviewed.
