@@ -43,6 +43,28 @@ export function previewSourceChangeReviews(
     throw new Error("Invalid source change review limit");
   }
 
+  const projectDb = openDatabase(location);
+  let initialized: { index_revision: number } | undefined;
+  try {
+    initialized = projectDb.prepare("SELECT index_revision FROM projects WHERE id = ?")
+      .get(location.id) as { index_revision: number } | undefined;
+  } finally {
+    projectDb.close();
+  }
+  if (!initialized) {
+    return {
+      indexStatus: "not-indexed",
+      indexRevision: 0,
+      changedPathsTotal: 0,
+      changedPathsReturned: 0,
+      matchedKnowledgeTotal: 0,
+      candidates: [],
+      complete: false,
+      truncated: false,
+      limitations: ["index_not_initialized", "commit_only_provenance_not_matched"],
+    };
+  }
+
   const freshness = getIndexFreshness(location);
   const changes = freshness.fileChanges;
   const paths = [...new Set(changes.map((change) => change.path))];
