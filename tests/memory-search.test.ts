@@ -206,4 +206,74 @@ describe("versioned memory search and bootstrap", () => {
     }
   });
 
+
+  it("fails closed when FTS rows are missing or duplicated despite matching row totals", () => {
+    setup();
+    const missing = capture("fts-drift-missing", {
+      title: "Missing FTS row fixture",
+      content: "This version must not silently disappear from search.",
+    });
+    const duplicate = capture("fts-drift-duplicate", {
+      title: "Duplicate FTS row fixture",
+      content: "This version must have exactly one search row.",
+    });
+    expect(searchMemories(location, { query: "FTS row fixture" }).results).toHaveLength(2);
+
+    const db = openDatabase(location);
+    try {
+      const versions = db.prepare("SELECT id, knowledge_id AS knowledgeId FROM knowledge_versions ORDER BY knowledge_id").all() as Array<{
+        id: string; knowledgeId: string;
+      }>;
+      const missingVersion = versions.find(version => version.knowledgeId === missing)!;
+      const duplicateVersion = versions.find(version => version.knowledgeId === duplicate)!;
+      const duplicateRow = db.prepare("SELECT * FROM memory_search_fts WHERE version_id=?").get(duplicateVersion.id) as Record<string, unknown>;
+      db.prepare("DELETE FROM memory_search_fts WHERE version_id=?").run(missingVersion.id);
+      const columns = Object.keys(duplicateRow);
+      const placeholders = columns.map(() => "?").join(",");
+      db.prepare(`INSERT INTO memory_search_fts(${columns.join(",")}) VALUES (${placeholders})`)
+        .run(...columns.map(column => duplicateRow[column]));
+      expect(db.prepare("SELECT COUNT(*) AS count FROM memory_search_fts").get()).toEqual({ count: 2 });
+      expect(db.prepare("SELECT COUNT(*) AS count FROM memory_search_indexed_versions").get()).toEqual({ count: 2 });
+    } finally {
+      db.close();
+    }
+
+    expect(() => searchMemories(location, { query: "FTS row fixture" }))
+      .toThrow(/memory search index is inconsistent/i);
+
+    const verify = openDatabase(location);
+    try {
+      expect(verify.prepare("SELECT COUNT(*) AS count FROM memory_search_fts").get()).toEqual({ count: 2 });
+      expect(verify.prepare("SELECT COUNT(*) AS count FROM memory_search_indexed_versions").get()).toEqual({ count: 2 });
+    } finally {
+      verify.close();
+    }
+  });
+
+  it("restores missing bookkeeping from an existing FTS row without inserting a duplicate", () => {
+    setup();
+    const id = capture("fts-marker-recovery", {
+      title: "FTS marker recovery fixture",
+      content: "The existing FTS row is preserved while its marker is restored.",
+    });
+    expect(searchMemories(location, { query: "FTS marker recovery" }).results[0]?.knowledgeId).toBe(id);
+    const db = openDatabase(location);
+    try {
+      const versionId = (db.prepare("SELECT version_id AS versionId FROM memory_search_fts WHERE knowledge_id=?").get(id) as { versionId: string }).versionId;
+      db.prepare("DELETE FROM memory_search_indexed_versions WHERE version_id=?").run(versionId);
+    } finally {
+      db.close();
+    }
+
+    expect(searchMemories(location, { query: "FTS marker recovery" }).results[0]?.knowledgeId).toBe(id);
+    const verify = openDatabase(location);
+    try {
+      expect(verify.prepare("SELECT COUNT(*) AS count FROM memory_search_fts WHERE knowledge_id=?").get(id))
+        .toEqual({ count: 1 });
+      expect(verify.prepare("SELECT COUNT(*) AS count FROM memory_search_indexed_versions").get()).toEqual({ count: 1 });
+    } finally {
+      verify.close();
+    }
+  });
+
 });
