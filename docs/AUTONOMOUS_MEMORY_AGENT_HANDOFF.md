@@ -211,3 +211,10 @@ The follow-up branch `fix/search-fail-closed-on-fts-drift` prevents `memory_sear
 PR #173 is merged to `main` as `2f05249b9d71e9851190f01e72ade778d2cc5d77`; exact-head CI `42017503161` passed all five jobs. FTS search now refuses to return results when the FTS5 documents and indexed-version markers are inconsistent, while marker-only recovery remains idempotent.
 
 PR #171 is being rebased once more onto this post-#173 `main` because the FTS PR updated the same tracking documents. Its populated v1 migration and deterministic path/symbol stable-ID repair remain the only functional changes in that PR. Require fresh CI on the new rebased HEAD before merging; neither the earlier failed nor green runs certify a new SHA.
+
+
+## 2026-11-05 — PR #171 exact-head verification
+
+PR #171 (`test/sqlite-historical-snapshot-collisions`) is based on current `main` at `2f05249b9d71e9851190f01e72ade778d2cc5d77`. Its exact head is `d13ea31549b4e7793266eb9ada4d054696ce5026`; all five CI jobs passed in run `42018977502` (a second exact-head run `42018940167` also passed all five). The PR is mergeable and has no open review threads. It covers a populated schema-v1 snapshot, normalized path collisions, interrupted v5 ID-backfill retry, preservation of legacy file/symbol/relation rows, and FK/SQLite integrity. It is not yet merged; keep the checklist item pending until merge and post-merge main verification.
+
+PR #172 was closed as superseded by #171 to avoid maintaining two competing implementations of the same stable-ID migration defect. The older `test/sqlite-historical-snapshot-main` and `test/sqlite-migration-recovery-main` branches are research/source branches, not acceptance evidence. Their unique migration/search changes have been compared against current main; the useful FTS fail-closed coverage is already in merged PR #173.
