@@ -600,7 +600,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
 
 
   server.registerTool("memory_search", {
-    description: "Search or browse current project knowledge with bounded FTS5 ranking. An omitted/empty query browses high-value current items. Supports type/tag/path/symbol, lifecycle, epistemic, time, and relation filters; exact IDs and source locators receive explicit ranking signals. Snapshot-bound cursors paginate stable result sets; historical versions are opt-in.",
+    description: "Search or browse current project knowledge with bounded FTS5 ranking. An omitted/empty query browses high-value current items. Supports type/tag/path/symbol, lifecycle, epistemic, time, and relation filters; exact IDs and source locators receive explicit ranking signals. Snapshot-bound cursors paginate stable result sets; historical versions are opt-in. Each returned result reports bounded source-evidence freshness (current, stale, unknown, or not_checked) for at most 20 results and three evidence records per version; omitted evidence is never assumed fresh.",
     inputSchema: z.object({
       query: z.string().trim().max(1000).optional(),
       limit: z.number().int().min(1).max(50).optional(),
@@ -625,7 +625,7 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }));
 
   server.registerTool("memory_bootstrap", {
-    description: "Return a compact project-scoped startup context grouped into high-value knowledge, open risks/questions, and pending validation. Supports a 1–20 item limit, type filters, an include-pending switch, and a 500–8,000 character budget; freshness limits are explicit.",
+    description: "Return a compact project-scoped startup context grouped into high-value knowledge, open risks/questions, and pending validation. Supports a 1–20 item limit, type filters, an include-pending switch, and a 500–8,000 character budget. Each returned item reports bounded source-evidence freshness; at most three evidence records per item are checked and omitted evidence is not assumed fresh.",
     inputSchema: z.object({
       limit: z.number().int().min(1).max(20).optional(),
       maxChars: z.number().int().min(500).max(8000).optional(),
