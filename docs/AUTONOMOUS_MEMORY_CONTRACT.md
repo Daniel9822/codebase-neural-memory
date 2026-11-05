@@ -271,3 +271,10 @@ The active branch `fix/search-fail-closed-on-fts-drift` adds a fail-closed consi
 PR #173 is merged as `2f05249b9d71e9851190f01e72ade778d2cc5d77`; exact-head CI run `42017503161` passed all five jobs. The FTS5 fail-closed consistency gate and marker-only retry are now part of `main`.
 
 PR #171's current work is being reconstructed on the new main to avoid documentation conflicts introduced by #173. Its migration implementation/test remains focused on populated v1 snapshots, stable-ID uniqueness under normalized/unrelated collisions, interrupted v5 backfill repair, and preservation/FK/integrity assertions. The rebased HEAD needs its own fresh five-job CI before merge.
+
+
+## 2026-11-05 — PR #171 verification status
+
+The populated schema-v1 snapshot and retry-safe normalized-path stable-ID repair are under PR #171, exact head `d13ea31549b4e7793266eb9ada4d054696ce5026`, based on main `2f05249b9d71e9851190f01e72ade778d2cc5d77`. Exact-head CI run `42018977502` passed all five jobs (Ubuntu/Windows verification and Ubuntu/Windows/macOS benchmarks); independent run `42018940167` also passed all five. No open review threads were found. This is still PR-level evidence, not merged behavior; do not mark it implemented until merge and post-merge verification.
+
+PR #172 is closed as superseded by #171. Historical-schema coverage beyond the populated v1 fixture, malformed records, further interrupted migration boundaries, FTS rebuild recovery/query-plan validation, and physical power-loss durability remain open.
