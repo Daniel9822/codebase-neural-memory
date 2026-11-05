@@ -180,8 +180,7 @@ describe("versioned memory update",()=>{
             reason: payload.reason,
             content: payload.content,
           });
-          process.stdout.write("RESULT:" + JSON.stringify(result));
-          process.exit(0);
+          process.stdout.write("RESULT:" + JSON.stringify(result), () => process.exit(0));
         } catch (error) {
           process.stderr.write(String(error));
           process.exit(1);
