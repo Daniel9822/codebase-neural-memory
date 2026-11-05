@@ -95,7 +95,7 @@ Evidence is stored separately from prose and may include:
 
 Every evidence item records its kind, locator/metadata, observed time, and verification result when applicable. Secrets, credentials, private keys, authentication histories, and irrelevant transient conversation content must never be captured.
 
-Freshness is evaluated using existing CNM source/Git/index mechanisms where possible. A changed or missing source marks the affected claim for review/pending validation; it does not delete the knowledge or silently rewrite it. A stale source reference must be visible in recall and bootstrap responses.
+Freshness is evaluated using existing CNM source/Git/index mechanisms where possible. A changed or missing source marks the affected claim for review/pending validation; it does not delete the knowledge or silently rewrite it. A stale source reference must be visible in indexed retrieval responses. `memory_search` and `memory_bootstrap` now expose the bounded per-item freshness contract below; the legacy `memory_recall` surface is not covered by that implementation.
 
 `memory_search` attaches `sourceEvidenceFreshness` to each returned immutable version, and `memory_bootstrap` attaches it to each returned current item. Status is `current` only when all sampled source evidence for that version matches and the sample is complete; `stale` means at least one sampled record is known stale; `unknown` means a record could not be verified or the per-version sample was truncated; `not_checked` means no source evidence exists for that version or the result fell outside the assessment window (`checked` distinguishes those cases). These read-only checks are bounded to the first 20 returned results/items and at most three source-evidence records per version. Evidence outside those bounds is never asserted fresh. Reporting freshness does not rewrite the immutable version, change lifecycle/epistemic state, or automatically create a review event; review marking and relationship-aware propagation remain separate workflows.
 
@@ -290,3 +290,8 @@ PR #171's populated schema-v1 migration snapshot and deterministic stable-ID col
 ## 2026-11-05 — Migration compatibility verification update
 
 PR #177 adds the populated schema-v8 snapshot to `main` (merge `3c3a3e8a6e1497f846c5661c7fe864081005a3f0`; exact-head CI `42032100779`, all five jobs green). The populated snapshot matrix now includes v1, v6, v8 and v10 entry points. The v8 case validates FTS/import/call/heritage/relation/unresolved-import data and legacy evidence through v13. It is in-memory and does not establish reopen recovery. A first CI run caught an incorrect expectation that a pre-v5 symbol stable ID would survive; the corrected test reflects deterministic v5 symbol-ID recomputation while preserving source-field, hash-format, integrity and repeat-stability assertions. The master checklist remains the authoritative source for remaining supported generations, malformed legacy data, additional interruption boundaries and FTS recovery/query plans.
+
+
+## 2026-11-05 — Retrieval freshness implementation verified
+
+PR #178 merged as `a668cb8ec0b19ea398df85418b46212c500743f6`; exact-head CI run `42034417737` passed all five jobs. The specification above is now implemented for `memory_search` and `memory_bootstrap` through the bounded shared assessment helper. This does not implement review-state mutation or relation-aware dependent propagation; those remain separate contract requirements.
