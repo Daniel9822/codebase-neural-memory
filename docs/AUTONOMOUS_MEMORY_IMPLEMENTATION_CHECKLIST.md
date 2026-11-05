@@ -552,3 +552,15 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - PR #167's original head failed CI run `41989383489` on Ubuntu and Windows due to worker coordination timeout. It is closed as superseded by PR #168; do not reopen or merge it.
 - **Active follow-up branch:** `test/memory-correct-same-identity-races` adds two process-level regressions: simultaneous `memory_correct` writers for one identity, and a mixed `memory_update`/`memory_correct` race. Both assert a single winner/conflict, current-version ownership, and no duplicate version/event or mixed fragment state. Treat this coverage as pending until fresh Ubuntu and Windows verification and all benchmark jobs pass.
 - Same-identity correction and mixed-writer scheduling remain open until this follow-up merges. Physical power-loss/filesystem durability remains unverified despite SQLite `synchronous=FULL`.
+
+
+## 2026-11-05 — migration/recovery verification continuation
+
+- **PR #169 merged:** squash commit `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`; exact-head CI run `41997492219` passed all five jobs. This completes same-identity `memory_correct` and mixed `memory_update`/`memory_correct` scheduling coverage alongside #165 and #168.
+- **Active PR #170:** the branch is being rebased onto the post-#169 `main` without replaying the already-merged #169 test/doc diff. Its own scope remains limited to migration tests, FTS5 reopen/integrity tests, and the four tracking documents.
+- The migration additions cover the four documented legacy status mappings plus an unknown legacy status preserved in `legacy_status` and mapped conservatively to `pending_validation`; legacy source rows and provenance are asserted unchanged.
+- The on-disk v13 failure test closes/reopens SQLite, proves transactional DDL and migration-marker rollback survived process-style reopen, then retries without duplicate import. The lazy schema-v14 FTS5 test checks one-time index bookkeeping, repeated opens/searches, FTS5 `integrity-check`, FK integrity and SQLite `integrity_check`.
+- The original PR #170 head passed exact-head CI run `41998827170` (five jobs) after the SQL-ordering fixture correction. The rebased branch requires a fresh exact-head run before merge; do not inherit the old green status as proof for the new head.
+- Still open after this slice: full snapshots for every supported historical schema, duplicate/colliding legacy IDs, additional interruption boundaries outside v13 DDL, FTS rebuild/failure recovery, migration query-plan validation and empirical power-loss/filesystem durability.
+
+- **Rebased PR #170 onto current main:** branch head before this status note was `a872db2464d9f4fc47aefdf198093c7d4a4e95b2`, parented directly on #169 merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. The diff is six files only; fresh CI for the rebased PR head is still required. The prior stacked head's green run `41998827170` is historical evidence only, not a check for the rebased head.

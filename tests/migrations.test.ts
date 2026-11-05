@@ -1,12 +1,18 @@
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import Database from "better-sqlite3";
 import { migrate, type MemoryDatabase } from "../src/storage/database.js";
 
 let database: MemoryDatabase | undefined;
+let temporaryDirectory: string | undefined;
 
 afterEach(() => {
   database?.close();
   database = undefined;
+  if (temporaryDirectory) rmSync(temporaryDirectory, { recursive: true, force: true });
+  temporaryDirectory = undefined;
 });
 
 describe("database migrations", () => {
@@ -150,6 +156,141 @@ describe("database migrations", () => {
     expect(database.prepare("SELECT event_type FROM knowledge_events WHERE knowledge_id = 'retry-legacy-memory'").get())
       .toEqual({ event_type: "legacy_import" });
     expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+  });
+
+
+  it("preserves every legacy lifecycle mapping and keeps unknown statuses pending validation", () => {
+    database = new Database(":memory:") as MemoryDatabase;
+    const projectId = "legacy-status-matrix-project";
+    migrate(database, projectId);
+    const statuses = [
+      { id: "legacy-confirmed", status: "confirmed", lifecycle: "active", epistemic: "user_asserted" },
+      { id: "legacy-proposed", status: "proposed", lifecycle: "active", epistemic: "pending_validation" },
+      { id: "legacy-obsolete", status: "obsolete", lifecycle: "superseded", epistemic: "pending_validation" },
+      { id: "legacy-rejected", status: "rejected", lifecycle: "archived", epistemic: "pending_validation" },
+      { id: "legacy-unknown", status: "custom_legacy_state", lifecycle: "active", epistemic: "pending_validation" },
+    ] as const;
+    const insert = database.prepare(`
+      INSERT INTO memories
+        (id, category, title, content, status, source_path, source_hash, commit_sha, author, updated_by, created_at, updated_at)
+      VALUES (?, 'decision', ?, ?, ?, ?, ?, ?, 'legacy-author', 'legacy-updater',
+        '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')
+    `);
+    for (const item of statuses) {
+      insert.run(item.id, `Title for ${item.id}`, `Content for ${item.id}`, item.status,
+        item.id === "legacy-confirmed" ? "src/legacy.ts" : null,
+        item.id === "legacy-confirmed" ? "legacy-source-hash" : null,
+        item.id === "legacy-confirmed" ? "legacy-commit" : null);
+    }
+    const legacyBefore = database.prepare(`
+      SELECT id, category, title, content, status, source_path, source_hash, commit_sha,
+        author, updated_by, created_at, updated_at FROM memories ORDER BY id
+    `).all();
+
+    database.exec(`
+      DROP TABLE knowledge_events;
+      DROP TABLE knowledge_relations;
+      DROP TABLE knowledge_evidence;
+      DROP TABLE knowledge_fragments;
+      DROP TABLE knowledge_versions;
+      DROP TABLE knowledge_items;
+      DROP TABLE memory_idempotency;
+      DELETE FROM schema_migrations WHERE version = 13;
+    `);
+    migrate(database, projectId);
+
+    const migrated = database.prepare(`
+      SELECT i.id, i.lifecycle, i.legacy_status, v.epistemic_state AS epistemicState,
+        v.title, f.content
+      FROM knowledge_items i
+      JOIN knowledge_versions v ON v.id = i.current_version_id AND v.knowledge_id = i.id
+      JOIN knowledge_fragments f ON f.version_id = v.id AND f.ordinal = 0
+      ORDER BY i.id
+    `).all();
+    const expected = [...statuses]
+      .sort((left, right) => left.id < right.id ? -1 : left.id > right.id ? 1 : 0)
+      .map(item => ({
+        id: item.id, lifecycle: item.lifecycle, legacy_status: item.status,
+        epistemicState: item.epistemic, title: `Title for ${item.id}`, content: `Content for ${item.id}`,
+      }));
+    expect(migrated).toEqual(expected);
+    expect(database.prepare(`
+      SELECT id, category, title, content, status, source_path, source_hash, commit_sha,
+        author, updated_by, created_at, updated_at FROM memories ORDER BY id
+    `).all()).toEqual(legacyBefore);
+    expect(database.prepare("SELECT COUNT(*) AS count FROM knowledge_items").get()).toEqual({ count: 5 });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM knowledge_versions").get()).toEqual({ count: 5 });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM knowledge_fragments").get()).toEqual({ count: 5 });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE event_type='legacy_import'").get())
+      .toEqual({ count: 5 });
+    expect(database.prepare("SELECT source_path, source_hash, commit_sha, actor, metadata_json FROM knowledge_evidence").get())
+      .toMatchObject({
+        source_path: "src/legacy.ts",
+        source_hash: "legacy-source-hash",
+        commit_sha: "legacy-commit",
+        actor: "legacy-updater",
+      });
+    const metadata = database.prepare("SELECT metadata_json FROM knowledge_evidence").get() as { metadata_json: string };
+    expect(JSON.parse(metadata.metadata_json)).toEqual({ legacyStatus: "confirmed" });
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
+  });
+
+  it("recovers a failed v13 migration after closing and reopening the on-disk database", () => {
+    temporaryDirectory = mkdtempSync(join(tmpdir(), "cnm-migration-recovery-"));
+    const databasePath = join(temporaryDirectory, "migration.sqlite");
+    const projectId = "disk-migration-recovery-project";
+    database = new Database(databasePath) as MemoryDatabase;
+    database.pragma("foreign_keys = ON");
+    migrate(database, projectId);
+    database.prepare(`
+      INSERT INTO memories
+        (id, category, title, content, status, author, created_at, updated_at)
+      VALUES ('disk-retry-memory', 'decision', 'Disk retry title', 'Disk retry content',
+        'confirmed', 'disk-author', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')
+    `).run();
+
+    database.exec(`
+      DROP TABLE knowledge_events;
+      DROP TABLE knowledge_relations;
+      DROP TABLE knowledge_evidence;
+      DROP TABLE knowledge_fragments;
+      DROP TABLE knowledge_versions;
+      DROP TABLE knowledge_items;
+      DROP TABLE memory_idempotency;
+      DELETE FROM schema_migrations WHERE version = 13;
+      CREATE TABLE knowledge_items (id TEXT PRIMARY KEY);
+    `);
+    expect(() => migrate(database!, projectId)).toThrow(/no (such )?column: project_id/i);
+    expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version = 13").get())
+      .toEqual({ count: 0 });
+    expect(database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='knowledge_versions'").get())
+      .toBeUndefined();
+
+    database.close();
+    database = new Database(databasePath) as MemoryDatabase;
+    database.pragma("foreign_keys = ON");
+    expect(database.prepare("SELECT version FROM schema_migrations WHERE version = 12").get()).toEqual({ version: 12 });
+    expect(database.prepare("SELECT version FROM schema_migrations WHERE version = 13").get()).toBeUndefined();
+    expect(database.prepare("PRAGMA table_info(knowledge_items)").all()).toHaveLength(1);
+    expect(database.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='knowledge_versions'").get())
+      .toBeUndefined();
+
+    database.exec("DROP TABLE knowledge_items");
+    migrate(database, projectId);
+    migrate(database, projectId);
+    expect(database.prepare("SELECT version FROM schema_migrations WHERE version = 13").get()).toEqual({ version: 13 });
+    expect(database.prepare("SELECT id, project_id, legacy_status FROM knowledge_items").get()).toEqual({
+      id: "disk-retry-memory", project_id: projectId, legacy_status: "confirmed",
+    });
+    expect(database.prepare("SELECT title, version_number FROM knowledge_versions WHERE knowledge_id = ?")
+      .get("disk-retry-memory")).toEqual({ title: "Disk retry title", version_number: 1 });
+    expect(database.prepare("SELECT content FROM knowledge_fragments WHERE version_id = ?")
+      .get("legacy-v1:disk-retry-memory")).toEqual({ content: "Disk retry content" });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE knowledge_id = ? AND event_type='legacy_import'")
+      .get("disk-retry-memory")).toEqual({ count: 1 });
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
   });
 
 });

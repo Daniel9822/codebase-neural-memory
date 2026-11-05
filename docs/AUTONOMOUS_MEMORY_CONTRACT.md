@@ -248,3 +248,14 @@ PR #165 is merged as `c7a82bfe2d141433a1bc57e24842b729dec903e3`; CI run `4193906
 PR #168 is merged as `96da869dcd198bccd7b6e6cce1ed67ceb6a4ee88`; exact-head CI run `41991378215` passed all five jobs. It verifies simultaneous same-identity `memory_update` writers produce one update and one stale conflict without extra versions/events. The initially failing PR #167 is closed as superseded by #168.
 
 The active follow-up branch `test/memory-correct-same-identity-races` adds same-identity simultaneous `memory_correct` coverage and a mixed `memory_update`/`memory_correct` writer race. Until its fresh Ubuntu/Windows and benchmark CI passes and it is merged, those two concurrency cases remain unverified. None of these tests establishes physical power-loss/controller/filesystem durability; keep that acceptance item open.
+
+
+## 2026-11-05 — verification status after #169
+
+PR #169 is merged as `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`; exact-head CI `41997492219` passed all five jobs. Same-identity correction/correction and mixed update/correction writers now have cross-process race coverage; prior update/update coverage is in #168 and lock-contention/retry coverage is in #165.
+
+PR #170's original stacked branch passed exact-head CI `41998827170` (five jobs) after the deterministic SQL-ordering correction. Its branch is being reconstructed on current `main` to exclude already-integrated #169 commits and avoid duplicate diffs. The pending slice still covers legacy status preservation (including unknown status retained as `pending_validation`), file-backed v13 transaction rollback after close/reopen/retry, and schema-v14 FTS5 integrity/bookkeeping after repeated opens. Require fresh CI on the rebased exact head before merging.
+
+Remaining migration gaps: all supported historical schema snapshots, ID collisions/duplicates, additional interruption boundaries, FTS rebuild failure recovery and query-plan validation. Neither SQLite `integrity_check` nor FTS5 `integrity-check` proves physical power-loss durability.
+
+PR #170 is now based directly on current `main` after PR #169's squash merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. Its diff is limited to the migration/FTS tests and four tracking documents. The prior stacked branch passed run `41998827170`; that run does not certify the rebased head, which still requires a new exact-head CI run.

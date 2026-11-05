@@ -169,4 +169,41 @@ describe("versioned memory search and bootstrap", () => {
     expect(() => bootstrapMemory(location, { limit: 21 })).toThrow("limit");
     expect(() => bootstrapMemory(location, { maxChars: 499 })).toThrow("maxChars");
   });
+
+  it("keeps the lazy FTS5 migration consistent across repeated queries and database reopen", () => {
+    setup();
+    const id = capture("fts-reopen-integrity", {
+      title: "FTS reopen integrity fixture",
+      content: "Distinctive source phrase survives migration and reopening.",
+      tags: ["fts-recovery"],
+      sourcePath: "src/core/fts-recovery.ts",
+      sourceSymbol: "recoverSearchIndex",
+    });
+    expect(searchMemories(location, { query: "Distinctive source phrase" }).results[0]?.knowledgeId).toBe(id);
+
+    const first = openDatabase(location);
+    try {
+      expect(first.prepare("SELECT version FROM schema_migrations WHERE version=14").get()).toEqual({ version: 14 });
+      expect(first.prepare("SELECT COUNT(*) AS count FROM memory_search_fts WHERE knowledge_id=?").get(id))
+        .toEqual({ count: 1 });
+      expect(first.prepare("SELECT COUNT(*) AS count FROM memory_search_indexed_versions").get()).toEqual({ count: 1 });
+      first.prepare("INSERT INTO memory_search_fts(memory_search_fts) VALUES ('integrity-check')").run();
+    } finally {
+      first.close();
+    }
+
+    const reopened = openDatabase(location);
+    try {
+      expect(searchMemories(location, { query: "recoverSearchIndex" }).results[0]?.knowledgeId).toBe(id);
+      expect(reopened.prepare("SELECT COUNT(*) AS count FROM memory_search_fts WHERE knowledge_id=?").get(id))
+        .toEqual({ count: 1 });
+      expect(reopened.prepare("SELECT COUNT(*) AS count FROM memory_search_indexed_versions").get()).toEqual({ count: 1 });
+      reopened.prepare("INSERT INTO memory_search_fts(memory_search_fts) VALUES ('integrity-check')").run();
+      expect(reopened.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+      expect(reopened.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
+    } finally {
+      reopened.close();
+    }
+  });
+
 });
