@@ -665,7 +665,10 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       idempotencyKey: z.string().trim().min(1).max(128),
     }).strict(),
   }, async (input) => ({
-    content: [{ type: "text", text: JSON.stringify(resolveMemoryReview(location, input), null, 2) }],
+    content: [{ type: "text", text: JSON.stringify(resolveMemoryReview(location, {
+      ...input,
+      ...(input.actor === undefined ? {} : { actor: input.actor }),
+    }), null, 2) }],
   }));
 
   server.registerTool("memory_reconcile", {
