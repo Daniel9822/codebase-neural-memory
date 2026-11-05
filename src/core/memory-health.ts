@@ -90,6 +90,110 @@ function assessEvidence(location: ProjectLocation, row: EvidenceRow, freshness: 
   };
 }
 
+
+export interface KnowledgeEvidenceFreshness {
+  checked: boolean;
+  status: "current" | "stale" | "unknown" | "not_checked";
+  evidenceTotal: number | null;
+  sampledEvidence: number;
+  truncated: boolean;
+  reasons: string[];
+}
+
+export interface KnowledgeEvidenceTarget {
+  knowledgeId: string;
+  versionId: string;
+}
+
+const MAX_FRESHNESS_TARGETS = 20;
+const MAX_EVIDENCE_PER_TARGET = 3;
+
+/**
+ * Assess only the exact immutable versions being returned to a caller.
+ * The query and file reads are bounded; omitted evidence remains unknown.
+ */
+export function getKnowledgeEvidenceFreshness(
+  location: ProjectLocation,
+  db: ReturnType<typeof openDatabase>,
+  rawTargets: KnowledgeEvidenceTarget[],
+): Record<string, KnowledgeEvidenceFreshness> {
+  const targets = [...new Map(rawTargets.map((target) => [target.versionId, target])).values()];
+  const checkedTargets = targets.slice(0, MAX_FRESHNESS_TARGETS);
+  const result: Record<string, KnowledgeEvidenceFreshness> = {};
+
+  for (const [index, target] of targets.entries()) {
+    result[target.versionId] = index < MAX_FRESHNESS_TARGETS
+      ? { checked: true, status: "not_checked", evidenceTotal: 0, sampledEvidence: 0, truncated: false, reasons: ["no_source_evidence"] }
+      : { checked: false, status: "not_checked", evidenceTotal: null, sampledEvidence: 0, truncated: false, reasons: ["assessment_window_exceeded"] };
+  }
+  if (checkedTargets.length === 0) return result;
+
+  const values = checkedTargets.map(() => "(?, ?)").join(", ");
+  const params = checkedTargets.flatMap((target) => [target.knowledgeId, target.versionId]);
+  const rows = db.prepare(`
+    WITH requested(knowledgeId, versionId) AS (VALUES ${values}),
+    ranked AS (
+      SELECT i.id AS knowledgeId, v.id AS versionId, v.title,
+        e.id AS evidenceId, e.source_path AS sourcePath, e.source_hash AS sourceHash,
+        e.commit_sha AS commitSha, e.source_symbol AS sourceSymbol, e.created_at AS updatedAt,
+        COUNT(*) OVER (PARTITION BY v.id) AS evidenceTotal,
+        ROW_NUMBER() OVER (PARTITION BY v.id ORDER BY e.created_at DESC, e.id COLLATE BINARY ASC) AS evidenceRank
+      FROM requested req
+      JOIN knowledge_items i ON i.id=req.knowledgeId AND i.project_id=?
+      JOIN knowledge_versions v ON v.id=req.versionId AND v.knowledge_id=i.id
+      JOIN knowledge_evidence e ON e.version_id=v.id
+      WHERE e.source_path IS NOT NULL OR e.commit_sha IS NOT NULL
+    )
+    SELECT knowledgeId, versionId, title, evidenceId, sourcePath, sourceHash, commitSha,
+      sourceSymbol, updatedAt, evidenceTotal
+    FROM ranked
+    WHERE evidenceRank <= ?
+    ORDER BY versionId COLLATE BINARY ASC, evidenceRank ASC
+  `).all(...params, location.id, MAX_EVIDENCE_PER_TARGET) as Array<{
+    knowledgeId: string; versionId: string; title: string; evidenceId: string;
+    sourcePath: string | null; sourceHash: string | null; commitSha: string | null;
+    sourceSymbol: string | null; updatedAt: string; evidenceTotal: number;
+  }>;
+
+  const needsGitFallback = rows.some((row) => !row.sourceHash && Boolean(row.commitSha));
+  let indexFreshness: IndexFreshness | null = null;
+  if (needsGitFallback) {
+    try { indexFreshness = getIndexFreshness(location); } catch { indexFreshness = null; }
+  }
+
+  const grouped = new Map<string, EvidenceAssessment[]>();
+  const evidenceTotals = new Map<string, number>();
+  for (const row of rows) {
+    const current = grouped.get(row.versionId) ?? [];
+    current.push(assessEvidence(location, {
+      evidenceId: row.evidenceId, evidenceKind: "versioned", knowledgeId: row.knowledgeId,
+      title: row.title, sourcePath: row.sourcePath, sourceHash: row.sourceHash,
+      commitSha: row.commitSha, sourceSymbol: row.sourceSymbol, updatedAt: row.updatedAt,
+    }, indexFreshness));
+    grouped.set(row.versionId, current);
+    evidenceTotals.set(row.versionId, row.evidenceTotal);
+  }
+
+  for (const target of checkedTargets) {
+    const assessments = grouped.get(target.versionId) ?? [];
+    if (assessments.length === 0) continue;
+    const evidenceTotal = evidenceTotals.get(target.versionId) ?? assessments.length;
+    const truncated = evidenceTotal > assessments.length;
+    const hasStale = assessments.some((item) => item.status === "stale");
+    const hasUnknown = assessments.some((item) => item.status === "unknown");
+    const status: KnowledgeEvidenceFreshness["status"] = hasStale ? "stale"
+      : hasUnknown || truncated ? "unknown" : "current";
+    const reasons = [...new Set(assessments.map((item) => item.reason))].slice(0, 3);
+    if (truncated) reasons.push("evidence_sample_truncated");
+    result[target.versionId] = {
+      checked: true, status, evidenceTotal, sampledEvidence: assessments.length,
+      truncated, reasons,
+    };
+  }
+
+  return result;
+}
+
 /** Read-only integrity, lifecycle, conflict, and bounded source-freshness report for one project. */
 export function getMemoryHealth(location: ProjectLocation, input: MemoryHealthInput = {}) {
   const limit = input.limit ?? 20;
