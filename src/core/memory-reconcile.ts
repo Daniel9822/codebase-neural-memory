@@ -140,7 +140,8 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
         duplicateCandidates: duplicateTotal > duplicateCandidates.length,
         contradictions: health.conflicts.truncated,
         orphanRelations: health.brokenReferences.truncated,
-        dependentReview: dependentReviewTotal > limit || health.sourceFreshness.truncated,\n        sourceChangeReview: sourceChangeReview.truncated,
+        dependentReview: dependentReviewTotal > limit || health.sourceFreshness.truncated,
+        sourceChangeReview: sourceChangeReview.truncated,
       },
       limit,
       maxChars: 12000,
@@ -148,12 +149,15 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
     while (JSON.stringify(result, null, 2).length > result.maxChars &&
       (result.dependentReview.length || result.sourceChangeReview.candidates.length || result.duplicateCandidates.length || result.staleEvidence.length || result.contradictions.length || result.orphanRelations.length)) {
       if (result.dependentReview.length) result.dependentReview.pop();
-      else if (result.sourceChangeReview.candidates.length) result.sourceChangeReview.candidates.pop();\n      else if (result.duplicateCandidates.length) result.duplicateCandidates.pop();
+      else if (result.sourceChangeReview.candidates.length) result.sourceChangeReview.candidates.pop();
+      else if (result.duplicateCandidates.length) result.duplicateCandidates.pop();
       else if (result.staleEvidence.length) result.staleEvidence.pop();
       else if (result.contradictions.length) result.contradictions.pop();
       else result.orphanRelations.pop();
     }
-    result.truncation.dependentReview ||= result.dependentReview.length < dependentReviewTotal;\n    result.sourceChangeReview.truncated ||= result.sourceChangeReview.candidates.length < result.sourceChangeReview.matchedKnowledgeTotal;\n    result.truncation.sourceChangeReview = result.sourceChangeReview.truncated;
+    result.truncation.dependentReview ||= result.dependentReview.length < dependentReviewTotal;
+    result.sourceChangeReview.truncated ||= result.sourceChangeReview.candidates.length < result.sourceChangeReview.matchedKnowledgeTotal;
+    result.truncation.sourceChangeReview = result.sourceChangeReview.truncated;
     result.truncation.duplicateCandidates ||= result.duplicateCandidates.length < duplicateTotal;
     result.truncation.staleEvidence ||= result.staleEvidence.length < health.sourceFreshness.samples.filter((sample) => sample.status === "stale").length;
     result.truncation.contradictions ||= result.contradictions.length < health.conflicts.samples.length;
