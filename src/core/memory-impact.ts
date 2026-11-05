@@ -76,7 +76,7 @@ export function getMemoryImpact(location: ProjectLocation, rawInput: MemoryImpac
   if (!Number.isInteger(limit) || limit < 1 || limit > 100) {
     throw new Error("Invalid memory impact limit");
   }
-  if (!Number.isInteger(maxChars) || maxChars < 500 || maxChars > MAX_RESPONSE_CHARS) {
+  if (!Number.isInteger(maxChars) || maxChars < 1000 || maxChars > MAX_RESPONSE_CHARS) {
     throw new Error("Invalid memory impact maxChars");
   }
 
