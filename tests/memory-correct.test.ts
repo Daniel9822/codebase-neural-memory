@@ -41,6 +41,123 @@ function create(): { knowledgeId: string; versionId: string; fragmentIds: string
   } finally { db.close(); }
 }
 
+
+type ConcurrentWriterInput = {
+  operation: "update" | "correct";
+  writer: string;
+  location: ProjectLocation;
+  knowledgeId: string;
+  expectedVersionId: string;
+  reason: string;
+  content?: string;
+  targetFragmentId?: string;
+  replacementContent?: string;
+};
+
+type ConcurrentWriterResult = {
+  operation: "update" | "correct";
+  writer: string;
+  expectedContent: string;
+  status: string;
+  currentVersionId?: string;
+};
+
+async function runConcurrentWriters(inputs: ConcurrentWriterInput[]): Promise<ConcurrentWriterResult[]> {
+  const script = `
+    import { updateMemoryVersion } from "./src/core/memory-update.js";
+    import { correctMemory } from "./src/core/memory-correct.js";
+    const payload = JSON.parse(process.env.CNM_RACE_INPUT ?? "{}");
+    process.stdout.write("READY");
+    process.stdin.once("data", () => {
+      try {
+        const result = payload.operation === "update"
+          ? updateMemoryVersion(payload.location, {
+              knowledgeId: payload.knowledgeId,
+              expectedVersionId: payload.expectedVersionId,
+              reason: payload.reason,
+              content: payload.content,
+            })
+          : correctMemory(payload.location, {
+              knowledgeId: payload.knowledgeId,
+              expectedVersionId: payload.expectedVersionId,
+              targetFragmentId: payload.targetFragmentId,
+              replacementContent: payload.replacementContent,
+              reason: payload.reason,
+              correctionSource: "user",
+              epistemicState: "pending_validation",
+            });
+        const expectedContent = payload.operation === "update" ? payload.content : payload.replacementContent;
+        process.stdout.write("RESULT:" + JSON.stringify({
+          operation: payload.operation,
+          writer: payload.writer,
+          expectedContent,
+          ...result,
+        }), () => process.exit(0));
+      } catch (error) {
+        process.stderr.write(String(error));
+        process.exit(1);
+      }
+    });
+  `;
+  const workers = inputs.map(input => spawn(
+    process.execPath,
+    ["--import", "tsx", "--input-type=module", "-e", script],
+    {
+      stdio: ["pipe", "pipe", "pipe"],
+      env: { ...process.env, CNM_RACE_INPUT: JSON.stringify(input) },
+    },
+  ));
+  const output = new Map<ReturnType<typeof spawn>, string>();
+  workers.forEach(worker => {
+    worker.stdout!.setEncoding("utf8");
+    worker.stdout!.on("data", (chunk: string) => output.set(worker, (output.get(worker) ?? "") + chunk));
+  });
+  const exits = workers.map(worker => once(worker, "exit") as Promise<[number | null, NodeJS.Signals | null]>);
+  const ready = workers.map(worker => new Promise<void>((resolve, reject) => {
+    const cleanup = () => {
+      worker.stdout!.off("data", onData);
+      worker.off("error", onError);
+      worker.off("exit", onExit);
+    };
+    const onData = () => {
+      if ((output.get(worker) ?? "").includes("READY")) {
+        cleanup();
+        resolve();
+      }
+    };
+    const onError = (error: Error) => { cleanup(); reject(error); };
+    const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+      cleanup();
+      reject(new Error(`Writer exited before ready: ${code}/${signal}; output=${output.get(worker) ?? ""}`));
+    };
+    worker.stdout!.on("data", onData);
+    worker.once("error", onError);
+    worker.once("exit", onExit);
+    onData();
+  }));
+
+  try {
+    await Promise.all(ready);
+    for (const worker of workers) worker.stdin!.write("GO");
+    const exitStates = await Promise.all(exits);
+    return workers.map((worker, index) => {
+      const [code, signal] = exitStates[index]!;
+      const text = output.get(worker) ?? "";
+      if (code !== 0 || signal !== null) {
+        throw new Error(`Writer failed: ${code}/${signal}; output=${text}`);
+      }
+      const marker = text.indexOf("RESULT:");
+      if (marker < 0) throw new Error(`Writer result marker missing; output=${text}`);
+      return JSON.parse(text.slice(marker + "RESULT:".length)) as ConcurrentWriterResult;
+    });
+  } finally {
+    workers.forEach(worker => {
+      if (worker.exitCode === null && worker.signalCode === null) worker.kill();
+    });
+    await Promise.all(exits.map(exit => exit.then(() => undefined, () => undefined)));
+  }
+}
+
 describe("versioned memory correction", () => {
   it("corrects only the selected fragment and preserves prior version, evidence, and provenance", () => {
     setup();
@@ -255,5 +372,93 @@ describe("versioned memory correction", () => {
       if (child.exitCode === null && child.signalCode === null) await childExit;
     }
   });
+
+
+  it("serializes simultaneous corrections for the same identity and rejects the stale correction", async () => {
+    setup();
+    const initial = create();
+    const results = await runConcurrentWriters(["correct-a", "correct-b"].map(writer => ({
+      operation: "correct" as const,
+      writer,
+      location,
+      knowledgeId: initial.knowledgeId,
+      expectedVersionId: initial.versionId,
+      targetFragmentId: initial.fragmentIds[0]!,
+      replacementContent: `Concurrent correction from ${writer}`,
+      reason: `Same-identity correction from ${writer}`,
+    })));
+    expect(results.map(result => result.status).sort()).toEqual(["conflict", "corrected"]);
+    const winner = results.find(result => result.status === "corrected")!;
+    const loser = results.find(result => result.status === "conflict")!;
+    expect(loser.currentVersionId).toBe(winner.currentVersionId);
+
+    const db = openDatabase(location);
+    try {
+      expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_versions WHERE knowledge_id=?")
+        .get(initial.knowledgeId)).toEqual({ count: 2 });
+      expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE knowledge_id=?")
+        .get(initial.knowledgeId)).toEqual({ count: 2 });
+      expect(db.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?")
+        .get(initial.knowledgeId)).toEqual({ current_version_id: winner.currentVersionId });
+      expect(db.prepare("SELECT content FROM knowledge_fragments WHERE version_id=? ORDER BY ordinal")
+        .all(winner.currentVersionId)).toEqual([
+          { content: winner.expectedContent },
+          { content: "Rollback uses command B." },
+        ]);
+      expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_evidence WHERE version_id=?")
+        .get(winner.currentVersionId)).toEqual({ count: 1 });
+    } finally {
+      db.close();
+    }
+  }, 30_000);
+
+  it("serializes a simultaneous memory_update and memory_correct on the same identity", async () => {
+    setup();
+    const initial = create();
+    const results = await runConcurrentWriters([
+      {
+        operation: "update",
+        writer: "update-writer",
+        location,
+        knowledgeId: initial.knowledgeId,
+        expectedVersionId: initial.versionId,
+        reason: "Concurrent update on the same identity",
+        content: "Concurrent update wins.",
+      },
+      {
+        operation: "correct",
+        writer: "correct-writer",
+        location,
+        knowledgeId: initial.knowledgeId,
+        expectedVersionId: initial.versionId,
+        targetFragmentId: initial.fragmentIds[0]!,
+        replacementContent: "Concurrent correction wins.",
+        reason: "Concurrent correction on the same identity",
+      },
+    ]);
+    expect(results.filter(result => result.status === "conflict")).toHaveLength(1);
+    expect(results.filter(result => result.status !== "conflict")).toHaveLength(1);
+    const winner = results.find(result => result.status !== "conflict")!;
+    const loser = results.find(result => result.status === "conflict")!;
+    expect(winner.status).toBe(winner.operation === "update" ? "updated" : "corrected");
+    expect(loser.currentVersionId).toBe(winner.currentVersionId);
+
+    const db = openDatabase(location);
+    try {
+      expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_versions WHERE knowledge_id=?")
+        .get(initial.knowledgeId)).toEqual({ count: 2 });
+      expect(db.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE knowledge_id=?")
+        .get(initial.knowledgeId)).toEqual({ count: 2 });
+      expect(db.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?")
+        .get(initial.knowledgeId)).toEqual({ current_version_id: winner.currentVersionId });
+      expect(db.prepare("SELECT content FROM knowledge_fragments WHERE version_id=? ORDER BY ordinal")
+        .all(winner.currentVersionId)).toEqual([
+          { content: winner.expectedContent },
+          { content: "Rollback uses command B." },
+        ]);
+    } finally {
+      db.close();
+    }
+  }, 30_000);
 
 });
