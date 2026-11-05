@@ -177,3 +177,14 @@ Still open after this slice: simultaneous same-identity writer scheduling, broad
 ### CI failure follow-up — memory history cursor
 
 The initial PR #165/#166 CI exposed a reproducible regression in `tests/memory-history.test.ts`: after omitting an individually oversized event, `getMemoryHistory` recalculated `nextBeforeEvent` from the last returned event instead of preserving the omitted oversized event as the cursor boundary. This could repeatedly return the same oversized event on the next page and prevent traversal to older events. The active PR #165 branch now preserves the cursor for individually oversized events; the test fixture uses a fixed old timestamp so ordering does not depend on runner wall-clock time. The correction is pending fresh CI.
+
+
+## 2026-11-05 — verified continuation point
+
+PR #165 is merged as `c7a82bfe2d141433a1bc57e24842b729dec903e3` (CI `41939068928`, all five jobs green). It covers independent-process `BEGIN IMMEDIATE` lock contention and retry for `memory_update` and `memory_correct`, the individually oversized `memory_history` cursor fix, and migration rollback/retry.
+
+PR #168 is merged as `96da869dcd198bccd7b6e6cce1ed67ceb6a4ee88` (CI `41991378215`, all five jobs green). It adds cross-process same-identity `memory_update` race coverage. The failed original PR #167 (`41989383489`) is closed as superseded; its replacement #168 includes the corrected worker readiness/result framing and waits for stdout flush before exit.
+
+**Active branch:** `test/memory-correct-same-identity-races`. It adds (1) two concurrent `memory_correct` calls against the same expected version and (2) a mixed `memory_update`/`memory_correct` race. The assertions cover one successful writer, one stale conflict pointing at the winner, exactly one appended version/event, correct current-version pointer, and a coherent winning fragment set. This branch is pending fresh CI/review; do not treat the new coverage as verified yet.
+
+After that slice, continue with the broader migration/recovery matrix (historical schema variants, malformed/duplicate legacy data, interruption/reopen/retry, FTS integrity and FK checks). Relationship-aware dependent review and source-evidence freshness remain later work. Physical power-loss/filesystem/controller durability remains explicitly unverified.
