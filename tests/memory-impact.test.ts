@@ -175,6 +175,27 @@ describe("bounded read-only memory relationship impact", () => {
     expect(bounded.serializedChars).toBeLessThanOrEqual(bounded.maxChars);
   });
 
+  it("does not mark an exact result limit as truncated when no unseen impact remains", () => {
+    setup();
+    const rootMemory = capture("impact-exact-limit-root", "Exact limit root");
+    const leaf = capture("impact-exact-limit-leaf", "Exact limit leaf");
+    relate("impact-exact-limit-edge", leaf.knowledgeId, rootMemory.knowledgeId, "depends_on");
+
+    const result = getMemoryImpact(location, {
+      knowledgeId: rootMemory.knowledgeId,
+      maxDepth: 3,
+      limit: 1,
+    });
+    expect(result).toMatchObject({
+      status: "ready",
+      totalImpacted: 1,
+      returned: 1,
+      truncated: false,
+    });
+    expect(result.impacted[0]?.knowledgeId).toBe(leaf.knowledgeId);
+    expect(result.serializedChars).toBe(JSON.stringify({ ...result, serializedChars: 0 }).length);
+  });
+
   it("returns a conflict when the caller's expected root version is stale and validates bounds", () => {
     setup();
     const rootMemory = capture("impact-stale-root", "Stale impact root");
