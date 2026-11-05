@@ -697,7 +697,7 @@ describe("database migrations", () => {
       project: database!.prepare(`SELECT id, root_path, name, created_at, last_indexed_at,
         indexed_commit, index_revision, index_excludes_json FROM projects`).all(),
       files: database!.prepare("SELECT id, stable_id, path, extension, language, content_hash, size_bytes, modified_at, indexed_at FROM files").all(),
-      symbols: database!.prepare("SELECT id, stable_id, file_id, name, kind, signature, start_line, end_line, exported FROM symbols").all(),
+      symbols: database!.prepare("SELECT id, file_id, name, kind, signature, start_line, end_line, exported FROM symbols").all(),
       symbolFts: database!.prepare("SELECT rowid, name, signature, file_path, kind FROM symbols_fts").all(),
       imports: database!.prepare("SELECT file_id, module_specifier FROM file_imports").all(),
       calls: database!.prepare("SELECT file_id, caller_name, callee_name, module_specifier, imported_symbol_name FROM symbol_calls").all(),
