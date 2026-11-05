@@ -23,7 +23,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
   const db = openDatabase(location);
   let duplicateCandidates: Array<{ normalizedTitle: string; knowledgeIds: string[]; titles: string[] }> = [];
   let duplicateTotal = 0;
-  let dependentReview: Array<{ knowledgeId: string; title: string; relatedKnowledgeId: string; relationType: string }> = [];
+  let dependentReview: Array<{ knowledgeId: string; title: string; relatedKnowledgeId: string; staleKnowledgeId: string; relationType: string; relationId: string }> = [];
   let dependentReviewTotal = 0;
 
   try {
