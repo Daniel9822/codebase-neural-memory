@@ -3,6 +3,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
 import type { KnowledgeEpistemicState, MemoryCaptureEvidence, MemoryCaptureFragment } from "./memory-capture.js";
+import { appendDependentReviewRequests } from "./memory-review-propagation.js";
 
 export interface MemoryUpdateInput {
   knowledgeId: string;
@@ -27,6 +28,7 @@ export interface MemoryUpdateResult {
   currentVersionId: string | null;
   versionNumber?: number;
   reason: string;
+  dependentReviewRequests?: { created: number; total: number; truncated: boolean };
 }
 const states = new Set(["observed","verified","inferred","user_asserted","planned","hypothesis","pending_validation"]);
 const id = (prefix: string) => `${prefix}:${randomUUID()}`;
@@ -193,8 +195,12 @@ export function updateMemoryVersion(location: ProjectLocation, input: MemoryUpda
         VALUES (?,?,?,?, 'updated',?,?,?,?)
       `).run(id("event"),location.id,knowledgeId,versionId,actor,reason,
         JSON.stringify({previousVersionId:expectedVersionId,versionNumber}),now);
+      const dependentReviewRequests = appendDependentReviewRequests(
+        db, location.id, knowledgeId, expectedVersionId, versionId, actor, now,
+      );
       return {status:"updated",knowledgeId,previousVersionId:expectedVersionId,currentVersionId:versionId,
-        versionNumber,reason:"A new immutable version was appended and made current."};
+        versionNumber,dependentReviewRequests,
+        reason:"A new immutable version was appended and made current; direct dependents were queued for review."};
     }).immediate();
   } finally { db.close(); }
 }

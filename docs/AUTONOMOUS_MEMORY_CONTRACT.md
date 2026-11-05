@@ -135,7 +135,7 @@ A user correction is captured without asking for confirmation again. The API per
 - desired future behavior -> create/update a linked `planned` decision, not a claim that code already behaves that way;
 - verified implementation change -> record the new behavior as verified only after relevant source/tests support it.
 
-Dependent knowledge is intended to be marked for review through bounded impact discovery; that discovery/review queue is not implemented in the current correction slice. CNM must not blindly rewrite all related entries. A desired future behavior must be captured separately as a linked `planned` decision; `memory_correct` does not create that decision automatically.
+Dependent knowledge is marked for review through bounded direct impact discovery. `memory_reconcile` previews directed dependent candidates; `memory_update` and `memory_correct` append review-request events for eligible direct dependents in the same transaction as the source version change. The event-derived `memory_review_queue` exposes unresolved requests, and `memory_review_resolve` records an explicit immutable resolution against the current version. These operations never rewrite dependent content, lifecycle, epistemic state, evidence or relations. Propagation currently covers direct `depends_on`, `derived_from` and `affects` edges only; it is bounded, deduplicates an already-open request for the dependent's current version, and reports truncation. Automatic repository/index change detection, transitive propagation, and supersession-specific propagation remain separate incomplete requirements. A desired future behavior must be captured separately as a linked `planned` decision; `memory_correct` does not create that decision automatically.
 
 ### 5.4 Reconciliation
 
