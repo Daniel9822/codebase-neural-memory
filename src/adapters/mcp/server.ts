@@ -12,6 +12,7 @@ import { bootstrapMemory } from "../../core/memory-bootstrap.js";
 import { getMemoryHealth } from "../../core/memory-health.js";
 import { previewMemoryReconciliation } from "../../core/memory-reconcile.js";
 import { requestMemoryReview } from "../../core/memory-review-request.js";
+import { listMemoryReviews, resolveMemoryReview } from "../../core/memory-review.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
 import { getIndexFreshness, updateProjectIndex, type IndexOptions } from "../../core/indexer.js";
 import { buildTaskContext } from "../../core/context.js";
@@ -644,6 +645,34 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
   }, async (input) => ({
     content: [{ type: "text", text: JSON.stringify(getMemoryHealth(location, input), null, 2) }]
   }));
+
+  server.registerTool("memory_review_queue", {
+    description: "List unresolved event-backed knowledge review requests for this project. Read-only; stale-version requests remain visible and cannot be resolved until reviewed against the current version.",
+    inputSchema: z.object({ limit: z.number().int().min(1).max(100).optional() }).strict(),
+  }, async ({ limit }) => ({
+    content: [{ type: "text", text: JSON.stringify(listMemoryReviews(location, limit), null, 2) }],
+  }));
+
+  server.registerTool("memory_review_resolve", {
+    description: "Explicitly resolve one open review request by appending an immutable audit event. Requires requestEventId, knowledgeId, expectedVersionId (the current version the reviewer inspected), resolution, reason and idempotencyKey. It can close a stale request only after explicit review of the current version; it never edits knowledge content or lifecycle.",
+    inputSchema: z.object({
+      requestEventId: z.string().trim().min(1).max(128),
+      knowledgeId: z.string().trim().min(1).max(128),
+      expectedVersionId: z.string().trim().min(1).max(128),
+      resolution: z.enum(["reviewed_current", "knowledge_updated", "not_actionable"]),
+      reason: z.string().trim().min(1).max(500),
+      actor: z.string().trim().min(1).max(200).optional(),
+      idempotencyKey: z.string().trim().min(1).max(128),
+    }).strict(),
+  }, async (input) => {
+    const { actor, ...reviewInput } = input;
+    return {
+      content: [{ type: "text", text: JSON.stringify(resolveMemoryReview(location, {
+        ...reviewInput,
+        ...(actor === undefined ? {} : { actor }),
+      }), null, 2) }],
+    };
+  });
 
   server.registerTool("memory_reconcile", {
     description: "Preview bounded consistency/freshness findings, or explicitly request review for selected knowledge IDs. Dry-run is the default. Apply only appends reconciliation_review_requested events with expected-version checks and idempotency; it never edits knowledge, merges duplicates, resolves contradictions, changes lifecycle, or deletes records.",
