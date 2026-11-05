@@ -264,3 +264,10 @@ PR #170 is now based directly on current `main` after PR #169's squash merge `d5
 ## 2026-11-05 — FTS retrieval integrity
 
 The active branch `fix/search-fail-closed-on-fts-drift` adds a fail-closed consistency gate to `memory_search`: one FTS row and one indexed-version marker must exist for each knowledge version, with no orphan/duplicate/ownership-mismatched rows. It prevents returning incomplete retrieval output while the index is known inconsistent. The lazy initializer can restore a missing marker when an FTS row already exists, but does not regenerate a missing FTS row automatically. Health remains read-only and the inconsistency stays visible for explicit future repair design. This change is pending cross-platform CI.
+
+
+## 2026-11-05 — FTS retrieval merge and historical migration rebase
+
+PR #173 is merged as `2f05249b9d71e9851190f01e72ade778d2cc5d77`; exact-head CI run `42017503161` passed all five jobs. The FTS5 fail-closed consistency gate and marker-only retry are now part of `main`.
+
+PR #171's current work is being reconstructed on the new main to avoid documentation conflicts introduced by #173. Its migration implementation/test remains focused on populated v1 snapshots, stable-ID uniqueness under normalized/unrelated collisions, interrupted v5 backfill repair, and preservation/FK/integrity assertions. The rebased HEAD needs its own fresh five-job CI before merge.
