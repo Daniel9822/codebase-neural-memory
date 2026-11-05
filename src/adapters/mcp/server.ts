@@ -10,6 +10,7 @@ import { getMemory, expandMemory } from "../../core/memory-get.js";
 import { searchMemories } from "../../core/memory-search.js";
 import { bootstrapMemory } from "../../core/memory-bootstrap.js";
 import { getMemoryHealth } from "../../core/memory-health.js";
+import { getMemoryImpact } from "../../core/memory-impact.js";
 import { previewMemoryReconciliation } from "../../core/memory-reconcile.js";
 import { requestMemoryReview } from "../../core/memory-review-request.js";
 import { getComponentMap, getProjectMapReport, getProjectOverview, searchSymbols, findImpact, findDependencies, findSymbolImpact, getFileDetails, getSourceExcerpt } from "../../core/retrieval.js";
@@ -643,6 +644,19 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
     })
   }, async (input) => ({
     content: [{ type: "text", text: JSON.stringify(getMemoryHealth(location, input), null, 2) }]
+  }));
+
+  server.registerTool("memory_impact", {
+    description: "Discover bounded transitive knowledge that may need review after an identity changes. Read-only: depends_on and derived_from are traversed from dependency to dependent; affects and supports are traversed from source to target. Returns the exact relation path and current version IDs. Use explicit selected IDs with memory_reconcile request_review; this tool never writes review events or changes knowledge.",
+    inputSchema: z.object({
+      knowledgeId: z.string().trim().min(1).max(128),
+      expectedVersionId: z.string().trim().min(1).max(128).optional(),
+      maxDepth: z.number().int().min(1).max(5).optional(),
+      limit: z.number().int().min(1).max(100).optional(),
+      maxChars: z.number().int().min(1000).max(12000).optional(),
+    }).strict()
+  }, async (input) => ({
+    content: [{ type: "text", text: JSON.stringify(getMemoryImpact(location, input), null, 2) }]
   }));
 
   server.registerTool("memory_reconcile", {
