@@ -126,3 +126,6 @@ The populated schema-v1 historical migration snapshot and normalized-path stable
 
 
 > **2026-11-05 retrieval freshness implementation under PR #178:** each `memory_search` result and `memory_bootstrap` item carries bounded `sourceEvidenceFreshness`. `current` requires every source-evidence row in the sampled set to match; `stale` reports a known mismatch/missing source; `unknown` covers unverifiable or truncated evidence; `not_checked` distinguishes no evidence from an item outside the 20-result assessment window via `checked`. At most three evidence rows per version are assessed. The feature is read-only: it does not mark lifecycle/epistemic state or create review events. Do not treat omitted evidence as current.
+
+
+> **PR #178 CI correction:** initial run `42034006281` found stale test expectations: MCP protocol still expected the previous global `not_checked` value and one bootstrap fixture's 3,000-character cap omitted its third category after freshness metadata was added. Tests now expect `per_item_bounded` and the fixture uses a 4,000-character configured limit. Corrected HEAD `7cb31df344f79ee263b62a41aea511e5f30e732e` has fresh CI run `42034307439` queued; do not merge until all five exact-head jobs pass.
