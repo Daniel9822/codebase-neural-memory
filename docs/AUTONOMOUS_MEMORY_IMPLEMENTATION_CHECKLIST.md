@@ -564,3 +564,10 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Still open after this slice: full snapshots for every supported historical schema, duplicate/colliding legacy IDs, additional interruption boundaries outside v13 DDL, FTS rebuild/failure recovery, migration query-plan validation and empirical power-loss/filesystem durability.
 
 - **Rebased PR #170 onto current main:** branch head before this status note was `a872db2464d9f4fc47aefdf198093c7d4a4e95b2`, parented directly on #169 merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. The diff is six files only; fresh CI for the rebased PR head is still required. The prior stacked head's green run `41998827170` is historical evidence only, not a check for the rebased head.
+
+
+## 2026-11-05 — fail-closed FTS search consistency
+
+- **Active branch:** `fix/search-fail-closed-on-fts-drift`. Before retrieval, `memory_search` validates one-to-one coverage between knowledge versions, FTS5 rows and indexed-version markers. Missing, orphaned, duplicate or cross-owner rows cause an explicit error; no incomplete result set is returned.
+- The lazy initializer now restores a missing bookkeeping marker from an already-present FTS row without creating a duplicate. A missing FTS row while its marker exists is not silently repaired; `memory_health` reports the inconsistency and search fails closed.
+- Tests cover a balanced-count corruption case (one missing row + one duplicate row), marker-only recovery, and confirmation that the failed search does not mutate the corrupted FTS rows. Pending exact-head CI/review; this does not test FTS5's internal segment integrity or prove physical storage durability.
