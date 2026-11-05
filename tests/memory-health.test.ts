@@ -141,6 +141,8 @@ describe("memory health", () => {
     const inconsistent = getMemoryHealth(location, { limit: 1 });
     expect(inconsistent.searchIndex.status).toBe("inconsistent");
     expect(inconsistent.searchIndex.missingFtsRows).toBe(1);
+    expect(() => searchMemories(location, { query: "health fixture" }))
+      .toThrow(/memory search index is inconsistent/i);
     expect(() => getMemoryHealth(location, { limit: 101 })).toThrow("limit");
     expect(() => getMemoryHealth(location, { limit: 0 })).toThrow("limit");
   });
