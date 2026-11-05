@@ -3,6 +3,7 @@ import { isAbsolute, relative, resolve, sep } from "node:path";
 import { openDatabase } from "../storage/database.js";
 import type { ProjectLocation } from "./project.js";
 import type { KnowledgeEpistemicState, MemoryCaptureEvidence } from "./memory-capture.js";
+import { appendDependentReviewRequests } from "./memory-review-propagation.js";
 
 export interface MemoryCorrectInput {
   knowledgeId: string;
@@ -24,6 +25,7 @@ export interface MemoryCorrectResult {
   correctionSource: "user" | "agent";
   versionNumber?: number;
   reason: string;
+  dependentReviewRequests?: { created: number; total: number; truncated: boolean };
 }
 const states = new Set<KnowledgeEpistemicState>([
   "observed", "verified", "inferred", "user_asserted", "planned", "hypothesis", "pending_validation",
@@ -187,11 +189,14 @@ export function correctMemory(location: ProjectLocation, input: MemoryCorrectInp
         previousVersionId: expectedVersionId, targetFragmentId, correctionSource: input.correctionSource,
         correctedOrdinal: target.ordinal, versionNumber,
       }), now);
+      const dependentReviewRequests = appendDependentReviewRequests(
+        db, location.id, knowledgeId, expectedVersionId, versionId, actor, now,
+      );
       return {
         status: "corrected", knowledgeId, previousVersionId: expectedVersionId,
         currentVersionId: versionId, targetFragmentId,
-        correctionSource: input.correctionSource, versionNumber,
-        reason: "A corrected immutable version was appended; prior content and provenance remain intact.",
+        correctionSource: input.correctionSource, versionNumber, dependentReviewRequests,
+        reason: "A corrected immutable version was appended; direct dependents were queued for review.",
       };
     }).immediate();
   } finally {
