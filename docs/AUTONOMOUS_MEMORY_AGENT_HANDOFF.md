@@ -199,3 +199,10 @@ PR #170's previous stacked head passed CI run `41998827170` (five jobs) after co
 **Do not merge the rebased PR #170 until its new exact HEAD passes Ubuntu and Windows verification plus all three benchmarks.** Further migration work after this slice: supported historical schema snapshots, duplicate/colliding legacy IDs, additional crash boundaries, FTS corruption/rebuild behavior and query-plan validation. Relationship-aware review propagation and source-evidence freshness follow. Physical storage power-loss durability remains unverified.
 
 **PR #170 was reconstructed on top of the merged #169 commit** `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. Its branch is directly based on current `main`, and the diff is limited to two tests plus four documentation files. The previous stacked HEAD's CI `41998827170` passed all five jobs, but the rebased head still requires a new exact-head run before merge.
+
+
+## 2026-11-05 — relationship-aware impact discovery in progress
+
+The branch `feat/memory-relationship-impact-analysis` implements a new read-only MCP `memory_impact` query. It performs a bounded breadth-first traversal from one knowledge identity, returning active dependent items, their current version IDs, depth and a deterministic relation path. `depends_on` / `derived_from` are traversed from dependency to dependent; `affects` / `supports` from source to target. `related_to` and `contradicts` are intentionally excluded because they do not establish directional dependency. A cycle guard, max depth 1–5, result limit 1–100, edge scan budget, response budget and optional expected-version check keep the analysis bounded and explainable.
+
+This tool never creates review events or changes knowledge. To request review, an agent must explicitly select returned knowledge IDs and call `memory_reconcile` with `operation=request_review`, each candidate's current version ID, an idempotency key and an explicit reason. The branch is pending exact-head CI and review.
