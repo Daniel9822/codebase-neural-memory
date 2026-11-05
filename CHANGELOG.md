@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Correct directed dependent-review candidate discovery in `memory_reconcile` (PR #179 pending): stale `depends_on`/`derived_from` targets propose the source dependent; stale `affects` sources propose the target. Direct-only, project-scoped, deduplicated, and read-only; other relation kinds are not inferred.
+- Correct directed dependent-review candidate discovery in `memory_reconcile` (PR #179, merge `55649d4aec271f95b4034470456e39f682e717ad`; exact-head CI `42036240634`, five jobs green): stale `depends_on`/`derived_from` targets propose the source dependent; stale `affects` sources propose the target. Direct-only, project-scoped, deduplicated, and read-only; other relation kinds are not inferred.
 
 - Add bounded per-version source-evidence freshness to `memory_search` results and `memory_bootstrap` items (PR #178, merge `a668cb8ec0b19ea398df85418b46212c500743f6`; exact-head CI `42034417737`, all five jobs green). Reuses `memory_health` safe-file/hash/Git assessment; reports `current`, `stale`, `unknown`, or `not_checked` per immutable version, capped at 20 returned items and three evidence rows per version. The surface is read-only; truncated/unexamined evidence is never assumed fresh, and no lifecycle/epistemic state or review event is mutated.
 
