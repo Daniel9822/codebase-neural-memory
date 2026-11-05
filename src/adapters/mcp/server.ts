@@ -664,12 +664,15 @@ export function createMcpServer(location: ProjectLocation, options: McpServerOpt
       actor: z.string().trim().min(1).max(200).optional(),
       idempotencyKey: z.string().trim().min(1).max(128),
     }).strict(),
-  }, async (input) => ({
-    content: [{ type: "text", text: JSON.stringify(resolveMemoryReview(location, {
-      ...input,
-      ...(input.actor === undefined ? {} : { actor: input.actor }),
-    }), null, 2) }],
-  }));
+  }, async (input) => {
+    const { actor, ...reviewInput } = input;
+    return {
+      content: [{ type: "text", text: JSON.stringify(resolveMemoryReview(location, {
+        ...reviewInput,
+        ...(actor === undefined ? {} : { actor }),
+      }), null, 2) }],
+    };
+  });
 
   server.registerTool("memory_reconcile", {
     description: "Preview bounded consistency/freshness findings, or explicitly request review for selected knowledge IDs. Dry-run is the default. Apply only appends reconciliation_review_requested events with expected-version checks and idempotency; it never edits knowledge, merges duplicates, resolves contradictions, changes lifecycle, or deletes records.",
