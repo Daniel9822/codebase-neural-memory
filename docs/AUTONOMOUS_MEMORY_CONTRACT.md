@@ -97,6 +97,8 @@ Every evidence item records its kind, locator/metadata, observed time, and verif
 
 Freshness is evaluated using existing CNM source/Git/index mechanisms where possible. A changed or missing source marks the affected claim for review/pending validation; it does not delete the knowledge or silently rewrite it. A stale source reference must be visible in recall and bootstrap responses.
 
+`memory_search` attaches `sourceEvidenceFreshness` to each returned immutable version, and `memory_bootstrap` attaches it to each returned current item. Status is `current` only when all sampled source evidence for that version matches and the sample is complete; `stale` means at least one sampled record is known stale; `unknown` means a record could not be verified or the per-version sample was truncated; `not_checked` means no source evidence exists for that version or the result fell outside the assessment window (`checked` distinguishes those cases). These read-only checks are bounded to the first 20 returned results/items and at most three source-evidence records per version. Evidence outside those bounds is never asserted fresh. Reporting freshness does not rewrite the immutable version, change lifecycle/epistemic state, or automatically create a review event; review marking and relationship-aware propagation remain separate workflows.
+
 ### 4.3 Relations
 
 Knowledge relations are typed, directed, and explainable. Initial relation kinds include `supports`, `contradicts`, `supersedes`, `depends_on`, `related_to`, `derived_from`, and `affects`. Relations carry actor/origin, timestamp, and optional evidence/reason. Ambiguous matches must not be auto-merged or linked as facts.
@@ -141,8 +143,8 @@ Reconciliation is bounded, deterministic, and reportable. It can identify stale 
 
 Current knowledge is returned by default; superseded/archived history is opt-in.
 
-- `memory_bootstrap`: compact project overview of high-value current knowledge, unresolved questions/risks, pending validation, and freshness warnings. Strict item/character limits and truncation metadata are mandatory.
-- `memory_search`: bounded lexical/FTS5 search across title, summary, content/fragments, aliases/tags, type, paths/symbols, and optional time/epistemic/lifecycle filters. Exact identifiers and source locators receive explicit ranking signals. Results explain why they matched.
+- `memory_bootstrap`: compact project overview of high-value current knowledge, unresolved questions/risks, pending validation, and freshness warnings. Every returned item carries bounded source-evidence freshness with explicit `current`, `stale`, `unknown`, or `not_checked` status. Strict item/character limits and truncation metadata are mandatory.
+- `memory_search`: bounded lexical/FTS5 search across title, summary, content/fragments, aliases/tags, type, paths/symbols, and optional time/epistemic/lifecycle filters. Exact identifiers and source locators receive explicit ranking signals. Results explain why they matched and carry per-version source-evidence freshness. Both retrieval tools assess only the first 20 returned items and up to three source-evidence records per version; omitted evidence is not considered current.
 - `memory_get`: retrieve one identity and its current version metadata/summary.
 - `memory_expand`: retrieve selected fragments or bounded detail by stable fragment ID, with pagination.
 - `memory_history`: retrieve immutable versions and events with bounded pagination.
