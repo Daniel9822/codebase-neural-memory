@@ -277,6 +277,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [x] Implement `memory_search` with lexical FTS5, exact identifiers, aliases/tags, category/type, paths/symbols, relations, and time filters (PR #144).
 - [x] Use stable relevance tie-breakers and expose why each result matched (PR #144).
 - [x] Return short summaries/snippets and stable IDs by default; enforce item/character budgets and truncation metadata (PR #144).
+- [ ] Surface per-version source-evidence freshness in returned search/bootstrap items with bounded `current`/`stale`/`unknown`/`not_checked` states; cap checks at 20 returned items and three evidence rows per version (PR #178; pending exact-head CI).
 - [x] Exclude superseded/archived/rejected content from current results by default, with explicit history filters (PR #144).
 - [ ] Complete the full empty/ambiguous/multilingual-basic-normalization/wildcard/repeated-run/exact-boundary test matrix. Empty browse, filters, cursors, and project isolation are covered; remaining edge cases stay open.
 
@@ -355,7 +356,7 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - [ ] Reuse existing freshness mechanisms rather than duplicating them.
 - [ ] Determine affected knowledge from changed symbols/files/relations; avoid invalidating unrelated knowledge.
 - [ ] Mark affected knowledge pending review when evidence becomes stale; do not delete it.
-- [ ] Ensure retrieval communicates stale/unverified status.
+- [ ] Ensure retrieval communicates stale/unverified status. PR #178 adds read-only per-result/per-item status to `memory_search` and `memory_bootstrap`, bounded to 20 returned items and three evidence rows/version; keep this unchecked until exact-head CI and merge. It does not yet persist pending-review state or propagate impacts.
 - [ ] Test file rename/delete, symbol change, branch switch, dirty tree, non-Git project, and incomplete index.
 
 ## G2. Worktrees and project identity
@@ -622,3 +623,12 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Populated migration entry snapshots on `main`: v1 (#171), v6 (#175), v8 (#177), v10 (#176). v8 additionally covers FTS/indexed imports, calls, heritage, relations, unresolved imports and pre-v9 memory source hashes/provenance.
 - The first v8 CI run failed only because its before/after projection expected a legacy symbol stable ID to be preserved. The migration's v5 backfill deliberately recomputes symbol IDs; the corrected test compares source fields independently and asserts the new ID's SHA-256 format and stability on a second migration. No migration behavior or integrity assertion was weakened.
 - Still open: other supported historical generations/empty DB boundaries, malformed legacy records and duplicate identities, additional interruption points, FTS rebuild failure/recovery/query plans, physical power-loss/filesystem/controller durability. Continue with the remaining autonomous-memory workstreams as well; migration snapshots are not the only outstanding requirement.
+
+
+## 2026-11-05 — bounded retrieval evidence freshness (PR #178 pending)
+
+- Branch `feat/memory-search-evidence-freshness` reuses the existing `memory_health` safe-file/hash/Git assessment for the exact immutable versions returned by `memory_search` and `memory_bootstrap`.
+- Each returned item reports `checked`, `status` (`current`, `stale`, `unknown`, `not_checked`), `evidenceTotal`, `sampledEvidence`, `truncated`, and bounded reason codes. `current` is returned only when all evidence rows for that version were sampled and verified; truncation or any unverified row prevents a current assertion. If a sampled row is stale, the item is stale.
+- Limits: first 20 returned results/items, at most three source-evidence rows per version (newest deterministic rows first), max 128 KiB per file read (existing `assessEvidence` boundary). Results outside the window use `checked:false`; items without source evidence use `checked:true,status:not_checked`. No evidence outside the cap is treated as fresh.
+- The operation is read-only. It does not rewrite immutable versions, epistemic/lifecycle status, append review events, or propagate dependent impact. Relationship-aware review marking remains a separate requirement.
+- Focused tests in `tests/memory-search.test.ts` cover current hash, changed source, missing source, absent evidence, bounded evidence sampling, search/bootstrap visibility, and unchanged knowledge/version/fragment/evidence/event counts. Exact-head Ubuntu/Windows and benchmark CI is pending; do not check the acceptance item until merge.
