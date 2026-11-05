@@ -96,6 +96,13 @@ describe("persistent memory review lifecycle", () => {
     expect(result).toMatchObject({ status: "conflict", applied: false, currentVersionId: advanced.currentVersionId,
       reason: "request_missing_or_version_changed" });
     expect(listMemoryReviews(location).items).toHaveLength(1);
+    const reviewed = resolveMemoryReview(location, {
+      requestEventId, knowledgeId: item.knowledgeId, expectedVersionId: advanced.currentVersionId!,
+      resolution: "knowledge_updated", reason: "Reviewed the newly current version",
+      idempotencyKey: "resolve-reviewed-updated-version",
+    });
+    expect(reviewed).toMatchObject({ status: "resolved", applied: true, currentVersionId: advanced.currentVersionId });
+    expect(listMemoryReviews(location).items).toHaveLength(0);
   });
 
   it("rejects reuse of an idempotency key with a different resolution payload", () => {
