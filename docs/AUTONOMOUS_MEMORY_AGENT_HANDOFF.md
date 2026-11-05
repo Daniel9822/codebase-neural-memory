@@ -82,7 +82,7 @@ Do not add embeddings, hosted services, LLM calls, or remote dependencies.
 - `memory_reconcile`: bounded preview and event-only `request_review` are merged. Review completion/resolution and exact dependent-impact capture remain open. Response budgets and evidence/relation references are implemented. Stale-version detection, post-commit process-termination recovery, and cross-process lock contention specifically inside the apply transaction are verified (PR #156; CI `41913689539`, five jobs green). PR #158 additionally configures WAL `synchronous=FULL` and verifies the pragma (`5ea62b89ea2f348080d55396b288612a534568d9`; CI `41919002890`, all five jobs green). This does not establish physical power-loss/filesystem durability, which remains open.
 - relationship-aware dependent-knowledge impact/review when a source memory is corrected or superseded;
 - broader deterministic matching/enrichment/conflict/supersession/split behavior;
-- source freshness integration using existing file/symbol/Git/index mechanisms; stale evidence must mark claims for review, never silently delete knowledge;
+- persist review-needed state and propagate source freshness through file/symbol/Git/index changes; PR #178 now reports bounded per-result/per-item freshness in search/bootstrap, but does not mark claims pending review or create dependent-review events;
 - update idempotency and explicit lifecycle/epistemic transition validation where required by the contract.
 
 ### Reliability and migration verification
@@ -272,3 +272,14 @@ PR #178 (`feat/memory-search-evidence-freshness`) adds a shared bounded helper i
 ### CI follow-up — PR #178
 
 Exact-head CI run `42034006281` exposed two stale fixture expectations, not production defects: MCP protocol tests still asserted the old global freshness status, and a 3,000-character bootstrap fixture was too small after metadata was added to keep its third category visible. Updated the MCP expectation to `per_item_bounded` and raised only that fixture's budget to 4,000 while keeping the serialized-size assertion. Corrected branch HEAD is `7cb31df344f79ee263b62a41aea511e5f30e732e`; exact-head run `42034307439` is queued. The initial run had Ubuntu typecheck green, Ubuntu tests 280 passed/2 failed, Ubuntu/macOS benchmark green and Windows benchmark green; Windows verification remained in progress at inspection. No merge until the new exact-head five-job run passes.
+
+
+## 2026-11-05 — PR #178 merged; retrieval exposes bounded source freshness
+
+PR #178 is merged to `main` as `a668cb8ec0b19ea398df85418b46212c500743f6` (source HEAD `b9f0940317c13d67e15709ad1be956acc42e251a`). Exact-head CI run `42034417737` passed all five jobs: Ubuntu/Windows typecheck, full tests, build and smoke, plus benchmarks on Ubuntu, Windows and macOS.
+
+`src/core/memory-health.ts` now exports `getKnowledgeEvidenceFreshness`, which performs bounded assessment for the exact immutable versions returned by `memory_search` and `memory_bootstrap`. The helper reuses the existing descriptor-verified file/hash/Git assessment; limits are 20 returned results/items and the three newest source-locatable evidence records per version. Each item reports `checked`, status (`current`, `stale`, `unknown`, `not_checked`), evidence totals/sample count, truncation and bounded reason codes. `current` requires complete sample coverage and all sampled evidence current. No omitted evidence is assumed fresh.
+
+The change is intentionally read-only: it does not alter knowledge/version content, lifecycle/epistemic state, append review events or propagate dependent impact. This closes *retrieval visibility* for source freshness, not the broader freshness/review workflow. Still pending: persist a review-needed state, determine dependent knowledge from typed relation direction, append auditable review events for affected dependents (with bounded atomicity and stale-version handling), resolve/complete reviews, and test file rename/delete, symbol changes, branch switch, dirty tree, non-Git project and incomplete index cases.
+
+Initial CI `42034006281` identified two obsolete test expectations: the MCP test expected the previous global freshness value, and a bootstrap fixture's 3,000-character cap omitted its third category after the new metadata. The MCP expectation was updated to `per_item_bounded` and the fixture cap raised to 4,000 while keeping the configured serialized-size assertion. The corrected code-head run `42034307439` passed all five jobs; final exact-head run including documentation `42034417737` also passed all five jobs.
