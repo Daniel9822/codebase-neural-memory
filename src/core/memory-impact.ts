@@ -106,7 +106,7 @@ export function getMemoryImpact(location: ProjectLocation, rawInput: MemoryImpac
         epistemicState: root.epistemicState,
       };
       if (expectedVersionId !== undefined && expectedVersionId !== root.currentVersionId) {
-        return {
+        const conflict = {
           status: "conflict" as const,
           mode: "read_only" as const,
           projectId: location.id,
@@ -122,6 +122,11 @@ export function getMemoryImpact(location: ProjectLocation, rawInput: MemoryImpac
           serializedChars: 0,
           reason: "The current version changed; rerun impact discovery against the latest version.",
         };
+        conflict.serializedChars = JSON.stringify(conflict).length;
+        if (conflict.serializedChars > maxChars) {
+          throw new Error("Memory impact response metadata exceeds its character budget");
+        }
+        return conflict;
       }
 
       const queue: ImpactQueueEntry[] = [{ knowledgeId, depth: 0, path: [] }];
@@ -201,13 +206,37 @@ export function getMemoryImpact(location: ProjectLocation, rawInput: MemoryImpac
           });
           queue.push({ knowledgeId: edge.knowledgeId, depth: current.depth + 1, path });
           if (impacted.length >= limit) {
-            const expandableQueueRemains = queue.slice(queueIndex + 1).some(entry => entry.depth < maxDepth);
-            if (edgeIndex < boundedRows.length - 1 || expandableQueueRemains) truncated = true;
+            if (boundedRows.slice(edgeIndex + 1).some(candidate => !visited.has(candidate.knowledgeId))) {
+              truncated = true;
+            }
             stop = true;
             break;
           }
         }
-        if (stop) break;
+        if (stop) {
+          if (!truncated) {
+            for (const pending of queue.slice(queueIndex + 1)) {
+              if (pending.depth >= maxDepth) continue;
+              const remainingEdges = MAX_EDGE_CANDIDATES - scannedEdges;
+              if (remainingEdges <= 0) {
+                truncated = true;
+                break;
+              }
+              const pendingRows = findEdges.all(
+                location.id, pending.knowledgeId, pending.knowledgeId, remainingEdges + 1,
+              ) as ImpactEdgeRow[];
+              const boundedPendingRows = pendingRows.length > remainingEdges
+                ? pendingRows.slice(0, remainingEdges) : pendingRows;
+              scannedEdges += boundedPendingRows.length;
+              if (pendingRows.length > remainingEdges ||
+                  boundedPendingRows.some(candidate => !visited.has(candidate.knowledgeId))) {
+                truncated = true;
+                break;
+              }
+            }
+          }
+          break;
+        }
       }
 
       const result = {
