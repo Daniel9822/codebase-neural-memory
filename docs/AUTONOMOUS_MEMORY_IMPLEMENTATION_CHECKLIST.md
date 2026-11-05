@@ -564,3 +564,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Still open after this slice: full snapshots for every supported historical schema, duplicate/colliding legacy IDs, additional interruption boundaries outside v13 DDL, FTS rebuild/failure recovery, migration query-plan validation and empirical power-loss/filesystem durability.
 
 - **Rebased PR #170 onto current main:** branch head before this status note was `a872db2464d9f4fc47aefdf198093c7d4a4e95b2`, parented directly on #169 merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. The diff is six files only; fresh CI for the rebased PR head is still required. The prior stacked head's green run `41998827170` is historical evidence only, not a check for the rebased head.
+
+
+## 2026-11-05 — historical schema and identity-collision follow-up
+
+- **PR #169 merged:** `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`, CI `41997492219`, all five jobs green. Same-identity correction/correction and mixed update/correction concurrency are now covered on `main`.
+- **PR #170 merged:** `6c75efe875044071acdfd4c79891beb7f9958bb6`, CI `42015208428`, all five jobs green. The legacy status matrix, file-backed v13 rollback/reopen/retry and schema-v14 FTS5 reopen/integrity cases are now on `main`.
+- **Active PR #171:** adds a populated schema-v1 snapshot and retry-safe handling for normalized path collisions during the legacy stable-ID backfill. Distinct legacy paths `src\\collision.ts` and `src/collision.ts` must remain separate rows with deterministic unique IDs; dependent symbol IDs are recalculated when file identities are repaired after an interrupted v5 backfill. The test verifies the 1..13 marker sequence, source-row preservation, retry idempotency, FK and SQLite integrity.
+- These #171 changes are pending exact-head CI/review. Remaining migration work includes more historical schema snapshots, additional collision/corrupt-state permutations, FTS rebuild/failure recovery, query-plan validation and physical power-loss/filesystem durability.
