@@ -283,3 +283,8 @@ PR #172 is closed as superseded by #171. Historical-schema coverage beyond the p
 ## Implementation verification note — 2026-11-05
 
 PR #171's populated schema-v1 migration snapshot and deterministic stable-ID collision/retry repair are merged to `main` as `9b24daa5e3e76ac21ccae3015d892cf2fa7afe26`. Exact-head CI run `42019978734` passed all five jobs. This is implementation evidence for the covered v1 and v5-retry cases only; it is not evidence that every historical schema generation, malformed legacy input, interruption boundary, FTS recovery path, or physical durability scenario has been verified. The implementation checklist remains the authoritative ledger for remaining acceptance work.
+
+
+## 2026-11-05 — Migration compatibility verification update
+
+PR #177 adds the populated schema-v8 snapshot to `main` (merge `3c3a3e8a6e1497f846c5661c7fe864081005a3f0`; exact-head CI `42032100779`, all five jobs green). The populated snapshot matrix now includes v1, v6, v8 and v10 entry points. The v8 case validates FTS/import/call/heritage/relation/unresolved-import data and legacy evidence through v13. It is in-memory and does not establish reopen recovery. A first CI run caught an incorrect expectation that a pre-v5 symbol stable ID would survive; the corrected test reflects deterministic v5 symbol-ID recomputation while preserving source-field, hash-format, integrity and repeat-stability assertions. The master checklist remains the authoritative source for remaining supported generations, malformed legacy data, additional interruption boundaries and FTS recovery/query plans.
