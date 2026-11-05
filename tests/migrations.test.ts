@@ -293,4 +293,118 @@ describe("database migrations", () => {
     expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
   });
 
+
+  it("upgrades a populated version-one snapshot and preserves rows with normalized path collisions", () => {
+    database = new Database(":memory:") as MemoryDatabase;
+    database.pragma("foreign_keys = ON");
+    const projectId = "legacy-v1-project";
+    database.exec([
+      "CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);",
+      "INSERT INTO schema_migrations(version, applied_at) VALUES (1, 'legacy-v1');",
+      "CREATE TABLE projects (id TEXT PRIMARY KEY, root_path TEXT NOT NULL, name TEXT NOT NULL, created_at TEXT NOT NULL, last_indexed_at TEXT, indexed_commit TEXT);",
+      "CREATE TABLE files (id INTEGER PRIMARY KEY, path TEXT NOT NULL UNIQUE, extension TEXT NOT NULL, language TEXT NOT NULL, content_hash TEXT NOT NULL, size_bytes INTEGER NOT NULL, modified_at TEXT NOT NULL, indexed_at TEXT NOT NULL);",
+      "CREATE TABLE symbols (id INTEGER PRIMARY KEY, file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE, name TEXT NOT NULL, kind TEXT NOT NULL, signature TEXT NOT NULL, start_line INTEGER NOT NULL, end_line INTEGER NOT NULL, exported INTEGER NOT NULL DEFAULT 0);",
+      "CREATE TABLE symbol_calls (file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE, caller_name TEXT NOT NULL, callee_name TEXT NOT NULL, PRIMARY KEY(file_id, caller_name, callee_name));",
+      "CREATE TABLE relations (id INTEGER PRIMARY KEY AUTOINCREMENT, source_kind TEXT NOT NULL, source_id INTEGER NOT NULL, target_kind TEXT NOT NULL, target_id INTEGER NOT NULL, kind TEXT NOT NULL, confidence REAL NOT NULL DEFAULT 1.0, provenance TEXT NOT NULL, UNIQUE(source_kind, source_id, target_kind, target_id, kind));",
+      "CREATE TABLE memories (id TEXT PRIMARY KEY, category TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'confirmed', source_path TEXT, commit_sha TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL);",
+      "INSERT INTO projects(id, root_path, name, created_at, last_indexed_at, indexed_commit) VALUES ('legacy-v1-project', '/legacy/repo', 'repo', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', 'legacy-commit');"
+    ].join("\n"));
+
+    const insertFile = database.prepare("INSERT INTO files(id, path, extension, language, content_hash, size_bytes, modified_at, indexed_at) VALUES (?, ?, '.ts', 'typescript', ?, 100, '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')");
+    insertFile.run(10, "src\\collision.ts", "hash-backslash");
+    insertFile.run(11, "src/collision.ts", "hash-slash");
+    insertFile.run(12, "src/legacy.ts", "hash-normal");
+
+    const insertSymbol = database.prepare("INSERT INTO symbols(id, file_id, name, kind, signature, start_line, end_line, exported) VALUES (?, ?, 'open', 'function', 'open(): void', ?, ?, 1)");
+    insertSymbol.run(101, 10, 1, 1);
+    insertSymbol.run(102, 10, 2, 2);
+    insertSymbol.run(103, 11, 1, 1);
+    insertSymbol.run(104, 12, 1, 1);
+    database.prepare("INSERT INTO symbol_calls(file_id, caller_name, callee_name) VALUES (12, 'caller', 'open')").run();
+    database.prepare("INSERT INTO relations(source_kind, source_id, target_kind, target_id, kind, confidence, provenance) VALUES ('file', 12, 'symbol', 104, 'contains', 1.0, 'legacy-v1')").run();
+    database.prepare("INSERT INTO memories(id, category, title, content, status, source_path, commit_sha, created_at, updated_at) VALUES ('legacy-v1-memory', 'decision', 'V1 title', 'V1 content', 'confirmed', 'src/legacy.ts', 'legacy-source', '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z')").run();
+
+    const originalFiles = database.prepare("SELECT id, path, content_hash FROM files ORDER BY id").all();
+    const originalSymbols = database.prepare("SELECT id, file_id, name, signature, start_line, end_line FROM symbols ORDER BY id").all();
+    const originalRelations = database.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, provenance FROM relations").all();
+
+    migrate(database, projectId);
+
+    expect(database.prepare("SELECT id, path, content_hash FROM files ORDER BY id").all()).toEqual(originalFiles);
+    expect(database.prepare("SELECT id, file_id, name, signature, start_line, end_line FROM symbols ORDER BY id").all())
+      .toEqual(originalSymbols);
+    expect(database.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, provenance FROM relations").all())
+      .toEqual(originalRelations);
+
+    const filesAfter = database.prepare("SELECT id, path, stable_id AS stableId FROM files ORDER BY id").all() as Array<{
+      id: number; path: string; stableId: string;
+    }>;
+    expect(filesAfter).toHaveLength(3);
+    expect(filesAfter.every(file => file.stableId.length > 0)).toBe(true);
+    expect(new Set(filesAfter.map(file => file.stableId)).size).toBe(3);
+    const normalizedCollision = filesAfter.filter(file => file.path.replaceAll("\\", "/") === "src/collision.ts");
+    expect(normalizedCollision).toHaveLength(2);
+    expect(new Set(normalizedCollision.map(file => file.stableId)).size).toBe(2);
+
+    const symbolsAfter = database.prepare("SELECT id, file_id AS fileId, stable_id AS stableId FROM symbols ORDER BY id").all() as Array<{
+      id: number; fileId: number; stableId: string;
+    }>;
+    expect(symbolsAfter).toHaveLength(4);
+    expect(symbolsAfter.every(symbol => symbol.stableId.length > 0)).toBe(true);
+    expect(new Set(symbolsAfter.map(symbol => symbol.stableId)).size).toBe(4);
+    expect(new Set(symbolsAfter.filter(symbol => symbol.fileId === 10).map(symbol => symbol.stableId)).size).toBe(2);
+
+    expect(database.prepare("SELECT module_specifier, imported_symbol_name FROM symbol_calls").get())
+      .toEqual({ module_specifier: null, imported_symbol_name: null });
+    expect(database.prepare("SELECT index_revision FROM relations").get()).toEqual({ index_revision: 0 });
+    expect(database.prepare("SELECT index_revision, index_excludes_json, relations_config_hash FROM projects").get())
+      .toEqual({ index_revision: 0, index_excludes_json: "[]", relations_config_hash: null });
+    expect(database.prepare("SELECT version FROM schema_migrations ORDER BY version").all())
+      .toEqual(Array.from({ length: 13 }, (_, index) => ({ version: index + 1 })));
+    expect(database.prepare("SELECT project_id FROM knowledge_items WHERE id='legacy-v1-memory'")
+      .get()).toEqual({ project_id: projectId });
+    expect(database.prepare("SELECT COUNT(*) AS count FROM projects WHERE id=?").get(projectId))
+      .toEqual({ count: 1 });
+    expect(database.prepare("SELECT title, version_number FROM knowledge_versions WHERE knowledge_id='legacy-v1-memory'")
+      .get()).toEqual({ title: "V1 title", version_number: 1 });
+    expect(database.prepare("SELECT content FROM knowledge_fragments WHERE version_id='legacy-v1:legacy-v1-memory'")
+      .get()).toEqual({ content: "V1 content" });
+
+    const stableIdsBeforeRetry = {
+      files: database.prepare("SELECT id, stable_id FROM files ORDER BY id").all(),
+      symbols: database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all(),
+    };
+    // Simulate a prior v5 backfill that wrote duplicate IDs but failed before
+    // creating its uniqueness indexes or committing the v13 marker. The retry
+    // must repair both file IDs and dependent symbol IDs without losing rows.
+    // Recreate the pre-v13 state explicitly. Disable FK enforcement only
+    // while dropping the dependent v13 tables; restore it before retrying the
+    // migration so the final FK check covers the rebuilt schema and data.
+    database.pragma("foreign_keys = OFF");
+    database.exec(`
+      DROP INDEX idx_files_stable_id;
+      DROP INDEX idx_symbols_stable_id;
+      UPDATE files SET stable_id = (SELECT stable_id FROM files WHERE id = 11) WHERE id IN (10, 12);
+      UPDATE symbols SET stable_id = (SELECT stable_id FROM symbols WHERE id = 101) WHERE id IN (103, 104);
+      DROP TABLE knowledge_events;
+      DROP TABLE knowledge_relations;
+      DROP TABLE knowledge_evidence;
+      DROP TABLE knowledge_fragments;
+      DROP TABLE knowledge_versions;
+      DROP TABLE knowledge_items;
+      DROP TABLE memory_idempotency;
+      DELETE FROM schema_migrations WHERE version = 13;
+    `);
+    database.pragma("foreign_keys = ON");
+    expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version=13").get())
+      .toEqual({ count: 0 });
+    migrate(database, projectId);
+    expect({
+      files: database.prepare("SELECT id, stable_id FROM files ORDER BY id").all(),
+      symbols: database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all(),
+    }).toEqual(stableIdsBeforeRetry);
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
+  });
+
 });

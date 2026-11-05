@@ -100,3 +100,9 @@ This is a workflow recommendation, not a guarantee of complete program understan
 
 
 > **FTS retrieval integrity follow-up:** branch `fix/search-fail-closed-on-fts-drift` adds a pre-search consistency check across knowledge versions, FTS5 rows and version markers. Missing, duplicate, orphaned or ownership-mismatched FTS rows now fail closed instead of producing incomplete search results. The lazy initializer restores a missing marker from an existing FTS row without duplicating the FTS document; missing documents remain visible to `memory_health` and are not silently rebuilt. Require exact-head Ubuntu/Windows and benchmark CI before merging.
+
+
+> **PR #173 merged:** commit `2f05249b9d71e9851190f01e72ade778d2cc5d77`, exact-head CI `42017503161`, all five jobs green. FTS search now fails closed on detectable row/marker drift. PR #171 is being reconstructed on the new post-#173 main to keep its diff conflict-free; run all five checks again on its rebased exact HEAD before merging.
+
+
+> **PR #171 verification:** current PR head `d13ea31549b4e7793266eb9ada4d054696ce5026` is based on post-#173 main, is mergeable, has no open review threads, and passed all five CI jobs in run `42018977502` (also independently `42018940167`). PR #172 was closed as superseded by #171; do not merge the weaker duplicate branch.
