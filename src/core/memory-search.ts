@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { openDatabase, type MemoryDatabase } from "../storage/database.js";
+import { getKnowledgeEvidenceFreshness } from "./memory-health.js";
 import type { ProjectLocation } from "./project.js";
 
 export type MemoryLifecycle = "active" | "superseded" | "archived";
@@ -260,6 +261,9 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
       exactPath, exactSymbol, ...whereParams, candidateLimit + 1, offset) as SearchRow[];
     const candidateWindowTruncated = rows.length > candidateLimit;
     const candidates = rows.slice(0, candidateLimit);
+    const evidenceFreshnessByVersion = getKnowledgeEvidenceFreshness(location, db, candidates.slice(0, limit).map((row) => ({
+      knowledgeId: row.knowledgeId, versionId: row.versionId,
+    })));
     const results = candidates.slice(0, limit).map((row) => {
       const matchedBy: string[] = [];
       if (row.exactId) matchedBy.push("exact-knowledge-id");
@@ -281,7 +285,8 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         tags: parseList(row.tagsJson), aliases: parseList(row.aliasesJson),
         sourcePaths: row.sourcePaths ? row.sourcePaths.split(", ").slice(0, 3) : [],
         sourceSymbols: row.sourceSymbols ? row.sourceSymbols.split(", ").slice(0, 3) : [],
-        snippet: (row.snippet ?? "").slice(0, 500), matchedBy, relevance: Number((-(row.rank ?? 0)).toFixed(6))
+        snippet: (row.snippet ?? "").slice(0, 500), matchedBy, relevance: Number((-(row.rank ?? 0)).toFixed(6)),
+        sourceEvidenceFreshness: evidenceFreshnessByVersion[row.versionId]!
       };
     });
     const buildResult = () => {
@@ -294,7 +299,9 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
         truncated: hasMore,
         nextCursor: hasMore && results.length > 0 ? encodeCursor({ offset: offset + results.length, filterHash, snapshotHash }) : undefined,
         includeHistorical: input.includeHistorical ?? false,
-        sourceEvidenceFreshness: "not_checked" as const,
+        sourceEvidenceFreshness: "per_result_bounded" as const,
+        sourceEvidenceFreshnessScope: "returned_results_only" as const,
+        sourceEvidenceFreshnessLimits: { maxResults: 20, maxEvidencePerResult: 3 },
         budgetExceeded: results.length === 0 && candidates.length > 0
       };
     };
