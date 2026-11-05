@@ -90,6 +90,34 @@ describe("transactional dependent review propagation", () => {
     expect(listMemoryReviews(location, 100).items).toHaveLength(3);
   });
 
+  it("rolls back the source version when dependent review event insertion fails", () => {
+    setup();
+    const source = capture("Rollback source", "Original source.");
+    const dependent = capture("Rollback dependent", "Dependent claim.");
+    relate(dependent.knowledgeId, source.knowledgeId, "depends_on");
+    const db = openDatabase(location);
+    try {
+      db.exec(`CREATE TRIGGER reject_dependent_review BEFORE INSERT ON knowledge_events
+        WHEN NEW.event_type='reconciliation_review_requested'
+        BEGIN SELECT RAISE(ABORT, 'forced dependent review failure'); END;`);
+    } finally { db.close(); }
+    expect(() => updateMemoryVersion(location, {
+      knowledgeId: source.knowledgeId, expectedVersionId: source.versionId,
+      reason: "Must roll back", content: "Uncommitted source update.",
+    })).toThrow("forced dependent review failure");
+    const after = openDatabase(location);
+    try {
+      expect(after.prepare("SELECT current_version_id FROM knowledge_items WHERE id=?").get(source.knowledgeId))
+        .toEqual({ current_version_id: source.versionId });
+      expect(after.prepare("SELECT COUNT(*) AS count FROM knowledge_versions WHERE knowledge_id=?").get(source.knowledgeId))
+        .toEqual({ count: 1 });
+      expect(after.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE event_type='updated' AND knowledge_id=?").get(source.knowledgeId))
+        .toEqual({ count: 0 });
+      expect(after.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE event_type='reconciliation_review_requested' AND knowledge_id=?").get(dependent.knowledgeId))
+        .toEqual({ count: 0 });
+    } finally { after.close(); }
+  });
+
   it("queues direct dependents in the same transaction after a targeted correction", () => {
     setup();
     const source = capture("Corrected source", "Original statement.");
