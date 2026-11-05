@@ -135,6 +135,7 @@ export function previewMemoryReconciliation(location: ProjectLocation, input: Me
       orphanRelations: health.brokenReferences.samples.filter((sample) =>
         typeof sample === "object" && sample !== null && "kind" in sample && sample.kind === "orphan_relation"),
       dependentReview,
+      sourceChangeReview,
       truncation: {
         staleEvidence: health.sourceFreshness.truncated,
         duplicateCandidates: duplicateTotal > duplicateCandidates.length,
