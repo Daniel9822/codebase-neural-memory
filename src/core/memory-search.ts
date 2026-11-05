@@ -92,6 +92,7 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
         COALESCE((SELECT group_concat(source_symbol, ' ') FROM knowledge_evidence WHERE version_id = v.id AND source_symbol IS NOT NULL), '')
       FROM knowledge_items i JOIN knowledge_versions v ON v.knowledge_id = i.id
       WHERE NOT EXISTS (SELECT 1 FROM memory_search_indexed_versions f WHERE f.version_id = v.id)
+        AND NOT EXISTS (SELECT 1 FROM memory_search_fts existing WHERE existing.version_id = v.id)
       ORDER BY i.project_id, i.id, v.version_number;
       INSERT OR IGNORE INTO memory_search_indexed_versions(version_id)
         SELECT f.version_id FROM memory_search_fts f;
@@ -99,6 +100,51 @@ export function ensureMemorySearchIndex(db: MemoryDatabase): void {
     `);
   });
   setup.immediate();
+}
+
+
+/** Refuse incomplete retrieval when FTS rows and version bookkeeping have drifted. */
+function assertMemorySearchIndexConsistent(db: MemoryDatabase): void {
+  const integrity = db.prepare(`
+    SELECT
+      (SELECT COUNT(*) FROM knowledge_versions) AS knowledgeVersions,
+      (SELECT COUNT(*) FROM memory_search_indexed_versions) AS indexedVersions,
+      (SELECT COUNT(*) FROM memory_search_fts) AS ftsRows,
+      (SELECT COUNT(*) FROM knowledge_versions v
+        LEFT JOIN memory_search_indexed_versions x ON x.version_id = v.id
+        WHERE x.version_id IS NULL) AS missingMarkers,
+      (SELECT COUNT(*) FROM memory_search_indexed_versions x
+        LEFT JOIN knowledge_versions v ON v.id = x.version_id
+        WHERE v.id IS NULL) AS orphanedMarkers,
+      (SELECT COUNT(*) FROM (
+        SELECT version_id, COUNT(*) AS rowCount
+        FROM memory_search_fts GROUP BY version_id
+      ) f WHERE f.rowCount <> 1) AS nonUniqueFtsVersions,
+      (SELECT COUNT(*) FROM memory_search_fts f
+        LEFT JOIN knowledge_versions v ON v.id = f.version_id
+        WHERE v.id IS NULL) AS orphanedFtsRows,
+      (SELECT COUNT(*) FROM memory_search_fts f
+        JOIN knowledge_versions v ON v.id = f.version_id
+        JOIN knowledge_items i ON i.id = v.knowledge_id
+        WHERE f.knowledge_id <> i.id OR f.project_id <> i.project_id) AS mismatchedFtsOwnership
+  `).get() as {
+    knowledgeVersions: number;
+    indexedVersions: number;
+    ftsRows: number;
+    missingMarkers: number;
+    orphanedMarkers: number;
+    nonUniqueFtsVersions: number;
+    orphanedFtsRows: number;
+    mismatchedFtsOwnership: number;
+  };
+  const consistent = integrity.indexedVersions === integrity.knowledgeVersions &&
+    integrity.ftsRows === integrity.knowledgeVersions &&
+    integrity.missingMarkers === 0 && integrity.orphanedMarkers === 0 &&
+    integrity.nonUniqueFtsVersions === 0 && integrity.orphanedFtsRows === 0 &&
+    integrity.mismatchedFtsOwnership === 0;
+  if (!consistent) {
+    throw new Error("Memory search index is inconsistent; inspect memory_health before retrying. Incomplete search results were not returned.");
+  }
 }
 
 /** Search/browse immutable project knowledge with bounded FTS5 ranking and snapshot-bound pagination. */
@@ -139,6 +185,7 @@ export function searchMemories(location: ProjectLocation, input: MemorySearchInp
   const db = openDatabase(location);
   try {
     ensureMemorySearchIndex(db);
+    assertMemorySearchIndexConsistent(db);
     const snapshot = db.prepare(`
       SELECT
         (SELECT COUNT(*) FROM knowledge_items WHERE project_id = ?) AS itemCount,
