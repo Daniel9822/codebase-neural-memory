@@ -259,3 +259,8 @@ PR #170's original stacked branch passed exact-head CI `41998827170` (five jobs)
 Remaining migration gaps: all supported historical schema snapshots, ID collisions/duplicates, additional interruption boundaries, FTS rebuild failure recovery and query-plan validation. Neither SQLite `integrity_check` nor FTS5 `integrity-check` proves physical power-loss durability.
 
 PR #170 is now based directly on current `main` after PR #169's squash merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. Its diff is limited to the migration/FTS tests and four tracking documents. The prior stacked branch passed run `41998827170`; that run does not certify the rebased head, which still requires a new exact-head CI run.
+
+
+## 2026-11-05 — FTS retrieval integrity
+
+The active branch `fix/search-fail-closed-on-fts-drift` adds a fail-closed consistency gate to `memory_search`: one FTS row and one indexed-version marker must exist for each knowledge version, with no orphan/duplicate/ownership-mismatched rows. It prevents returning incomplete retrieval output while the index is known inconsistent. The lazy initializer can restore a missing marker when an FTS row already exists, but does not regenerate a missing FTS row automatically. Health remains read-only and the inconsistency stays visible for explicit future repair design. This change is pending cross-platform CI.
