@@ -127,6 +127,9 @@ describe("memory reconciliation preview", () => {
       ["inverse-depends-on", staleSource, inverseDependsOn, "depends_on"],
       ["inverse-derived-from", staleSource, inverseDerivedFrom, "derived_from"],
       ["inverse-affects", inverseAffects, staleSource, "affects"],
+      ["non-propagating-supports", staleSource, related, "supports"],
+      ["non-propagating-contradicts", staleSource, related, "contradicts"],
+      ["non-propagating-supersedes", staleSource, related, "supersedes"],
       ["non-propagating-related-to", staleSource, related, "related_to"],
     ] as const;
     const db = openDatabase(location);
