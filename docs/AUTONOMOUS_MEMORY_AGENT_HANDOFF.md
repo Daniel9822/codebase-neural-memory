@@ -199,3 +199,12 @@ PR #170's previous stacked head passed CI run `41998827170` (five jobs) after co
 **Do not merge the rebased PR #170 until its new exact HEAD passes Ubuntu and Windows verification plus all three benchmarks.** Further migration work after this slice: supported historical schema snapshots, duplicate/colliding legacy IDs, additional crash boundaries, FTS corruption/rebuild behavior and query-plan validation. Relationship-aware review propagation and source-evidence freshness follow. Physical storage power-loss durability remains unverified.
 
 **PR #170 was reconstructed on top of the merged #169 commit** `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. Its branch is directly based on current `main`, and the diff is limited to two tests plus four documentation files. The previous stacked HEAD's CI `41998827170` passed all five jobs, but the rebased head still requires a new exact-head run before merge.
+
+
+## 2026-11-05 — current continuation after PR #170
+
+PRs #168, #169 and #170 are all merged. Their merge commits are respectively `96da869dcd198bccd7b6e6cce1ed67ceb6a4ee88`, `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`, and `6c75efe875044071acdfd4c79891beb7f9958bb6`. Exact-head CI passed all five jobs for each; #170's final rebased head run is `42015249800`.
+
+The next active branch is `fix/legacy-stable-id-collision-migration`. It addresses a discovered v5 migration collision: different legacy file paths whose separators normalize to the same string currently produce the same stable ID. The fix hashes the normalized path together with the original path as deterministic disambiguation; the test verifies unique file/symbol stable IDs, SQLite integrity and idempotent repeat migration. Await exact-head multiplatform CI before acceptance.
+
+After this, continue with explicit historical-schema snapshots, malformed/duplicate legacy data, interruption boundaries, FTS recovery and query plans. Relationship-aware dependent review and source-evidence freshness remain subsequent phases. Keep physical storage durability claims bounded to the tests actually performed.
