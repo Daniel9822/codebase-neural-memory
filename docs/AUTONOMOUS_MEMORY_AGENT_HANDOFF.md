@@ -204,3 +204,10 @@ PR #170's previous stacked head passed CI run `41998827170` (five jobs) after co
 ## 2026-11-05 — FTS search degradation gate
 
 The follow-up branch `fix/search-fail-closed-on-fts-drift` prevents `memory_search` from returning silently incomplete results when its FTS5 index and version bookkeeping diverge. It checks every knowledge version has exactly one FTS row and one marker, rejects orphans/duplicates/ownership mismatches, and fails closed with a `memory_health` diagnostic pointer. It also safely restores a missing marker from an existing FTS row without duplicating the FTS document. A missing FTS row with its marker intact remains a detected inconsistency; no automatic content/index repair occurs. This branch is pending fresh Ubuntu/Windows and benchmark CI.
+
+
+## 2026-11-05 — current status after PR #173
+
+PR #173 is merged to `main` as `2f05249b9d71e9851190f01e72ade778d2cc5d77`; exact-head CI `42017503161` passed all five jobs. FTS search now refuses to return results when the FTS5 documents and indexed-version markers are inconsistent, while marker-only recovery remains idempotent.
+
+PR #171 is being rebased once more onto this post-#173 `main` because the FTS PR updated the same tracking documents. Its populated v1 migration and deterministic path/symbol stable-ID repair remain the only functional changes in that PR. Require fresh CI on the new rebased HEAD before merging; neither the earlier failed nor green runs certify a new SHA.
