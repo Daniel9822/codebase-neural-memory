@@ -199,3 +199,8 @@ PR #170's previous stacked head passed CI run `41998827170` (five jobs) after co
 **Do not merge the rebased PR #170 until its new exact HEAD passes Ubuntu and Windows verification plus all three benchmarks.** Further migration work after this slice: supported historical schema snapshots, duplicate/colliding legacy IDs, additional crash boundaries, FTS corruption/rebuild behavior and query-plan validation. Relationship-aware review propagation and source-evidence freshness follow. Physical storage power-loss durability remains unverified.
 
 **PR #170 was reconstructed on top of the merged #169 commit** `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. Its branch is directly based on current `main`, and the diff is limited to two tests plus four documentation files. The previous stacked HEAD's CI `41998827170` passed all five jobs, but the rebased head still requires a new exact-head run before merge.
+
+
+## 2026-11-05 — FTS search degradation gate
+
+The follow-up branch `fix/search-fail-closed-on-fts-drift` prevents `memory_search` from returning silently incomplete results when its FTS5 index and version bookkeeping diverge. It checks every knowledge version has exactly one FTS row and one marker, rejects orphans/duplicates/ownership mismatches, and fails closed with a `memory_health` diagnostic pointer. It also safely restores a missing marker from an existing FTS row without duplicating the FTS document. A missing FTS row with its marker intact remains a detected inconsistency; no automatic content/index repair occurs. This branch is pending fresh Ubuntu/Windows and benchmark CI.
