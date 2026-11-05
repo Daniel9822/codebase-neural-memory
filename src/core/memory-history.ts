@@ -167,7 +167,7 @@ export function getMemoryHistory(location: ProjectLocation, input: MemoryHistory
       result.truncated = true;
       // Keep each stream independently ordered and page-able; remove the older tail
       // from the larger serialized stream first, with events winning ties.
-      const removeEvent = result.events.length > 0 &&
+      const removeEvent = !individuallyOversizedEventCursor && result.events.length > 0 &&
         (result.versions.length === 0 || JSON.stringify(result.events).length >= JSON.stringify(result.versions).length);
       if (removeEvent) {
         const removed = result.events.pop()!;
