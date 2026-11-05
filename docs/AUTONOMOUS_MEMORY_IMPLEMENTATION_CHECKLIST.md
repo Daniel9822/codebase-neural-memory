@@ -577,3 +577,12 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 
 - **PR #173 merged:** `2f05249b9d71e9851190f01e72ade778d2cc5d77`; exact-head CI run `42017503161` passed all five jobs. `memory_search` now fails closed on missing/duplicate/orphaned or ownership-mismatched FTS5 rows and restores marker-only drift without duplicating an existing FTS document.
 - **PR #171 rebase:** its populated v1 snapshot and retry-safe stable-ID collision repair are being reconstructed on the post-#173 `main`. The code/test scope remains unchanged; because the base changed, require fresh exact-head Ubuntu/Windows verification and all three benchmarks before merge.
+
+
+## 2026-11-05 — PR #171 migration acceptance evidence
+
+- **PR #171 open, not yet merged:** head `d13ea31549b4e7793266eb9ada4d054696ce5026`, base `main` `2f05249b9d71e9851190f01e72ade778d2cc5d77`; GitHub reports mergeable and there are no open review threads.
+- **Exact-head CI passed:** run `42018977502` completed all five jobs successfully (Ubuntu and Windows verification; Ubuntu, Windows and macOS benchmarks). Independent run `42018940167` also passed all five jobs.
+- Scope: populated schema-v1 snapshot; preservation of legacy files, symbols and relations; distinct deterministic IDs for slash-normalized path collisions; repair of interrupted v5 file/symbol ID backfill; retry idempotency; schema markers 1–13; FK and SQLite integrity.
+- PR #172 was closed as superseded by #171. Do not count either PR as implemented until #171 is merged and current `main` is checked.
+- Still open: representative snapshots for all other supported historical schema generations; malformed/duplicate legacy-data permutations; interruption points beyond the covered v5/v13 cases; FTS rebuild failure recovery and query-plan checks; empirical power-loss/filesystem durability.
