@@ -278,3 +278,8 @@ PR #171's current work is being reconstructed on the new main to avoid documenta
 The populated schema-v1 snapshot and retry-safe normalized-path stable-ID repair are under PR #171, exact head `d13ea31549b4e7793266eb9ada4d054696ce5026`, based on main `2f05249b9d71e9851190f01e72ade778d2cc5d77`. Exact-head CI run `42018977502` passed all five jobs (Ubuntu/Windows verification and Ubuntu/Windows/macOS benchmarks); independent run `42018940167` also passed all five. No open review threads were found. This is still PR-level evidence, not merged behavior; do not mark it implemented until merge and post-merge verification.
 
 PR #172 is closed as superseded by #171. Historical-schema coverage beyond the populated v1 fixture, malformed records, further interrupted migration boundaries, FTS rebuild recovery/query-plan validation, and physical power-loss durability remain open.
+
+
+## Implementation verification note — 2026-11-05
+
+PR #171's populated schema-v1 migration snapshot and deterministic stable-ID collision/retry repair are merged to `main` as `9b24daa5e3e76ac21ccae3015d892cf2fa7afe26`. Exact-head CI run `42019978734` passed all five jobs. This is implementation evidence for the covered v1 and v5-retry cases only; it is not evidence that every historical schema generation, malformed legacy input, interruption boundary, FTS recovery path, or physical durability scenario has been verified. The implementation checklist remains the authoritative ledger for remaining acceptance work.
