@@ -670,3 +670,12 @@ Resolution appends an immutable `reconciliation_review_resolved` event, checks p
 
 
 Resolution uses `expectedVersionId` as the *current version observed by the reviewer*, not necessarily the older version captured by the request. This allows a stale request to remain visible, then be explicitly resolved after the reviewer inspects the newer current version; attempting resolution with the stale version still conflicts. No automatic acceptance or content mutation occurs.
+
+
+
+## 2026-11-05 — persistent review lifecycle merged; propagation follow-up
+
+- **PR #180 IMPLEMENTED:** merge `e8436c763bdf5f6b34eae3e23e6eebf321571a15`; source HEAD `b972e95f3d26b1b289a20a0f85b84adb0c43e97d`; exact-head CI `42054959686` passed. MCP now exposes read-only `memory_review_queue` and explicit idempotent `memory_review_resolve`. Resolution is an immutable event-only workflow outcome. It does not mutate knowledge content, epistemic/lifecycle state, evidence or relations. Stale requests remain visible and can be resolved only against the current version explicitly inspected.
+- **Active branch:** `feat/automatic-dependent-review-propagation`. The current implementation appends review requests for direct dependents atomically with `memory_update`/`memory_correct`; uses only defined directed relation types; deduplicates an already-open request for the dependent's current version; caps writes at 100 distinct dependents and reports exact candidate total/truncation. No dependent knowledge is rewritten. Core regression tests cover valid/reversed/unsupported relation direction, both mutation APIs, queue visibility and repeat-change deduplication. CI/review/merge are pending.
+- **Remaining G1:** connect repository/index/source changes (including rename/delete, symbol changes, branch/worktree changes, non-Git projects and incomplete discovery) to stale-evidence detection and review-request creation; define supersession propagation; decide and test whether transitive propagation is ever warranted; complete broader relation-impact fixtures and autonomous evaluation. A source freshness status in retrieval is not itself persisted pending-review state.
+- PR #180 queue `totalItems` is a bounded lower-bound indicator when truncated; do not describe it as an exact global count.
