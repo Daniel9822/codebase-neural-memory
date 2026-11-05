@@ -86,7 +86,11 @@ Still required:
 - [ ] Power-loss/filesystem durability testing; the child-process termination test covers process exit after commit, not machine/power failure. PR #158 sets WAL `synchronous=FULL` and tests the pragma value (`2`), but does not simulate or prove physical power-loss, storage-controller, or filesystem behavior.
 
 
-## 9. Explicitly deferred
+## 9. Rollback coverage update — PR #164
+
+PR #164 is merged to `main` as `f9ff199321ce240c052a431ed0897b5196004d79`; CI run `41934624316` passed all five jobs. Failure-injection tests in `tests/memory-update.test.ts` and `tests/memory-correct.test.ts` abort immutable-version insertion and verify identical before/after snapshots of the queried knowledge pointers, version rows, fragments, evidence rows, and events. This closes the targeted injected-failure case only. Independent-process lock contention/retry coverage for `memory_update` and `memory_correct` remains a separate active test slice; simultaneous same-identity writer scheduling and physical power-loss/filesystem durability remain unverified.
+
+## 10. Explicitly deferred
 
 - Duplicate merging or supersession.
 - Contradiction resolution.

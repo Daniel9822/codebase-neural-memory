@@ -1,6 +1,6 @@
 # Autonomous Memory Contract v2
 
-**Status:** Approved implementation contract. Schema v13/migration and the versioned core/MCP operations `memory_capture`, `memory_update`, and `memory_correct` are merged to `main` (PRs #137–#140). Progressive retrieval/history and health are merged; reconciliation has a read-only preview merged to `main` in PR #147; mutating maintenance, durable dependent-knowledge workflow, and broader agent integration remain unimplemented.  
+**Status:** Approved implementation contract. Base schema v13/migration, the lazy schema-v14 FTS5 search-index migration, and the versioned core/MCP operations `memory_capture`, `memory_update`, and `memory_correct` are merged to `main` (PRs #137–#140). Progressive retrieval/history and health are merged; reconciliation has a read-only preview merged to `main` in PR #147; mutating maintenance, durable dependent-knowledge workflow, and broader agent integration remain unimplemented.  
 **Audit baseline:** `main` at `8ffbc71109ab165f857bc5ef5393331f17130b53` (2026-11-03). Contract merged to `main` in PR #136 at `4f66aad688bd62bf6b480160584b5231b057b879`.  
 **Scope:** Project-local, persistent knowledge that can be captured, versioned, corrected, related, retrieved, and reviewed by compatible coding agents.
 
@@ -120,7 +120,7 @@ The initial implementation should use deterministic matching (stable source/symb
 
 ### 5.2 Update
 
-`memory_update` appends a version to a known identity. It requires `knowledgeId`, `expectedVersionId`, and a non-empty change `reason`; actor is optional. Mutable knowledge fields are partial: omitted title/summary/content/epistemic state/confidence/tags/aliases/fragments inherit from the current version. A supplied content body replaces the primary fragment; supplied fragments replace the prior fragment set (and are preceded by the primary content fragment when content is supplied). Existing evidence is carried forward into the new version and newly supplied evidence is appended. The identity's current-version pointer and metadata update in the same transaction as the new immutable version, fragments, evidence, and `updated` event. A stale expected version returns a structured `conflict` with the actual current version and performs no write. An unchanged effective payload returns `no_op` and creates no version/event. The original version and its author/evidence remain intact. Current implementation is `src/core/memory-update.ts`, exposed as MCP `memory_update`; core and protocol regression tests cover append/history preservation, stale conflict, no-op, confidence rationale, and project isolation. Failure-injection and independent-connection race tests remain outstanding.
+`memory_update` appends a version to a known identity. It requires `knowledgeId`, `expectedVersionId`, and a non-empty change `reason`; actor is optional. Mutable knowledge fields are partial: omitted title/summary/content/epistemic state/confidence/tags/aliases/fragments inherit from the current version. A supplied content body replaces the primary fragment; supplied fragments replace the prior fragment set (and are preceded by the primary content fragment when content is supplied). Existing evidence is carried forward into the new version and newly supplied evidence is appended. The identity's current-version pointer and metadata update in the same transaction as the new immutable version, fragments, evidence, and `updated` event. A stale expected version returns a structured `conflict` with the actual current version and performs no write. An unchanged effective payload returns `no_op` and creates no version/event. The original version and its author/evidence remain intact. Current implementation is `src/core/memory-update.ts`, exposed as MCP `memory_update`; core and protocol regression tests cover append/history preservation, stale conflict, no-op, confidence rationale, and project isolation. PR #164 adds targeted failure-injection rollback tests for immutable-version insertion. PR #165 adds independent-process lock-contention/retry tests for both update and correction. Its initial CI also exposed and prompted a fix for `memory_history` cursor advancement past individually oversized events; the fix and tests await fresh Ubuntu/Windows CI. Simultaneous same-identity writer scheduling remains open.
 
 ### 5.3 Correction
 
@@ -230,3 +230,10 @@ No phase is complete because a tool name or schema exists. Completion requires f
 - Training or modifying model weights.
 - Automatic destructive merging of ambiguous or contradictory knowledge.
 - Claiming cross-worktree sharing without an explicit, tested project-identity linking design.
+
+
+## 2026-11-04 implementation verification addendum
+
+PR #164 is merged to `main` as `f9ff199321ce240c052a431ed0897b5196004d79`; CI run `41934624316` passed all five jobs. Its rollback-injection tests for `memory_update` and `memory_correct` compare before/after snapshots of queried knowledge pointers, versions, fragments, evidence, and events after an immutable-version insert failure. This is targeted failure coverage, not a complete failure matrix.
+
+PR #165 (`test/memory-update-correct-cross-process-contention`) adds independent-process SQLite writer-lock tests for update and correction. The intended acceptance is no writes on lock failure followed by a successful retry after lock release. Treat this slice as pending until Ubuntu and Windows CI pass. Neither PR establishes simultaneous same-identity writer scheduling or physical power-loss durability.

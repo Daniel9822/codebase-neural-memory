@@ -36,7 +36,7 @@ The following autonomous-memory slices are recorded as merged to `main`:
 | Capability | Status | Evidence / implementation |
 |---|---|---|
 | Contract v2 | IMPLEMENTED (specification) | PR #136; merge `4f66aad688bd62bf6b480160584b5231b057b879`; `docs/AUTONOMOUS_MEMORY_CONTRACT.md` |
-| Schema v13 and legacy migration | IMPLEMENTED, with broader migration matrix still open | PR #137; merge `c1abe4160ff7a5c9503e42901b2c6e4e21476778`; `src/storage/database.ts` |
+| Base schema v13 and legacy migration (with the lazy schema-v14 FTS5 search-index migration) | IMPLEMENTED, with broader migration matrix still open | PR #137; merge `c1abe4160ff7a5c9503e42901b2c6e4e21476778`; `src/storage/database.ts` |
 | `memory_capture` | IMPLEMENTED for current bounded deterministic capture semantics | PR #138; merge `7faf875f0166bc2e496d099039cb625dde5ba832`; `src/core/memory-capture.ts` |
 | `memory_update` | IMPLEMENTED with optimistic expected-version update | PR #139; merge `f73e1a4022c8b61a6854af2e24c7405dabc3d24c`; `src/core/memory-update.ts` |
 | `memory_correct` | IMPLEMENTED for targeted fragment correction | PR #140; merge `7ca7441059299a228c4889cb5ccbd542637cab58`; `src/core/memory-correct.ts` |
@@ -51,7 +51,7 @@ The implementation checklist contains the detailed semantics and evidence. Histo
 
 
 
-### Latest verified storage update — PR #158
+### Latest verified SQLite durability policy — PR #158
 
 PR #158 is merged as `5ea62b89ea2f348080d55396b288612a534568d9` (head `9b2d7c33b62564f087c3196faeaff1b49865922e`; CI `41919002890`, all five jobs green). `src/storage/database.ts` now explicitly sets `PRAGMA synchronous = FULL` on each opened WAL connection. `tests/memory-review-request.test.ts` asserts WAL mode and synchronous level `2`. The bounded recall fixture in `tests/memories.test.ts` batches its 5,001 inserts in one transaction, retaining its truncation assertions while avoiding per-row FULL-sync commits on Windows. This verifies SQLite configuration and CI behavior only; it does not prove physical power-loss, storage-controller, or filesystem durability. Keep that item open.
 
@@ -90,7 +90,7 @@ Do not add embeddings, hosted services, LLM calls, or remote dependencies.
 **PENDING / NOT VERIFIED until evidenced:**
 - migration matrix from all supported prior schema versions, including interruption/reopen/retry and malformed legacy data;
 - deterministic overlapping SQLite-connection writer/apply contention tests for `memory_update`, `memory_correct`, and reconciliation apply;
-- failure-injection and rollback/atomicity tests;
+- failure-injection and rollback/atomicity tests (targeted rollback injection merged in PR #164; broader matrix remains open);
 - relation/evidence/current-version/FTS consistency checks and repairability;
 - serialized response-budget coverage across history/search/bootstrap and adversarial boundary cases;
 - retrieval quality corpus and deterministic ranking evaluation.
@@ -161,3 +161,19 @@ PR #161 is merged to `main` as `e5e646efaa1f45efd73612afab64b81bbd0dfbce`. CI ru
 ## 2026-11-04 — Next reliability slice in progress
 
 Branch `test/memory-update-correct-rollback-atomicity` adds failure-injection coverage for `memory_update` and `memory_correct`: SQLite triggers abort immutable-version insertion, and tests assert that current pointers, version rows, fragments, evidence, and events remain identical snapshots of the queried fields. This is pending CI and review. It does not yet close independent-connection contention coverage for these operations.
+
+
+## 2026-11-04 — PR #164 and current reliability work
+
+PR #164 is merged to `main` as `f9ff199321ce240c052a431ed0897b5196004d79` (head `81307794d6f3db8567ba3772a51bbb2eeebfb3bc`). CI run `41934624316` passed all five jobs. The tests in `tests/memory-update.test.ts` and `tests/memory-correct.test.ts` inject a failure on immutable-version insertion and verify identical before/after snapshots of the queried knowledge pointers, versions, fragments, evidence, and events. This is targeted rollback-injection coverage, not a byte-for-byte database comparison and not a complete failure matrix.
+
+PR #160 added serialized response budgeting to `memory_history`; PR #161 added repeated constrained-page and oversized-event regressions and merged with CI run `41931940923` green; PR #162 closed out that verification documentation. PR #163 was superseded by the rebased PR #164; it is not an outstanding implementation branch.
+
+**Current active slice:** PR #165, branch `test/memory-update-correct-cross-process-contention`, adds independent-process `BEGIN IMMEDIATE` lock-contention tests for `memory_update` and `memory_correct`, plus schema-v13 migration rollback/retry coverage transferred from the superseded PR #166. Each contention test expects the operation to fail without writes while the lock is held, waits for the child process to close its SQLite handle, then retries successfully. CI exposed an unrelated but real `memory_history` cursor defect: an individually oversized event could be omitted but the cursor reset to the last returned event, causing the oversized event to recur and blocking older history. The PR now fixes cursor advancement past an individually oversized event and makes the fixture timestamp deterministic. Re-run all Ubuntu/Windows verification and benchmark jobs before treating either change as verified.
+
+Still open after this slice: simultaneous same-identity writer scheduling, broader migration/recovery matrix, relationship-aware dependent-knowledge impact/review, source-evidence freshness propagation, full reconciliation resolution, response-budget exact-boundary coverage across tools, agent/client integration and evaluation, CNM-03/A7 close-out, and physical power-loss/filesystem durability. Keep each claim tied to merged source/tests/CI.
+
+
+### CI failure follow-up — memory history cursor
+
+The initial PR #165/#166 CI exposed a reproducible regression in `tests/memory-history.test.ts`: after omitting an individually oversized event, `getMemoryHistory` recalculated `nextBeforeEvent` from the last returned event instead of preserving the omitted oversized event as the cursor boundary. This could repeatedly return the same oversized event on the next page and prevent traversal to older events. The active PR #165 branch now preserves the cursor for individually oversized events; the test fixture uses a fixed old timestamp so ordering does not depend on runner wall-clock time. The correction is pending fresh CI.
