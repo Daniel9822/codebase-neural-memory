@@ -293,4 +293,62 @@ describe("database migrations", () => {
     expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
   });
 
+
+  it("assigns distinct deterministic stable IDs to legacy paths that normalize to the same path", () => {
+    database = new Database(":memory:") as MemoryDatabase;
+    database.exec(`
+      CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+      INSERT INTO schema_migrations(version, applied_at)
+      VALUES (1, 'old'), (2, 'old'), (3, 'old'), (4, 'old');
+      CREATE TABLE files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT NOT NULL UNIQUE,
+        extension TEXT NOT NULL,
+        language TEXT NOT NULL,
+        content_hash TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL,
+        modified_at TEXT NOT NULL,
+        indexed_at TEXT NOT NULL
+      );
+      CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        name TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        signature TEXT NOT NULL,
+        start_line INTEGER NOT NULL,
+        end_line INTEGER NOT NULL,
+        exported INTEGER NOT NULL DEFAULT 0
+      );
+      INSERT INTO files(path, extension, language, content_hash, size_bytes, modified_at, indexed_at)
+      VALUES
+        ('src\\\\legacy.ts', '.ts', 'typescript', 'hash-a', 10, 'old', 'old'),
+        ('src/legacy.ts', '.ts', 'typescript', 'hash-b', 11, 'old', 'old');
+      INSERT INTO symbols(file_id, name, kind, signature, start_line, end_line)
+      VALUES
+        (1, 'run', 'function', 'run()', 1, 2),
+        (2, 'run', 'function', 'run()', 1, 2);
+    `);
+
+    migrate(database);
+
+    const files = database.prepare("SELECT path, stable_id FROM files ORDER BY path").all() as Array<{ path: string; stable_id: string }>;
+    const symbols = database.prepare("SELECT file_id, stable_id FROM symbols ORDER BY file_id").all() as Array<{ file_id: number; stable_id: string }>;
+    expect(files).toHaveLength(2);
+    expect(new Set(files.map((row) => row.stable_id)).size).toBe(2);
+    expect(symbols).toHaveLength(2);
+    expect(new Set(symbols.map((row) => row.stable_id)).size).toBe(2);
+    expect(database.prepare("SELECT COUNT(*) AS count FROM schema_migrations WHERE version=5").get())
+      .toEqual({ count: 1 });
+    expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
+
+    const firstFileIds = files.map((row) => row.stable_id);
+    const firstSymbolIds = symbols.map((row) => row.stable_id);
+    migrate(database);
+    expect(database.prepare("SELECT path, stable_id FROM files ORDER BY path").all().map((row: any) => row.stable_id))
+      .toEqual(firstFileIds);
+    expect(database.prepare("SELECT file_id, stable_id FROM symbols ORDER BY file_id").all().map((row: any) => row.stable_id))
+      .toEqual(firstSymbolIds);
+  });
+
 });
