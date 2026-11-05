@@ -596,4 +596,172 @@ describe("database migrations", () => {
   });
 
 
+
+  it("upgrades a populated version-eight snapshot and preserves index and memory provenance", () => {
+    database = new Database(":memory:") as MemoryDatabase;
+    database.pragma("foreign_keys = ON");
+    database.exec(`
+      CREATE TABLE schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL);
+      INSERT INTO schema_migrations(version, applied_at)
+        VALUES (1, 'v8'), (2, 'v8'), (3, 'v8'), (4, 'v8'),
+          (5, 'v8'), (6, 'v8'), (7, 'v8'), (8, 'v8');
+      CREATE TABLE projects (
+        id TEXT PRIMARY KEY, root_path TEXT NOT NULL, name TEXT NOT NULL,
+        created_at TEXT NOT NULL, last_indexed_at TEXT, indexed_commit TEXT,
+        index_revision INTEGER NOT NULL DEFAULT 0, index_excludes_json TEXT NOT NULL DEFAULT '[]'
+      );
+      CREATE TABLE files (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, stable_id TEXT, path TEXT NOT NULL UNIQUE,
+        extension TEXT NOT NULL, language TEXT NOT NULL, content_hash TEXT NOT NULL,
+        size_bytes INTEGER NOT NULL, modified_at TEXT NOT NULL, indexed_at TEXT NOT NULL
+      );
+      CREATE TABLE symbols (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, stable_id TEXT,
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        name TEXT NOT NULL, kind TEXT NOT NULL, signature TEXT NOT NULL,
+        start_line INTEGER NOT NULL, end_line INTEGER NOT NULL, exported INTEGER NOT NULL DEFAULT 0
+      );
+      CREATE VIRTUAL TABLE symbols_fts USING fts5(
+        name, signature, file_path UNINDEXED, kind UNINDEXED,
+        tokenize = 'unicode61 remove_diacritics 2'
+      );
+      CREATE TABLE file_imports (
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        module_specifier TEXT NOT NULL,
+        PRIMARY KEY(file_id, module_specifier)
+      );
+      CREATE TABLE symbol_calls (
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        caller_name TEXT NOT NULL, callee_name TEXT NOT NULL,
+        module_specifier TEXT, imported_symbol_name TEXT,
+        PRIMARY KEY(file_id, caller_name, callee_name)
+      );
+      CREATE TABLE symbol_heritage (
+        file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        owner_name TEXT NOT NULL, relation_kind TEXT NOT NULL CHECK(relation_kind IN ('EXTENDS', 'IMPLEMENTS')),
+        target_name TEXT NOT NULL, module_specifier TEXT, imported_name TEXT
+      );
+      CREATE TABLE relations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_kind TEXT NOT NULL, source_id INTEGER NOT NULL,
+        target_kind TEXT NOT NULL, target_id INTEGER NOT NULL, kind TEXT NOT NULL,
+        confidence REAL NOT NULL DEFAULT 1.0, provenance TEXT NOT NULL,
+        index_revision INTEGER NOT NULL DEFAULT 0,
+        UNIQUE(source_kind, source_id, target_kind, target_id, kind)
+      );
+      CREATE TABLE unresolved_imports (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        source_file_id INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+        module_specifier TEXT NOT NULL,
+        status TEXT NOT NULL CHECK(status IN ('unresolved', 'ambiguous')),
+        candidates_json TEXT NOT NULL DEFAULT '[]',
+        UNIQUE(source_file_id, module_specifier)
+      );
+      CREATE TABLE memories (
+        id TEXT PRIMARY KEY, category TEXT NOT NULL, title TEXT NOT NULL, content TEXT NOT NULL,
+        status TEXT NOT NULL DEFAULT 'confirmed', source_path TEXT, commit_sha TEXT,
+        source_hash TEXT, created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+      );
+      INSERT INTO projects(
+        id, root_path, name, created_at, last_indexed_at, indexed_commit, index_revision, index_excludes_json
+      ) VALUES (
+        'v8-project', '/legacy/v8', 'legacy-v8', '2026-01-01T00:00:00.000Z',
+        '2026-01-02T00:00:00.000Z', 'v8-commit', 8, '["dist","vendor"]'
+      );
+      INSERT INTO files(id, stable_id, path, extension, language, content_hash, size_bytes, modified_at, indexed_at)
+        VALUES (81, 'v8-file-stable-id', 'src/v8.ts', '.ts', 'typescript', 'v8-file-hash',
+          192, '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z');
+      INSERT INTO symbols(id, stable_id, file_id, name, kind, signature, start_line, end_line, exported)
+        VALUES (82, 'legacy-v8-symbol-id', 81, 'loadV8', 'function', 'loadV8(): string', 5, 11, 1);
+      INSERT INTO symbols_fts(rowid, name, signature, file_path, kind)
+        VALUES (82, 'loadV8', 'loadV8(): string', 'src/v8.ts', 'function');
+      INSERT INTO file_imports(file_id, module_specifier) VALUES (81, 'node:fs');
+      INSERT INTO symbol_calls(file_id, caller_name, callee_name, module_specifier, imported_symbol_name)
+        VALUES (81, 'bootstrap', 'loadV8', './v8.js', 'loadV8');
+      INSERT INTO symbol_heritage(file_id, owner_name, relation_kind, target_name, module_specifier, imported_name)
+        VALUES (81, 'V8Loader', 'IMPLEMENTS', 'Loader', './types.js', 'Loader');
+      INSERT INTO relations(source_kind, source_id, target_kind, target_id, kind, confidence, provenance, index_revision)
+        VALUES ('file', 81, 'symbol', 82, 'contains', 0.8, 'v8-snapshot', 8);
+      INSERT INTO unresolved_imports(source_file_id, module_specifier, status, candidates_json)
+        VALUES (81, './missing-v8.js', 'unresolved', '[]');
+      INSERT INTO memories(
+        id, category, title, content, status, source_path, commit_sha, source_hash, created_at, updated_at
+      ) VALUES (
+        'v8-memory', 'decision', 'V8 decision', 'Preserve this v8 decision', 'confirmed',
+        'src/v8.ts', 'v8-commit', 'v8-source-hash',
+        '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z'
+      );
+    `);
+
+    const sourceSnapshot = () => ({
+      project: database!.prepare(`SELECT id, root_path, name, created_at, last_indexed_at,
+        indexed_commit, index_revision, index_excludes_json FROM projects`).all(),
+      files: database!.prepare("SELECT id, stable_id, path, extension, language, content_hash, size_bytes, modified_at, indexed_at FROM files").all(),
+      symbols: database!.prepare("SELECT id, file_id, name, kind, signature, start_line, end_line, exported FROM symbols").all(),
+      symbolFts: database!.prepare("SELECT rowid, name, signature, file_path, kind FROM symbols_fts").all(),
+      imports: database!.prepare("SELECT file_id, module_specifier FROM file_imports").all(),
+      calls: database!.prepare("SELECT file_id, caller_name, callee_name, module_specifier, imported_symbol_name FROM symbol_calls").all(),
+      heritage: database!.prepare("SELECT file_id, owner_name, relation_kind, target_name, module_specifier, imported_name FROM symbol_heritage").all(),
+      relations: database!.prepare("SELECT source_kind, source_id, target_kind, target_id, kind, confidence, provenance, index_revision FROM relations").all(),
+      unresolved: database!.prepare("SELECT source_file_id, module_specifier, status, candidates_json FROM unresolved_imports").all(),
+      memories: database!.prepare("SELECT id, category, title, content, status, source_path, commit_sha, source_hash, created_at, updated_at FROM memories").all(),
+    });
+    const before = sourceSnapshot();
+
+    migrate(database, "v8-project");
+
+    expect(sourceSnapshot()).toEqual(before);
+    expect(database.prepare("SELECT id, stable_id FROM files ORDER BY id").all())
+      .toEqual([{ id: 81, stable_id: "v8-file-stable-id" }]);
+    const symbolIds = database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all() as Array<{ id: number; stable_id: string }>;
+    expect(symbolIds).toHaveLength(1);
+    expect(symbolIds[0].stable_id).toMatch(/^[a-f0-9]{64}$/);
+
+    const memoryColumns = database.prepare("PRAGMA table_info(memories)").all().map((column: any) => column.name);
+    expect(memoryColumns).toEqual(expect.arrayContaining(["source_hash", "author", "updated_by"]));
+    expect(database.prepare("SELECT author, updated_by FROM memories WHERE id='v8-memory'").get())
+      .toEqual({ author: null, updated_by: null });
+    const projectColumns = database.prepare("PRAGMA table_info(projects)").all().map((column: any) => column.name);
+    expect(projectColumns).toEqual(expect.arrayContaining([
+      "indexed_branch", "indexed_worktree_dirty", "indexed_worktree_status_hash",
+      "indexed_worktree_changed_paths", "relations_config_hash",
+    ]));
+    expect(database.prepare("SELECT indexed_branch, indexed_worktree_dirty, indexed_worktree_status_hash, indexed_worktree_changed_paths, relations_config_hash FROM projects WHERE id='v8-project'").get())
+      .toEqual({
+        indexed_branch: null, indexed_worktree_dirty: null, indexed_worktree_status_hash: null,
+        indexed_worktree_changed_paths: null, relations_config_hash: null,
+      });
+    expect(database.prepare("PRAGMA table_info(import_diagnostics)").all().map((column: any) => column.name))
+      .toEqual(expect.arrayContaining([
+        "source_file_id", "module_specifier", "diagnostic_code", "kind", "message",
+        "line", "column_number", "imported_name",
+      ]));
+    expect(database.prepare("SELECT project_id, legacy_status FROM knowledge_items WHERE id='v8-memory'").get())
+      .toEqual({ project_id: "v8-project", legacy_status: "confirmed" });
+    expect(database.prepare("SELECT created_by FROM knowledge_versions WHERE knowledge_id='v8-memory'").get())
+      .toEqual({ created_by: null });
+    expect(database.prepare("SELECT evidence_type, source_path, source_hash, commit_sha, actor, metadata_json FROM knowledge_evidence WHERE version_id='legacy-v1:v8-memory'").get())
+      .toEqual({
+        evidence_type: "legacy_source_reference", source_path: "src/v8.ts", source_hash: "v8-source-hash",
+        commit_sha: "v8-commit", actor: null, metadata_json: JSON.stringify({ legacyStatus: "confirmed" }),
+      });
+    expect(database.prepare("SELECT version FROM schema_migrations ORDER BY version").all())
+      .toEqual(Array.from({ length: 13 }, (_, index) => ({ version: index + 1 })));
+    expect(database.prepare("PRAGMA foreign_key_check").all()).toEqual([]);
+    expect(database.prepare("PRAGMA integrity_check").all()).toEqual([{ integrity_check: "ok" }]);
+
+    const stableIds = {
+      files: database.prepare("SELECT id, stable_id FROM files ORDER BY id").all(),
+      symbols: database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all(),
+    };
+    migrate(database);
+    expect({
+      files: database.prepare("SELECT id, stable_id FROM files ORDER BY id").all(),
+      symbols: database.prepare("SELECT id, stable_id FROM symbols ORDER BY id").all(),
+    }).toEqual(stableIds);
+    expect(database.prepare("SELECT COUNT(*) AS count FROM knowledge_events WHERE knowledge_id='v8-memory' AND event_type='legacy_import'").get())
+      .toEqual({ count: 1 });
+  });
+
+
 });
