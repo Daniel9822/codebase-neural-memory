@@ -564,3 +564,12 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Still open after this slice: full snapshots for every supported historical schema, duplicate/colliding legacy IDs, additional interruption boundaries outside v13 DDL, FTS rebuild/failure recovery, migration query-plan validation and empirical power-loss/filesystem durability.
 
 - **Rebased PR #170 onto current main:** branch head before this status note was `a872db2464d9f4fc47aefdf198093c7d4a4e95b2`, parented directly on #169 merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. The diff is six files only; fresh CI for the rebased PR head is still required. The prior stacked head's green run `41998827170` is historical evidence only, not a check for the rebased head.
+
+
+## 2026-11-05 — relationship-aware memory impact discovery
+
+- **Active branch:** `feat/memory-relationship-impact-analysis` adds a bounded read-only breadth-first `memory_impact` operation exposed through MCP.
+- Direction is explicit: `depends_on` and `derived_from` are traversed dependency→dependent; `affects` and `supports` are traversed source→target. Symmetric/ambiguous `related_to` and `contradicts` links do not trigger propagation.
+- Every returned dependent includes the current version ID and a deterministic relation path explaining why it was selected. Project isolation, cycle detection, a maximum depth of five, a 100-item result bound, a 1,000-edge scan budget, a 12,000-character serialized budget, and optional expected-version conflict detection bound the analysis.
+- The tool performs no writes. Agents may select returned IDs and pass them explicitly to `memory_reconcile(operation="request_review")`; review creation remains caller-selected, idempotent and append-only.
+- This slice is pending exact-head Ubuntu/Windows verification, MCP protocol tests and all three benchmarks. Do not mark transitive impact propagation complete until CI passes and the PR merges.
