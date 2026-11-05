@@ -564,3 +564,11 @@ The six-item audit is therefore substantially advanced, but CNM-03 and combined 
 - Still open after this slice: full snapshots for every supported historical schema, duplicate/colliding legacy IDs, additional interruption boundaries outside v13 DDL, FTS rebuild/failure recovery, migration query-plan validation and empirical power-loss/filesystem durability.
 
 - **Rebased PR #170 onto current main:** branch head before this status note was `a872db2464d9f4fc47aefdf198093c7d4a4e95b2`, parented directly on #169 merge `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca`. The diff is six files only; fresh CI for the rebased PR head is still required. The prior stacked head's green run `41998827170` is historical evidence only, not a check for the rebased head.
+
+
+## 2026-11-05 — PR #168–#170 integrated; legacy stable-ID collision follow-up
+
+- **Verified merged:** #168 `96da869dcd198bccd7b6e6cce1ed67ceb6a4ee88` (CI `41991378215`); #169 `d5cdb6cdca88f1f41211ae9fa2c85dc837f1d1ca` (CI `41997492219`); #170 `6c75efe875044071acdfd4c79891beb7f9958bb6` (rebased exact-head CI `42015249800`, five jobs successful). All three PRs are closed/merged.
+- Same-identity update/update, correct/correct, mixed update/correct races, migration rollback/reopen/retry, legacy status mapping, and FTS5 reopen/integrity checks are now present on `main`.
+- **Active branch:** `fix/legacy-stable-id-collision-migration`. Review found a migration edge case in v5 stable-ID backfill: two distinct legacy file paths that differ only by slash spelling normalize to the same path and therefore hash to the same stable ID, conflicting with the unique index. The branch includes a deterministic disambiguator using both normalized and original path, plus a regression for distinct file/symbol IDs and repeat-migration idempotence. This is pending CI/review; no completion claim until exact-head Ubuntu/Windows and all benchmarks pass.
+- Remaining migration gaps after this slice: representative snapshots for each supported historical schema generation, malformed/duplicate legacy records, more crash/interruption boundaries, FTS rebuild failure recovery and query-plan validation. Physical power-loss/filesystem durability remains unverified.
