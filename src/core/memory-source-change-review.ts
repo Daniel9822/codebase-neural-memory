@@ -46,7 +46,7 @@ export function previewSourceChangeReviews(
   const freshness = getIndexFreshness(location);
   const changes = freshness.fileChanges;
   const paths = [...new Set(changes.map((change) => change.path))];
-  const limitations: string[] = [];
+  const limitations: string[] = ["commit_only_provenance_not_matched"];
   if (freshness.status === "not-indexed") limitations.push("index_not_initialized");
   if (freshness.status === "incomplete") limitations.push("index_discovery_incomplete");
   if (freshness.fileChangesTruncated) limitations.push("changed_path_manifest_truncated");
