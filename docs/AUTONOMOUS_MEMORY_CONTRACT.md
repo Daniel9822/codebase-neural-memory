@@ -302,3 +302,10 @@ PR #178 merged as `a668cb8ec0b19ea398df85418b46212c500743f6`; exact-head CI run 
 ## 2026-11-05 — Directed dependent-review preview semantics verified
 
 PR #179 is merged as `55649d4aec271f95b4034470456e39f682e717ad`; exact-head CI `42036240634` passed all five jobs. For `A depends_on B` or `A derived_from B`, stale B makes A a direct review candidate. For `A affects B`, stale A makes B a direct review candidate. The preview is direct-only, project-scoped, active-dependent-only and deduplicates candidate knowledge identities with a deterministic representative relation. Other relation types do not propagate in this slice. No knowledge status or event is mutated; explicit `request_review` remains a separate event-only apply action. Persisted review status/completion and broader change-impact propagation remain open.
+
+
+## 2026-11-05 — indexed source-change review discovery (implementation in progress)
+
+The active branch `feat/source-change-review-discovery` adds a read-only reconciliation preview that matches the indexer's bounded added/changed/deleted project-relative path manifest against `source_path` evidence on current active versioned knowledge. Results expose the index status/revision, exact matched-knowledge total, bounded candidates, truncation and limitations. A complete manifest means only that index discovery returned its full path-change list without skipped/error/incomplete conditions; it does not establish completeness for commit-only provenance, legacy memories, symbol-level impact, or transitive dependencies. Incomplete or truncated discovery must never be presented as exhaustive.
+
+This preview does not mutate knowledge or append review events. The existing explicit `memory_reconcile` `request_review` apply operation remains responsible for appending event-only requests with expected-version, project-scope and idempotency guards. The new slice is not considered implemented until exact-head cross-platform CI and required benchmarks pass, review is complete, and the PR is merged.
